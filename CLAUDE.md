@@ -25,6 +25,8 @@ Sistem absensi fingerprint dan payroll otomatis. Rancangan lengkap ada di PRD v3
 | `percobaan/` | Kode uji kelayakan Tahap 1,5. Boleh dibuang, tidak dipakai sistem |
 | `db/migrasi/` | Perubahan database bernomor, hanya maju; file yang sudah dipasang tidak boleh diedit |
 | `db/uji/` | Uji otomatis database; dijalankan dari nol di Postgres sementara |
+| `sistem/urai/` | Pembaca file mesin (TypeScript tanpa pustaka luar; dipakai lagi di Edge Function Tahap 5) |
+| `sistem/uji/` | Uji dengan data simulasi lengkap: U1 (banding kunci jawaban), U4, U6, sidik |
 
 ## Larangan penting
 
@@ -44,6 +46,13 @@ Uji database (butuh Postgres kosong):
 
 ```
 DB_URL=postgresql://postgres:postgres@localhost:5432/postgres db/uji/jalankan.sh
+```
+
+Uji pembaca file dan uji simulasi Tahap 3 (butuh Node 22 dan Python 3):
+
+```
+node --test sistem/urai/uji_urai.ts
+ADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres sistem/uji/jalankan_simulasi.sh
 ```
 
 GitHub Actions menjalankan uji ini dan pemeriksaan kewajaran setiap kali ada perubahan (`.github/workflows/uji-database.yml`). Perubahan yang membuat satu uji gagal tidak boleh dipasang.

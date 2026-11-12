@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 13 November 2026, 01.00 WIB, cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 13 November 2026, 02.40 WIB, cabang `main` (Tahap 3 selesai dan terpasang di Supabase).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -13,7 +13,11 @@ Terakhir diperbarui: 13 November 2026, 01.00 WIB, cabang `main` dan `tahap-2b` (
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 2 (gudang data) lulus dengan catatan; berikutnya Tahap 3
+## Posisi sekarang: Tahap 3 (pembaca tap) lulus dan terpasang; berikutnya Tahap 4
+
+Ringkasan Tahap 3 ada di bagian "Tahap 3" di bawah dan lengkapnya di `docs/laporan-tahap-3.md`.
+
+## Tahap 2 (gudang data): lulus dengan catatan
 
 ### Sudah terbukti
 
@@ -108,13 +112,33 @@ Data simulasi (`data/simulasi/*/mesin/*.csv.gz`) sudah berbentuk sama persis (5 
 
 **Pertanyaan terbuka untuk Tahap 6 (Sheets):** bentuk file 2 pada dasarnya daftar tap per orang, sedangkan PRD celah D4 melarang log tap mentah di Sheets. Pilihan: (a) tetap PRD: Sheets hanya rekap, rincian tap lewat rincian gaji atau keberatan; (b) tambah satu tab "rincian tap per orang" seperti file 2. Diputuskan pemilik di Tahap 6.
 
+## Tahap 3 (13 Nov 2026): pembaca tap — lulus
+
+Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file simulasi ikut diproses) dan 2 (koreksi jam MA2: uji dengan dan tanpa koreksi di GitHub, demo memakai koreksi).
+
+| Hal | Isi |
+| --- | --- |
+| Kode | `sistem/urai/` (pembaca file), migrasi 0006 (`fakta.terima_kiriman`, tabel `hitung.*`, `hitung.baca_tap`), migrasi 0007 (sidik tidak bergantung zona sesi) |
+| Uji | `db/uji/040_baca_tap.sql`, `sistem/urai/uji_urai.ts`, `sistem/uji/jalankan_simulasi.sh` (U1 dengan/tanpa koreksi, U4, U6, sidik); semua jalan di GitHub Actions setiap dorongan |
+| Hasil uji | U1, U4, U6, B11/B12, sidik: lulus. 16 uji pembaca, 163 uji database, 9 uji simulasi |
+| Supabase | Terpasang lewat cabang `pasang` (commit c8062f4, lalu 0007). 178.425 tap mentah, 119.853 hari-orang, 528 anomali. Cadangan malam sesudahnya: 43 tabel / 490.128 baris pulih sama persis, uji tanpa login lulus |
+| Lama hitung | `baca_tap` satu periode Pabrik A: Supabase 12,2 detik, GitHub 6 detik, komputer kerja 4,4 detik |
+| Menjalankan ulang | `select hitung.baca_tap(<id periode>)` menambah versi baru; tampilan `hitung.versi_terakhir` memberi versi yang dipakai |
+
+**Syarat yang dibawa ke tahap berikutnya (dari temuan Tahap 3):**
+
+- Tahap 4: Pabrik B butuh data awal struktur (divisi, jadwal 5 hari, rotasi Keamanan) sebelum U5; cuti bersama "potong cuti" (C02) dihitung bersama saldo cuti.
+- Tahap 5: Edge Function memanggil `hitung.baca_tap` lewat **koneksi database langsung**, bukan jalur API (batas 8 detik; Supabase butuh 12,2 detik untuk Pabrik A). Pembuka .xls (SheetJS 0.20.x dari CDN SheetJS) dipasang di Edge Function dan meneruskan sel ke `uraiBarisEkspor`. Putuskan apakah file yang sama boleh dikirim ulang setelah kirimannya dibatalkan. Status periode (terbuka → menunggu data → dihitung) dijalankan antrean kerja.
+- Tahap 7: arti "berhenti tgl X" = hari kerja terakhir (dipakai mesin baca tap, sesuai C11); PRD bagian 9 menulis "nonaktif sejak tanggal itu", perlu diseragamkan.
+- Angka tetap di `hitung.baca_tap` (daftar di laporan Tahap 3, temuan 8) dipindah ke tabel aturan bila perusahaan perlu mengubahnya.
+
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 
 ⏳ = syarat yang menunggu waktu atau orang lain; berjalan di belakang (aturan 10).
 
 | Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
 | --- | --- | --- | --- |
-| 3 | Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
+| 3 | ~~Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file~~ **Selesai 13 Nov 2026** | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
 | 4 | Hitung gaji, halaman demo sederhana, unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | Tabel TER/PTKP dan batas JP 2026 dicek ke sumber resmi; U2 pembanding manusia dipindah ke berjalan berdampingan |
 | 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
@@ -124,7 +148,7 @@ Data simulasi (`data/simulasi/*/mesin/*.csv.gz`) sudah berbentuk sama persis (5 
 
 Cara kerja yang disepakati: satu "buat" per tahap dengan daftar paket lengkap; di akhir tiap tahap pemilik melihat bukti (jumlah baris di Supabase, 3 contoh orang lengkap, hasil uji). Tiap tahap sebaiknya dimulai di chat baru dengan kalimat:
 
-> Baca CLAUDE.md dan docs/serah-terima.md di repo banajaka35-design/Future-ABSENSI cabang main. Lalu tulis daftar paket Tahap 3 lengkap untuk saya "buat".
+> Baca CLAUDE.md dan docs/serah-terima.md di repo banajaka35-design/Future-ABSENSI cabang main. Lalu tulis daftar paket Tahap 4 lengkap untuk saya "buat".
 
 ## Sebelum dipasang untuk perusahaan sungguhan
 
@@ -142,6 +166,7 @@ Workflow pasang-supabase bentuknya sudah bisa dipakai ulang, tetapi isinya masih
 ## Belum dikerjakan, ditunda
 
 - Tabel TER dan PTKP: Tahap 4.
+- Data awal struktur Pabrik B: Tahap 4 (U5).
 - Batas upah Jaminan Pensiun 2026: perlu dicek.
 - Peringatan advisor `public.rls_auto_enable()` adalah bawaan Supabase, dibiarkan.
 

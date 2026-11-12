@@ -68,6 +68,7 @@ def main():
         "where a.jenis = 'belum_terdaftar_mesin'")}
 
     kelompok = Counter()
+    jumlah_hari = 0
     tidak_cocok = defaultdict(list)
     wajib = set()
 
@@ -147,6 +148,7 @@ def main():
         kejadian = baca_gz(os.path.join(AKAR, pabrik, "kunci", f"{pabrik}_p{p}_kejadian.csv.gz"))
 
         for k in kejadian:
+            jumlah_hari += 1
             kunci = (k["id_karyawan"], k["tanggal_kerja"])
             h = hasil.get(kunci)
             kj = k["kejadian"]
@@ -244,8 +246,7 @@ def main():
             gagal = True
         for c in tidak_cocok[n]:
             print(f"           {c}")
-    jumlah = sum(kelompok.values())
-    print(f"  Total hari-orang: {jumlah}")
+    print(f"  Hari-orang di kunci jawaban: {jumlah_hari}; hari-orang di hasil sistem: {len(hasil)}")
     print("U1: " + ("GAGAL" if gagal else "LULUS"))
     sys.exit(1 if gagal else 0)
 
