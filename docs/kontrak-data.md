@@ -1,10 +1,10 @@
 # Kontrak Data — Tahap 2
 
-Versi 0.1 (rancangan, **belum disetujui**) · 12 November 2026 · acuan: PRD v3.1 aturan F2–F5, F10, F11
+Versi 1.0 · **disetujui 12 November 2026** oleh pemilik proyek · acuan: PRD v3.1 aturan F2–F5, F10, F11
 
-Dokumen ini menetapkan bentuk data sebelum tabel pertama dibuat. Setelah disetujui, perubahan bentuk data hanya lewat permintaan perubahan, karena semua bagian sistem bergantung padanya. Tidak ada tabel yang dibuat sebelum dokumen ini disetujui.
+Dokumen ini menetapkan bentuk data sebelum tabel pertama dibuat. Perubahan bentuk data hanya lewat permintaan perubahan, karena semua bagian sistem bergantung padanya.
 
-**Asumsi jalur Tahap 1,5:** file diurai di Supabase Edge Functions (pilihan 1 di `laporan-kelayakan-teknis.md`), menunggu konfirmasi pemilik proyek. Kontrak ini tidak bergantung pada pilihan itu.
+**Jalur Tahap 1,5 (disetujui):** file diurai di Supabase Edge Functions (pilihan 1 di `laporan-kelayakan-teknis.md`). Kontrak ini tidak bergantung pada pilihan itu.
 
 ## 1. Tujuh aturan dasar
 
@@ -175,13 +175,13 @@ Lompatan lain ditolak database. Fakta yang masuk setelah periode dikunci masuk k
 
 Ke-84 kasus jebakan di `kasus-jebakan.md` sudah dicocokkan satu per satu dengan tabel di atas; setiap kasus punya tempat datanya. Pemeriksaan ini menemukan dua kekurangan yang sudah ditambahkan ke versi ini: tabel `aturan.cuti` (saldo cuti, kasus C02) dan sifat tetap/tidak tetap di `aturan.komponen_lain` (dasar lembur 75%, kasus D11).
 
-## 12. Yang perlu disetujui
+## 12. Keputusan yang disetujui (12 November 2026)
 
-1. Jalur urai file: **pilihan 1, Supabase Edge Functions** (asumsi dokumen ini).
+1. Jalur urai file: **pilihan 1, Supabase Edge Functions**.
 2. Tujuh aturan dasar di bagian 1, terutama rentang setengah terbuka dan "fakta hanya bertambah".
 3. Pembagian schema di bagian 2 dan prinsip tidak ada tabel yang terbuka ke API.
 4. Alur status periode di bagian 6.
 5. Pembulatan bawaan setengah ke atas, kecuali PPh 21 yang menunggu pengecekan.
 6. Uji otomatis di GitHub Actions dengan Postgres sementara.
 
-Setelah disetujui, Tahap 2 dilanjutkan: membuat migrasi pertama dan uji otomatis.
+Tahap 2 dilanjutkan dengan migrasi pertama dan uji otomatis.

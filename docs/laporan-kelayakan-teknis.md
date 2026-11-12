@@ -39,4 +39,4 @@ Angka no. 1–3 diukur di komputer kerja Claude (Intel Xeon 2,1 GHz), median dar
 | 2. Cloudflare Workers berbayar mengurai | Sesuai rancangan v3.1 | $5 per bulan | Paling lega (30 detik CPU); butuh biaya sejak awal |
 | 3. HRD mengirim .csv | Worker gratis hanya meneruskan, database mengurai teks | Gratis | Menambah langkah bagi HRD dan membuka risiko file dibuka di Excel (celah M1). Tidak disarankan |
 
-Gerbang Tahap 1,5 terpenuhi setelah salah satu pilihan diputuskan dan dicatat.
+**Keputusan (12 November 2026): pilihan 1, Supabase Edge Functions.** Gerbang Tahap 1,5 terpenuhi. Ukuran CPU urai di Edge Functions sungguhan menjadi syarat gerbang Tahap 5.

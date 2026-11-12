@@ -1,0 +1,34 @@
+name: Uji database
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  uji:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pasang klien psql
+        run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
+      - name: Jalankan semua migrasi dari nol lalu semua uji
+        env:
+          DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: db/uji/jalankan.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Pemeriksaan kewajaran data simulasi (data harus identik dengan yang tersimpan)
+        run: cd generator && python3 buat_data.py > /dev/null && python3 periksa_kewajaran.py && git diff --exit-code -- ../data
