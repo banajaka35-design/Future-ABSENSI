@@ -1,8 +1,8 @@
 # Kasus Jebakan — Tahap 0
 
-Versi 1.0 · dikunci 12 November 2026 · acuan: PRD v3
+Versi 1.1 · dikunci 12 November 2026 · acuan: PRD v3.1
 
-Daftar ini ditulis **sebelum** pembaca tap dan mesin hitung dibuat. Setiap kasus menyebut kejadian dan hasil yang diharapkan. Kode dinyatakan benar hanya kalau semua kasus di sini lulus (uji U1, U2, U4, U6, U10, U12). Kasus tidak boleh diubah agar kode lulus; perubahan hanya lewat permintaan perubahan (PRD v3 bagian 3).
+Daftar ini ditulis **sebelum** pembaca tap dan mesin hitung dibuat. Setiap kasus menyebut kejadian dan hasil yang diharapkan. Kode dinyatakan benar hanya kalau semua kasus di sini lulus (uji U1, U2, U4, U6, U10, U12, U14). Kasus tidak boleh diubah agar kode lulus; perubahan hanya lewat permintaan perubahan (PRD v3 bagian 3).
 
 Sumber kasus: **Asli** = pola dari file mesin asli Februari 2026 (identitas disamarkan P1–P8), **PRD** = rancangan, **Aturan** = aturan pemerintah di PRD v3 bagian 8.
 
@@ -50,7 +50,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | B05 | Shift Pagi: tap 05:30 dan 15:01 | Hadir; jam sebelum 07:00 tidak menjadi lembur | PRD B5 |
 | B06 | Shift Pagi: satu tap 06:58 saja | Hadir + lupa tap pulang | PRD |
 | B07 | Shift Pagi: satu tap 15:03 saja | Hadir + lupa tap masuk | PRD |
-| B08 | Shift Pagi: satu tap 11:00 saja | Ambigu; aturan bawaan berlaku (lihat keputusan terbuka 1) dan masuk laporan | PRD |
+| B08 | Shift Pagi: satu tap 11:00 saja | Hadir + lupa tap pulang, ditandai ambigu, masuk rekap harian HRD | PRD v3.1 |
 | B09 | Shift Pagi: satu tap 02:00 (di luar jendela) | Tidak dipakai; ditandai ambigu; hari itu alpha sampai dikoreksi | PRD |
 | B10 | Shift Malam Senin lalu Shift Pagi Selasa (jendela bertumpuk) | Ditandai jendela bertumpuk; kedua hari tetap terbaca | PRD |
 | B11 | Shift Malam 20 Mar 23:00, pulang 21 Mar 07:02; tutup buku tanggal 20 | Hari 20 Mar "menunggu" sampai tap 21 Mar hingga 13:00 masuk; lalu hadir di periode 21 Feb–20 Mar | PRD A11 |
@@ -68,7 +68,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | C03 | Tidak ada tap di hari libur bergilir orang itu | Libur, bukan alpha | PRD B11 |
 | C04 | Masuk 8 jam di hari libur bergilir (pola 6 hari) | Seluruh 8 jam lembur hari libur (lihat E06) | PRD |
 | C05 | Operasi 7 hari: dijadwalkan dan masuk shift Pagi 21 Mar 2026 (Idul Fitri) | Seluruh jam kerja dibayar tarif lembur hari libur | PRD, Aturan |
-| C06 | 20 Feb 2026: tidak ada tap dari 8 dari 8 karyawan | Bukan 8 alpha diam-diam: anomali "hari tanpa tap massal" muncul di ringkasan sebelum rilis (lihat keputusan terbuka 2) | Asli |
+| C06 | 20 Feb 2026: tidak ada tap dari 8 dari 8 karyawan (di atas ambang 50%) | Tidak menjadi alpha; pemberitahuan segera ke HRD; periode tidak bisa diajukan sampai HRD menetapkan (libur, absen manual, atau alpha) | Asli, PRD v3.1 |
 | C07 | Jadwal Ramadan berlaku mulai 19 Feb; pulang 15:02 tanggal 23 Feb | Hadir, bukan pulang cepat | Asli |
 | C08 | Pulang 15:02 tanggal 12 Feb (jadwal normal 16:00) | Pulang cepat 58 menit | Asli |
 | C09 | Jumat 13 Feb pulang 16:21 (jadwal Jumat 16:30) | Pulang cepat 9 menit; hari Senin pulang 16:21 normal | Asli |
@@ -113,12 +113,32 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | E13 | Satu alpha dalam periode, premi kehadiran hidup | Premi kehadiran hangus | PRD |
 | E14 | Koreksi sakit masuk setelah gaji dirilis | Slip lama tetap; selisih menjadi penyesuaian di periode berikut | PRD C8 |
 
-## Keputusan terbuka
+## F. Temuan lapangan (v1.1)
 
-Tiga hal di bawah muncul saat menulis kasus dan belum diputuskan. Sampai diputuskan, kasus B08 dan C06 memakai jawaban sementara.
+| ID | Kejadian | Hasil yang diharapkan | Sumber |
+| --- | --- | --- | --- |
+| F01 | File berisi ID "1,98E+17" (dibuka lalu disimpan di Excel) | File ditolak dengan pesan "kirim langsung dari mesin"; pemberitahuan segera | PRD M1 |
+| F02 | File dari satu mesin hanya memuat 3 dari 8 karyawan aktif yang terdaftar di mesin itu | Tanda "file mungkin terpotong"; 5 orang yang hilang tidak dijadikan alpha; pemberitahuan segera | PRD M2 |
+| F03 | Tap terakhir di file bertanggal 10 hari kerja sebelum tanggal kirim | Peringatan kemungkinan memori mesin penuh atau mesin mati; pemberitahuan segera | PRD M3 |
+| F04 | Mesin lebih cepat 4 menit, koreksi berlaku sejak 1 Mar; tap mesin 07:08 tanggal 5 Mar, shift Pagi | Waktu baku 07:04; tidak telat (tanpa koreksi akan terbaca telat 8 menit) | PRD M4 |
+| F05 | 6 dari 8 orang telat 6–8 menit di hari yang sama pada mesin yang sama, padahal biasanya tepat waktu | Pemberitahuan segera "kemungkinan jam mesin melenceng" | PRD M4 |
+| F06 | ID mesin 0012 dipetakan ke karyawan X mulai 1 Mar; ada tap ID 0012 tanggal 27 Feb | Tap 27 Feb masuk daftar ID tidak dikenal untuk tanggal itu | PRD M5 |
+| F07 | Karyawan X punya dua ID mesin; pagi tap dengan ID pertama, sore dengan ID kedua | Tap digabung: hadir dengan masuk dan pulang lengkap | PRD M6 |
+| F08 | HRD mengirim "absen manual 20 Feb, divisi Kantor hadir semua" | Semua hadir, asal data "manual"; anomali C06 tertutup | PRD M7 |
+| F09 | File dengan kolom waktu bernama "Waktu" (format baru yang belum dikenal) | Ditolak dengan pesan format tidak dikenal; pemberitahuan segera | PRD M8 |
+| F10 | Kiriman mingguan untuk minggu kedua tidak pernah masuk | Kalender cakupan menandai lubang; periode tidak bisa diajukan; muncul di ringkasan sebelum rilis | PRD M9 |
+| F11 | Jadwal Pagi, tetapi tap 5 hari berturut-turut cocok shift Siang | Usulan tukar shift di rekap harian; sebelum disetujui hasil tetap mengikuti jadwal; setelah disetujui dihitung ulang sebagai Siang | PRD P1 |
+| F12 | Pengaturan "wajib perintah"; 3 orang Produksi lembur tanggal 5; HRD mengirim "setujui lembur Produksi tgl 5" | Ketiganya dibayar setelah hitung ulang | PRD P2 |
+| F13 | Karyawan baru mulai 1 Mar, tanpa tap 3 hari kerja pertama | Pemberitahuan segera "belum didaftar di mesin?"; tetap alpha sampai dikoreksi | PRD P3 |
+| F14 | Sopir dengan pengaturan "tidak wajib tap", tanpa tap sebulan | Tidak alpha | PRD P4 |
+| F15 | Karyawan di kelompok gaji rahasia; akun HRD meminta rinciannya | Ditolak di gudang data; akun bos bisa melihat | PRD O4, K17 |
+| F16 | HRD mengirim "tambah libur tgl 27 Nov" setelah semua orang terbaca alpha | Hari itu menjadi libur; alpha batal setelah hitung ulang | PRD O5 |
+| F17 | Pengaturan "uang makan di luar sistem" | Komponen uang makan Rp0 di rincian gaji | PRD G1 |
 
-1. **Aturan bawaan tap tunggal di tengah shift (B08).** Usulan sementara: diperlakukan seperti lupa tap pulang dan ditandai ambigu.
-2. **Hari tanpa tap massal (C06).** Usulan: kalau lebih dari separuh karyawan aktif satu divisi tidak punya tap di hari kerja, hari itu tidak langsung menjadi alpha, tetapi muncul sebagai anomali di ringkasan sebelum rilis dan HRD menetapkannya lewat chat (libur, mesin mati, atau alpha).
-3. **Jadwal Ramadan.** File asli menunjukkan jam kerja berubah selama Ramadan. Usulan: dijadikan jadwal bertanggal biasa di tabel jadwal, ditambah pengingat tahunan seperti kalender libur.
+## Keputusan yang sudah ditutup (v1.1)
 
-Jumlah kasus: 66.
+1. **Tap tunggal di tengah shift:** diperlakukan seperti lupa tap pulang, ditandai ambigu, masuk rekap harian HRD (kasus B08).
+2. **Hari tanpa tap massal:** di atas ambang 50% karyawan aktif satu divisi, tidak langsung alpha; pemberitahuan segera; periode tertahan sampai HRD menetapkan (kasus C06, F08).
+3. **Jadwal Ramadan:** jadwal bertanggal biasa dengan pengingat tahunan ke HRD (kasus C07).
+
+Jumlah kasus: 83.
