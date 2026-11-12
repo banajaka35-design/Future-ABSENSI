@@ -2,13 +2,14 @@ name: Pasang ke Supabase
 
 # Memasang perubahan ke database utama. Dua cara memicu:
 #   1. Tombol: pemilik mengetik PASANG.
-#   2. Tag pasang-*: dikirim Claude hanya setelah pemilik mengetik "buat" untuk paket yang menyebut
-#      pemasangan (aturan 8 di CLAUDE.md). Tag hanya sah kalau menunjuk ke commit terbaru main
-#      dan uji otomatis untuk commit itu sudah lulus.
+#   2. Dorongan ke cabang "pasang": dilakukan Claude hanya setelah pemilik mengetik "buat" untuk paket
+#      yang menyebut pemasangan (aturan 8 di CLAUDE.md). Hanya sah kalau commit-nya sama dengan commit
+#      terbaru main dan uji otomatis untuk commit itu sudah lulus. (Tag tidak dipakai: jalur akses
+#      Claude menolak pengiriman tag, HTTP 403, 13 Nov 2026.)
 # Urutan: cadangan dulu (disimpan 30 hari) -> migrasi -> data awal bila kosong -> pemeriksaan.
 on:
   push:
-    tags: ["pasang-*"]
+    branches: [pasang]
   workflow_dispatch:
     inputs:
       konfirmasi:
@@ -42,17 +43,17 @@ jobs:
           else
             MAIN="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
             if [ "$GITHUB_SHA" != "$MAIN" ]; then
-              echo "GAGAL: tag $GITHUB_REF_NAME menunjuk $GITHUB_SHA, bukan commit terbaru main ($MAIN). Tidak ada yang diubah." >&2
+              echo "GAGAL: cabang pasang menunjuk $GITHUB_SHA, bukan commit terbaru main ($MAIN). Tidak ada yang diubah." >&2
               exit 1
             fi
-            # Tag itu sendiri juga memicu uji otomatis baru; cukup satu yang lulus dan tidak boleh ada yang gagal.
+            # Dorongan ke cabang pasang juga memicu uji otomatis baru; cukup satu yang lulus dan tidak boleh ada yang gagal.
             HASIL="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" \
               --jq '[.check_runs[] | select(.name == "uji") | .conclusion] | if any(. == "failure" or . == "cancelled") then "gagal" elif any(. == "success") then "success" else "belum" end')"
             if [ "$HASIL" != "success" ]; then
               echo "GAGAL: uji otomatis untuk commit ini belum lulus (hasil: $HASIL). Tidak ada yang diubah." >&2
               exit 1
             fi
-            echo "Tag $GITHUB_REF_NAME sah: commit terbaru main, uji otomatis lulus."
+            echo "Dorongan ke cabang pasang sah: commit terbaru main, uji otomatis lulus."
           fi
           if [ -z "$DB_URL" ]; then
             echo "GAGAL: secret SUPABASE_DB_URL kosong atau tidak ditemukan." >&2
