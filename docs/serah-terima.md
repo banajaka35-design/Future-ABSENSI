@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 13 November 2026, 00.40 WIB, cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 13 November 2026, 00.30 WIB, cabang `main` dan `tahap-2b` (isinya sama).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -66,11 +66,14 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 - Cadangan malam juga jalan otomatis setelah "Pasang ke Supabase" berhasil.
 - "Pasang ke Supabase" bisa dipicu dorongan ke cabang `pasang`; ditolak kalau bukan commit terbaru main atau uji otomatisnya belum lulus. Rencana awal memakai tag `pasang-*`, tetapi pengiriman tag ditolak jalur akses Claude (HTTP 403); pemilik memilih cabang khusus.
 
+**Hasil paket (13 Nov 2026, diukur):** uji otomatis 68 lulus/0 gagal (sekitar 70 detik); Pasang ke Supabase lewat cabang `pasang` sekitar 2 menit: cadangan dulu, hanya 0005 dipasang, pemeriksaan 9 lulus; Cadangan malam jalan otomatis sesudahnya sekitar 1,5 menit: pemulihan 39 tabel/10.859 baris sama, uji tanpa login LULUS di kedua tingkat (katalog izin kosong; 5 permintaan dengan kunci publik ditolak HTTP 406, kunci yang sama diterima HTTP 200 di `/auth/v1/settings`). Dicek langsung di Supabase: sidik 0005 `21b4bc7a231c` sama dengan repo; celah fungsi 0, celah tabel 0; aturan bawaan fungsi baru `{postgres=X/postgres}` (PUBLIC tidak ada); karyawan 1.044; skema `uji` tidak tertinggal.
+
+**Gerbang "ambil data tanpa login ditolak": terbukti di Supabase sungguhan**, dan diuji ulang setiap malam.
+
 ## Sisa gerbang Tahap 2
 
 - Tempat uji terpisah dari utama (saat ini hanya ada satu proyek Supabase).
 - Demo masih hidup setelah 8 hari tanpa dipakai (paling cepat sekitar 21 Nov 2026).
-- "Ambil data tanpa login ditolak" di Supabase sungguhan: lihat hasil paket 13 Nov di atas.
 
 ## Sebelum dipasang untuk perusahaan sungguhan
 
