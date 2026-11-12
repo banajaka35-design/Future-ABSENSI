@@ -126,7 +126,7 @@ for p, cfg in sorted(PABRIK.items()):
                 cek(p, no, "Tap dengan ID mesin kedua (90001)", f"{ganda}", "ada sejak 1 Mar", True)
 
 # Kemandirian generator: tidak mengimpor apa pun di luar pustaka bawaan dan dirinya sendiri.
-bawaan = {"csv", "gzip", "io", "os", "random", "re", "datetime", "collections", "ast", "konfigurasi", "buat_data"}
+bawaan = {"csv", "gzip", "hashlib", "io", "os", "random", "re", "datetime", "collections", "ast", "konfigurasi", "buat_data"}
 impor_asing = []
 for nama in os.listdir(os.path.dirname(os.path.abspath(__file__))):
     if nama.endswith(".py"):

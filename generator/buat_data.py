@@ -11,6 +11,7 @@ selalu sama setiap dijalankan.
 
 import csv
 import gzip
+import hashlib
 import io
 import os
 import random
@@ -440,6 +441,25 @@ def jalankan(kode):
     return g
 
 
+def tulis_sidik_isi():
+    """Sidik SHA-256 dari ISI setiap file (setelah dibuka kompresinya).
+
+    Byte file .gz bisa berbeda antar komputer karena pustaka kompresi berbeda,
+    jadi kesamaan data diperiksa dari isinya, bukan dari byte file terkompresi.
+    """
+    baris = []
+    for akar, _dirs, files in os.walk(AKAR):
+        for nama in files:
+            path = os.path.join(akar, nama)
+            if nama == "sidik_isi.txt":
+                continue
+            data = gzip.open(path, "rb").read() if nama.endswith(".gz") else open(path, "rb").read()
+            baris.append(f"{hashlib.sha256(data).hexdigest()}  {os.path.relpath(path, AKAR)}")
+    with open(os.path.join(AKAR, "sidik_isi.txt"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(sorted(baris, key=lambda x: x.split("  ")[1])) + "\n")
+
+
 if __name__ == "__main__":
     for kode in sorted(PABRIK):
         jalankan(kode)
+    tulis_sidik_isi()
