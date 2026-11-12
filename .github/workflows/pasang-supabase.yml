@@ -1,0 +1,60 @@
+name: Pasang ke Supabase
+
+# Memasang perubahan ke database utama. Hanya lewat tombol, dan pemilik harus mengetik PASANG.
+# Urutan: cadangan dulu (disimpan 30 hari) -> migrasi -> data awal bila kosong -> pemeriksaan.
+on:
+  workflow_dispatch:
+    inputs:
+      konfirmasi:
+        description: "Ketik PASANG untuk melanjutkan"
+        required: true
+
+concurrency:
+  group: pasang-supabase
+  cancel-in-progress: false
+
+jobs:
+  pasang:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Periksa konfirmasi dan secret
+        env:
+          KONFIRMASI: ${{ inputs.konfirmasi }}
+        run: |
+          if [ "$KONFIRMASI" != "PASANG" ]; then
+            echo "GAGAL: konfirmasi bukan PASANG. Tidak ada yang diubah." >&2
+            exit 1
+          fi
+          if [ -z "$DB_URL" ]; then
+            echo "GAGAL: secret SUPABASE_DB_URL kosong atau tidak ditemukan." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Pasang klien Postgres 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Cadangan dulu
+        run: |
+          mkdir -p cadangan
+          db/pasang_supabase.sh cadangan "cadangan/sebelum-pasang-$(date -u +%Y%m%d-%H%M%S).dump"
+
+      - name: Simpan cadangan (30 hari)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cadangan-sebelum-pasang-${{ github.run_number }}
+          path: cadangan/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Migrasi, data awal, pemeriksaan
+        run: db/pasang_supabase.sh pasang

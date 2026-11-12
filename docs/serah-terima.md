@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 12 November 2026, 22.55 WIB, cabang `tahap-2b`.
+Terakhir diperbarui: 12 November 2026, 23.10 WIB, cabang `tahap-2b`.
 
 ## Aturan sebelum mengubah apa pun
 
@@ -32,6 +32,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 - **Data awal tidak bisa dijalankan dua kali.** `pabrik_a_struktur.sql` dan `muat_karyawan.py` memakai `insert` biasa. Pemasangan harus memeriksa dulu apakah datanya sudah ada.
 - **Tombol "Run workflow" hanya muncul untuk workflow yang ada di cabang main** (Kemungkinan Besar, aturan GitHub). Karena itu penggabungan tahap-2b ke main dikerjakan sebelum workflow pasang-supabase dipakai.
 - **Uji pemulihan ke postgres:17 polos** kemungkinan gagal kalau seluruh database dicadangkan, karena ada peran dan skema khusus Supabase. Cadangkan hanya skema milik proyek, dan siapkan peran dengan `db/uji/persiapan_peran.sql`.
+- **Cadangan skema proyek belum bisa dipulihkan utuh begitu saja** (Terbukti di Postgres 16 lokal): 18 galat "no default operator class for access method gist", karena ekstensi `btree_gist` ada di skema `extensions` yang tidak ikut dicadangkan. Uji pemulihan (langkah 4) harus membuat ekstensi itu lebih dulu, lalu memastikan galatnya nol.
 - **Sentuhan harian lewat koneksi database belum tentu dihitung aktif oleh Supabase** (Menebak). Baru terbukti setelah gerbang "demo hidup setelah 8 hari".
 - GitHub mematikan jadwal otomatis di repo yang 60 hari tanpa commit (Kemungkinan Besar).
 
@@ -46,7 +47,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 ## Langkah berikutnya (satu per satu, masing-masing menunggu "buat")
 
-1. Workflow `pasang-supabase` di tahap-2b: tombol manual + kata `PASANG` → cadangan skema milik proyek (gagal = berhenti) → `db/pasang.sh` → data awal hanya bila kosong, berhenti bila setengah ada → pemeriksaan (`cek_data_awal.sql` + hitung baris semua tabel).
+1. ~~Workflow `pasang-supabase`~~ **Selesai dibuat (12 Nov 2026, belum pernah dijalankan ke Supabase).** File: `.github/workflows/pasang-supabase.yml` dan `db/pasang_supabase.sh`. Diuji di Postgres 16 lokal (bukan 17, bukan Supabase) dengan empat keadaan: seperti Supabase sekarang (karyawan dimuat, 9 pemeriksaan lulus), pasang ulang (semua dilewati), database kosong (semua dimuat), dan struktur setengah ada (berhenti dengan GAGAL). Skema `uji` tidak tertinggal.
 2. Gabung tahap-2b ke main setelah uji otomatis lulus.
 3. Pemilik menjalankan pasang-supabase; hasilnya diperiksa langsung di Supabase (karyawan 1.044).
 4. Cadangan malam + uji pemulihan ke postgres:17 (bandingkan hitung baris), sekaligus sentuhan harian.
