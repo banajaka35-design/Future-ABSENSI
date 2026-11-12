@@ -81,18 +81,18 @@ jobs:
           # Alamat proyek diambil dari nama pengguna di SUPABASE_DB_URL (postgres.<ref>).
           REF="$(printf '%s' "$DB_URL" | sed -nE 's#^postgres(ql)?://postgres\.([a-z0-9]+):.*#\2#p')"
           if [ -z "$REF" ]; then
-            echo "::warning::Kode proyek tidak terbaca dari SUPABASE_DB_URL; sentuhan API dilewati."
-            exit 0
-          fi
-          if [ -z "$KUNCI" ]; then
-            echo "::warning::Secret SUPABASE_PUBLISHABLE_KEY belum ada; sentuhan API dilewati (hanya sentuhan lewat database)."
-            exit 0
-          fi
-          KODE="$(curl -s -o /dev/null -w '%{http_code}' -m 30 -H "apikey: $KUNCI" "https://$REF.supabase.co/rest/v1/")"
-          echo "Jawaban jalur API: HTTP $KODE"
-          # 2xx/4xx berarti proyek hidup dan menjawab (tabel proyek memang tidak dibuka untuk umum).
-          # 000 = tidak tersambung, 5xx = proyek bermasalah atau dijeda.
-          if [ "$KODE" = "000" ] || [ "${KODE:0:1}" = "5" ]; then
-            echo "GAGAL: jalur API Supabase tidak menjawab dengan benar (HTTP $KODE)." >&2
+            echo "GAGAL: kode proyek tidak terbaca dari SUPABASE_DB_URL (harus berbentuk postgres.<kode>:...)." >&2
             exit 1
           fi
+          if [ -z "$KUNCI" ]; then
+            echo "GAGAL: secret SUPABASE_PUBLISHABLE_KEY kosong atau tidak ditemukan." >&2
+            exit 1
+          fi
+          # /auth/v1/settings menerima kunci publik dan menjawab 200 bila kuncinya benar.
+          KODE="$(curl -s -o /dev/null -w '%{http_code}' -m 30 -H "apikey: $KUNCI" "https://$REF.supabase.co/auth/v1/settings")"
+          echo "Jawaban jalur API: HTTP $KODE"
+          if [ "$KODE" != "200" ]; then
+            echo "GAGAL: jalur API Supabase tidak menerima kunci publik (HTTP $KODE). 401 = kunci salah; 000 = tidak tersambung; 5xx = proyek bermasalah atau dijeda." >&2
+            exit 1
+          fi
+          echo "Kunci publik diterima; proyek hidup."
