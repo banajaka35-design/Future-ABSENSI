@@ -1,0 +1,51 @@
+name: Cek koneksi Supabase
+
+# Tes sambungan ke Supabase memakai secret SUPABASE_DB_URL.
+# Hanya membaca: sesi database dipaksa read-only, tidak ada yang diubah.
+on:
+  push:
+    branches: [tahap-2b]
+    paths: [.github/workflows/cek-koneksi.yml]
+  workflow_dispatch:
+
+jobs:
+  cek:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pastikan secret ada
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "GAGAL: secret SUPABASE_DB_URL kosong atau tidak ditemukan." >&2
+            exit 1
+          fi
+          echo "Secret ditemukan."
+
+      - name: Pasang klien Postgres 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+          /usr/lib/postgresql/17/bin/psql --version
+
+      - name: Baca isi Supabase (tanpa mengubah apa pun)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGOPTIONS: -c default_transaction_read_only=on
+        run: |
+          PSQL=(/usr/lib/postgresql/17/bin/psql "$DB_URL" -X -v ON_ERROR_STOP=1)
+          echo "== Versi database"
+          "${PSQL[@]}" -t -A -c "show server_version"
+          echo "== Migrasi yang terpasang"
+          "${PSQL[@]}" -c "select nama, left(sidik, 12) as sidik_awal, dipasang from jejak.migrasi order by nama"
+          echo "== Jumlah baris data awal"
+          "${PSQL[@]}" -c "select 'mesin' as tabel, count(*) from induk.mesin
+            union all select 'divisi', count(*) from induk.divisi
+            union all select 'kalender', count(*) from induk.kalender
+            union all select 'pengali_lembur', count(*) from aturan.pengali_lembur
+            union all select 'karyawan', count(*) from induk.karyawan"
+          echo "== Sesi benar-benar hanya-baca?"
+          "${PSQL[@]}" -t -A -c "show default_transaction_read_only"
