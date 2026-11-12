@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 12 November 2026, 23.05 WIB, cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 12 November 2026, 23.30 WIB, cabang `main` dan `tahap-2b` (isinya sama).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -36,6 +36,8 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 - **Sentuhan harian lewat koneksi database belum tentu dihitung aktif oleh Supabase** (Menebak). Baru terbukti setelah gerbang "demo hidup setelah 8 hari".
 - GitHub mematikan jadwal otomatis di repo yang 60 hari tanpa commit (Kemungkinan Besar).
 
+- **Memuat data dari GitHub Actions ke Supabase sangat lambat** (Terbukti, run #1): langkah muat karyawan sekitar 20 menit, karena tiap baris perintah satu perjalanan bolak-balik dari server GitHub ke Mumbai. Pindah wilayah tidak menyelesaikan ini (Kemungkinan Besar); yang menyelesaikan adalah mengirim data sekaligus (misalnya `COPY` atau insert banyak baris). Belum dikerjakan.
+
 ### Keputusan pemilik proyek (12 Nov 2026)
 
 | Keputusan | Isi |
@@ -49,7 +51,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 1. ~~Workflow `pasang-supabase`~~ **Selesai dibuat (12 Nov 2026, belum pernah dijalankan ke Supabase).** File: `.github/workflows/pasang-supabase.yml` dan `db/pasang_supabase.sh`. Diuji di Postgres 16 lokal (bukan 17, bukan Supabase) dengan empat keadaan: seperti Supabase sekarang (karyawan dimuat, 9 pemeriksaan lulus), pasang ulang (semua dilewati), database kosong (semua dimuat), dan struktur setengah ada (berhenti dengan GAGAL). Skema `uji` tidak tertinggal.
 2. ~~Gabung tahap-2b ke main~~ **Selesai (12 Nov 2026, 23.02 WIB)**: main maju lurus ke tahap-2b, uji otomatis di main lulus, workflow "Pasang ke Supabase" terdaftar aktif.
-3. Pemilik menjalankan pasang-supabase; hasilnya diperiksa langsung di Supabase (karyawan 1.044).
+3. ~~Pemilik menjalankan pasang-supabase~~ **Selesai (12 Nov 2026, run #1)**: cadangan tersimpan (artifact `cadangan-sebelum-pasang-1`, 23 KB, sampai 12 Des 2026), migrasi dilewati, struktur dilewati, karyawan dimuat, pemeriksaan 9 lulus 0 gagal. Dicek langsung di Supabase: karyawan 1.044, riwayat 1.044, status kerja 1.088, penugasan regu 1.056, pemetaan ID mesin 1.045; skema `uji` tidak tertinggal; tidak ada transaksi menggantung.
 4. Cadangan malam + uji pemulihan ke postgres:17 (bandingkan hitung baris), sekaligus sentuhan harian.
 
 ## Sisa gerbang Tahap 2 setelah langkah di atas
