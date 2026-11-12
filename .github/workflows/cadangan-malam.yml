@@ -1,6 +1,6 @@
 name: Cadangan malam
 
-# Setiap malam (dan setelah setiap pemasangan berhasil): cadangkan skema proyek dari Supabase, buktikan cadangan itu bisa dipulihkan ke
+# Setiap malam (dan setelah setiap pemasangan atau reset berhasil): cadangkan skema proyek dari Supabase, buktikan cadangan itu bisa dipulihkan ke
 # Postgres 17 kosong dengan jumlah baris yang sama, lalu sentuh Supabase lewat jalur API supaya
 # proyek gratis tidak dijeda (PRD celah D7, aturan pondasi 11).
 # Jadwal hanya berjalan dari cabang main.
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   # Juga setiap kali Supabase selesai diubah lewat workflow "Pasang ke Supabase".
   workflow_run:
-    workflows: ["Pasang ke Supabase"]
+    workflows: ["Pasang ke Supabase", "Reset Supabase"]
     types: [completed]
 
 concurrency:

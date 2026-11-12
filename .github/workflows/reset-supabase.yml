@@ -1,0 +1,78 @@
+name: Reset Supabase
+
+# Mengosongkan skema proyek di Supabase lalu memasang semuanya ulang dari nol (migrasi + data awal).
+# HANYA untuk pemasangan demo: skrip menolak kalau ada karyawan yang bukan data simulasi.
+# Dua cara memicu (aturan 8 di CLAUDE.md):
+#   1. Tombol: pemilik mengetik RESET.
+#   2. Dorongan ke cabang "reset": dilakukan Claude hanya setelah pemilik mengetik "buat" untuk paket
+#      yang menyebut reset; commit harus commit terbaru main dan uji otomatisnya lulus.
+# Urutan: cadangan dulu (30 hari, gagal = berhenti) -> kosongkan -> pasang dari nol -> pemeriksaan.
+on:
+  push:
+    branches: [reset]
+  workflow_dispatch:
+    inputs:
+      konfirmasi:
+        description: "Ketik RESET untuk mengosongkan dan memasang ulang Supabase"
+        required: true
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: ubah-supabase
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Periksa izin reset dan secret
+        env:
+          KATA: RESET
+          KONFIRMASI: ${{ inputs.konfirmasi }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          db/periksa_pemicu.sh
+          if [ -z "$DB_URL" ]; then
+            echo "GAGAL: secret SUPABASE_DB_URL kosong atau tidak ditemukan." >&2
+            exit 1
+          fi
+
+      - name: Pasang klien Postgres 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Cadangan dulu
+        run: |
+          mkdir -p cadangan
+          FILE="cadangan/sebelum-reset-$(date -u +%Y%m%d-%H%M%S).dump"
+          db/pasang_supabase.sh cadangan "$FILE"
+          if [ ! -s "$FILE" ]; then
+            echo "GAGAL: cadangan tidak terbentuk; reset tidak dilanjutkan." >&2
+            exit 1
+          fi
+
+      - name: Simpan cadangan (30 hari)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cadangan-sebelum-reset-${{ github.run_number }}
+          path: cadangan/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Kosongkan skema proyek
+        run: db/reset_supabase.sh kosongkan
+
+      - name: Pasang dari nol, data awal, pemeriksaan
+        run: db/pasang_supabase.sh pasang

@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 13 November 2026, 00.30 WIB, cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 13 November 2026, 00.45 WIB, cabang `main` dan `tahap-2b` (isinya sama).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -36,7 +36,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 - **Sentuhan harian lewat koneksi database belum tentu dihitung aktif oleh Supabase** (Menebak). Baru terbukti setelah gerbang "demo hidup setelah 8 hari".
 - GitHub mematikan jadwal otomatis di repo yang 60 hari tanpa commit (Kemungkinan Besar).
 
-- **Memuat data dari GitHub Actions ke Supabase sangat lambat** (Terbukti, run #1): langkah muat karyawan sekitar 20 menit, karena tiap baris perintah satu perjalanan bolak-balik dari server GitHub ke Mumbai. Pindah wilayah tidak menyelesaikan ini (Kemungkinan Besar); yang menyelesaikan adalah mengirim data sekaligus (misalnya `COPY` atau insert banyak baris). Belum dikerjakan.
+- **Memuat data dari GitHub Actions ke Supabase sangat lambat kalau satu perintah per baris** (Terbukti, run #1: 22 menit, 0,254 detik per perintah). Sudah diperbaiki dengan COPY (paket 13 Nov (2)).
 
 ### Keputusan pemilik proyek (12 Nov 2026)
 
@@ -47,6 +47,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 | Umur simpan cadangan | 30 hari (artifact GitHub; hanya untuk data simulasi, tidak untuk perusahaan sungguhan) |
 | Urutan | Gabung tahap-2b ke main dikerjakan sebelum workflow pasang-supabase dijalankan |
 | Cadangan malam | Pukul 02.20 WIB, disimpan 14 hari, ditambah sentuhan lewat jalur API (ikut saran) |
+| Tempat uji (13 Nov 2026) | Untuk demo (data simulasi), tempat uji terpisah = Postgres sementara di GitHub Actions (semua uji otomatis jalan di sana, aturan F7); Supabase utama boleh direset. Supabase kedua khusus uji ditunda sampai Tahap 5 (bot Telegram) atau klien pertama, mana yang lebih dulu. Ini tafsiran gerbang PRD bagian 17 yang disetujui pemilik, bukan penghapusan gerbang |
 | Cara kerja (13 Nov 2026) | "Buat" berlaku per paket yang ditulis lengkap; Claude yang memicu pemasangan lewat cabang `pasang` (tag ditolak jalur akses Claude, HTTP 403); tidak ada perkiraan waktu tanpa diukur |
 
 ## Langkah berikutnya (satu per satu, masing-masing menunggu "buat")
@@ -70,9 +71,17 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 **Gerbang "ambil data tanpa login ditolak": terbukti di Supabase sungguhan**, dan diuji ulang setiap malam.
 
+## Paket 13 Nov 2026 (2): pemuat cepat + Reset Supabase
+
+- `db/data_awal/muat_karyawan.py` sekarang memakai COPY: 5 perintah menggantikan 5.277 INSERT. Diukur: di Supabase cara lama 1.341 detik = 0,254 detik per perintah (perjalanan bolak-balik dari server GitHub). Isi kelima tabel karyawan identik dengan cara lama (sidik isi sama, termasuk nomor id); jejak perubahan identik kecuali jam pencatatan.
+- Workflow "Reset Supabase" (`.github/workflows/reset-supabase.yml`, `db/reset_supabase.sh`): tombol + kata RESET, atau Claude mendorong main ke cabang `reset`. Cadangan dulu (30 hari) → pengaman: semua karyawan harus data simulasi (cocok ID dan nama), kalau tidak ditolak → kosongkan skema proyek → pasang dari nol → pemeriksaan. Jejak perubahan ikut terhapus, jadi hanya untuk demo.
+- Pemeriksaan izin pemicu (tombol/cabang) dipindah ke `db/periksa_pemicu.sh`, dipakai bersama Pasang dan Reset. Keduanya berbagi antrean `ubah-supabase` supaya tidak jalan bersamaan.
+- Cadangan malam juga jalan otomatis setelah Reset berhasil.
+- Uji lokal (Postgres 16): reset penuh 2,6 detik, hasil 39 tabel/10.859 baris, celah akses 0; database dengan satu karyawan bukan simulasi ditolak dan tidak disentuh.
+
 ## Sisa gerbang Tahap 2
 
-- Tempat uji terpisah dari utama (saat ini hanya ada satu proyek Supabase).
+- ~~Tempat uji terpisah dari utama~~: diputuskan pemilik 13 Nov 2026, lihat tabel keputusan (tempat uji = Postgres sementara di GitHub untuk demo).
 - Demo masih hidup setelah 8 hari tanpa dipakai (paling cepat sekitar 21 Nov 2026).
 
 ## Sebelum dipasang untuk perusahaan sungguhan
@@ -84,7 +93,7 @@ Workflow pasang-supabase bentuknya sudah bisa dipakai ulang, tetapi isinya masih
 | Data awal | CSV karangan Pabrik A di repo | Data asli tidak boleh masuk repo; masuk lewat template unggah, Drive tertutup, atau bot | Tahap 9 (paket pasang) |
 | Secret | Satu `SUPABASE_DB_URL` | Satu secret per perusahaan (kemungkinan lewat GitHub Environments); workflow memilih pemasangan | Saat pemasangan pertama |
 | Cadangan | Artifact GitHub 30 hari | Tidak boleh untuk data gaji asli; Supabase Pro + cadangan sendiri di tempat tertutup | Sebelum klien pertama |
-| Kecepatan muat | 22 menit untuk 1.044 orang | Kirim sekaligus (`COPY` atau insert banyak baris) | Disarankan segera, perubahannya kecil |
+| Kecepatan muat | Sudah memakai COPY (13 Nov 2026) | Tetap; data asli masuk lewat jalur unggah, bukan CSV di repo | Selesai untuk demo |
 | Wilayah Supabase | Mumbai | Dipilih saat membuat proyek klien; Singapura kemungkinan lebih dekat (Kemungkinan Besar) | Saat membuat proyek klien |
 | Pemilik akun | Akun pembangun (banajaka35) | Akun milik perusahaan, pembangun diundang sebagai pengelola | Saat pemasangan pertama |
 

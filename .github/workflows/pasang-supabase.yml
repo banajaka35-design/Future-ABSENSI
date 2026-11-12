@@ -16,13 +16,13 @@ on:
         description: "Ketik PASANG untuk melanjutkan"
         required: true
 
-concurrency:
-  group: pasang-supabase
-  cancel-in-progress: false
-
 permissions:
   contents: read
   checks: read
+
+concurrency:
+  group: ubah-supabase
+  cancel-in-progress: false
 
 jobs:
   pasang:
@@ -30,37 +30,19 @@ jobs:
     env:
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Periksa izin memasang dan secret
         env:
+          KATA: PASANG
           KONFIRMASI: ${{ inputs.konfirmasi }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "$KONFIRMASI" != "PASANG" ]; then
-              echo "GAGAL: konfirmasi bukan PASANG. Tidak ada yang diubah." >&2
-              exit 1
-            fi
-          else
-            MAIN="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
-            if [ "$GITHUB_SHA" != "$MAIN" ]; then
-              echo "GAGAL: cabang pasang menunjuk $GITHUB_SHA, bukan commit terbaru main ($MAIN). Tidak ada yang diubah." >&2
-              exit 1
-            fi
-            # Dorongan ke cabang pasang juga memicu uji otomatis baru; cukup satu yang lulus dan tidak boleh ada yang gagal.
-            HASIL="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" \
-              --jq '[.check_runs[] | select(.name == "uji") | .conclusion] | if any(. == "failure" or . == "cancelled") then "gagal" elif any(. == "success") then "success" else "belum" end')"
-            if [ "$HASIL" != "success" ]; then
-              echo "GAGAL: uji otomatis untuk commit ini belum lulus (hasil: $HASIL). Tidak ada yang diubah." >&2
-              exit 1
-            fi
-            echo "Dorongan ke cabang pasang sah: commit terbaru main, uji otomatis lulus."
-          fi
+          db/periksa_pemicu.sh
           if [ -z "$DB_URL" ]; then
             echo "GAGAL: secret SUPABASE_DB_URL kosong atau tidak ditemukan." >&2
             exit 1
           fi
-
-      - uses: actions/checkout@v4
 
       - name: Pasang klien Postgres 17
         run: |

@@ -2,7 +2,12 @@
 
 Membaca file data (bukan kode) dari data/simulasi/<pabrik>/induk/, jadi tidak
 melanggar larangan berbagi kode dengan generator.
-Pemakaian: python3 db/data_awal/muat_karyawan.py A > /tmp/karyawan.sql
+
+Data dikirim dengan COPY (satu perintah per tabel), bukan satu INSERT per baris:
+lewat jaringan ke Supabase, tiap perintah adalah satu perjalanan bolak-balik
+(terukur 0,25 detik), sehingga 5.277 INSERT memakan 22 menit. Isi tabel hasilnya
+sama persis dengan cara lama, dan semuanya tetap dalam satu transaksi.
+Pemakaian: python3 db/data_awal/muat_karyawan.py A | psql ...
 """
 import csv
 import os
@@ -11,13 +16,26 @@ import sys
 AKAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "simulasi")
 
 
-def q(v):
-    return "null" if v is None or v == "" else "'" + str(v).replace("'", "''") + "'"
+def nilai(v):
+    """Satu nilai dalam format teks COPY: kosong menjadi NULL, karakter khusus di-escape."""
+    if v is None or v == "":
+        return r"\N"
+    s = str(v)
+    for asal, ganti in (("\\", "\\\\"), ("\t", "\\t"), ("\n", "\\n"), ("\r", "\\r")):
+        s = s.replace(asal, ganti)
+    return s
 
 
 def baca(pabrik, nama):
     with open(os.path.join(AKAR, pabrik, "induk", nama), encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
+
+
+def copy(out, tabel, kolom, baris):
+    out.append(f"copy {tabel} ({', '.join(kolom)}) from stdin;")
+    for b in baris:
+        out.append("\t".join(nilai(v) for v in b))
+    out.append("\\.")
 
 
 def main(pabrik):
@@ -27,28 +45,32 @@ def main(pabrik):
     for m in baca(pabrik, "mutasi_regu.csv"):
         mutasi.setdefault(m["id_karyawan"], []).append((m["berlaku_dari"], m["regu_baru"]))
 
-    out = ["begin;", "set local app.pengguna = 'data-awal';"]
+    induk, riwayat, status, regu = [], [], [], []
     for k in karyawan:
         kid = k["id"]
-        out.append(f"insert into induk.karyawan (id, nama) values ({q(kid)}, {q(k['nama'])});")
-        out.append(
-            "insert into induk.karyawan_riwayat (id_karyawan, berlaku_dari, divisi, tipe_upah, gaji_pokok, "
-            "tunjangan_tetap, ptkp, cara_bayar, wajib_tap, gaji_rahasia) values "
-            f"({q(kid)}, {q(k['mulai'])}, {q(k['divisi'])}, {q(k['tipe_upah'])}, {int(k['gaji_pokok'])}, "
-            f"{int(k['tunjangan_tetap'])}, {q(k['ptkp'])}, {q(k['cara_bayar'])}, "
-            f"{'true' if k['wajib_tap'] == 'ya' else 'false'}, {'true' if k['gaji_rahasia'] == 'ya' else 'false'});")
-        out.append(f"insert into induk.status_kerja (id_karyawan, jenis, tanggal) values ({q(kid)}, 'mulai', {q(k['mulai'])});")
+        induk.append((kid, k["nama"]))
+        riwayat.append((kid, k["mulai"], k["divisi"], k["tipe_upah"], int(k["gaji_pokok"]),
+                        int(k["tunjangan_tetap"]), k["ptkp"], k["cara_bayar"],
+                        "true" if k["wajib_tap"] == "ya" else "false",
+                        "true" if k["gaji_rahasia"] == "ya" else "false"))
+        status.append((kid, "mulai", k["mulai"]))
         if k["berhenti"]:
-            out.append(f"insert into induk.status_kerja (id_karyawan, jenis, tanggal) values ({q(kid)}, 'berhenti', {q(k['berhenti'])});")
+            status.append((kid, "berhenti", k["berhenti"]))
         # Penugasan regu: rentang setengah terbuka, ditulis langsung tanpa mengubah baris.
         titik = [(k["mulai"], k["regu"])] + sorted(mutasi.get(kid, []))
-        for i, (dari, regu) in enumerate(titik):
+        for i, (dari, r) in enumerate(titik):
             sampai = titik[i + 1][0] if i + 1 < len(titik) else None
-            out.append(f"insert into induk.penugasan_regu (id_karyawan, regu, berlaku_dari, berlaku_sampai) "
-                       f"values ({q(kid)}, {int(regu)}, {q(dari)}, {q(sampai)});")
-    for p in pemetaan:
-        out.append(f"insert into induk.pemetaan_id_mesin (mesin, id_mesin, id_karyawan, berlaku_dari, berlaku_sampai) "
-                   f"values ({q(p['mesin'])}, {q(p['id_mesin'])}, {q(p['id_karyawan'])}, {q(p['berlaku_dari'])}, {q(p['berlaku_sampai'])});")
+            regu.append((kid, int(r), dari, sampai))
+
+    out = ["begin;", "set local app.pengguna = 'data-awal';"]
+    copy(out, "induk.karyawan", ["id", "nama"], induk)
+    copy(out, "induk.karyawan_riwayat",
+         ["id_karyawan", "berlaku_dari", "divisi", "tipe_upah", "gaji_pokok", "tunjangan_tetap",
+          "ptkp", "cara_bayar", "wajib_tap", "gaji_rahasia"], riwayat)
+    copy(out, "induk.status_kerja", ["id_karyawan", "jenis", "tanggal"], status)
+    copy(out, "induk.penugasan_regu", ["id_karyawan", "regu", "berlaku_dari", "berlaku_sampai"], regu)
+    copy(out, "induk.pemetaan_id_mesin", ["mesin", "id_mesin", "id_karyawan", "berlaku_dari", "berlaku_sampai"],
+         [(p["mesin"], p["id_mesin"], p["id_karyawan"], p["berlaku_dari"], p["berlaku_sampai"]) for p in pemetaan])
     out.append("commit;")
     print("\n".join(out))
 
