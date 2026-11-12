@@ -1,0 +1,6 @@
+kode,nama,jumlah_awal,pola,jumlah_regu,mesin
+PRD,Produksi,600,rotasi4,4,MA1
+QC,Quality Control,80,rotasi4,4,MA1
+KAM,Keamanan,50,rotasi4,4,MA1
+GDG,Gudang dan Logistik,150,gudang2,2,MA1
+KTR,Kantor,120,kantor6,1,MA2

@@ -1,0 +1,5 @@
+kode,nama,jumlah_awal,pola,jumlah_regu,mesin
+PRD,Produksi,110,dua_shift5,2,MB1
+GDG,Gudang,30,gudang2,2,MB1
+KTR,Kantor,25,kantor5,1,MB1
+KAM,Keamanan,15,rotasi4,4,MB1
