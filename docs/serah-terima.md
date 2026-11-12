@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 13 November 2026, 00.45 WIB (hasil reset Supabase), cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 13 November 2026, 01.00 WIB, cabang `main` dan `tahap-2b` (isinya sama).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -13,7 +13,7 @@ Terakhir diperbarui: 13 November 2026, 00.45 WIB (hasil reset Supabase), cabang 
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 2 (gudang data), gerbang belum lulus
+## Posisi sekarang: Tahap 2 (gudang data) lulus dengan catatan; berikutnya Tahap 3
 
 ### Sudah terbukti
 
@@ -48,6 +48,8 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 | Urutan | Gabung tahap-2b ke main dikerjakan sebelum workflow pasang-supabase dijalankan |
 | Cadangan malam | Pukul 02.20 WIB, disimpan 14 hari, ditambah sentuhan lewat jalur API (ikut saran) |
 | Tempat uji (13 Nov 2026) | Untuk demo (data simulasi), tempat uji terpisah = Postgres sementara di GitHub Actions (semua uji otomatis jalan di sana, aturan F7); Supabase utama boleh direset. Supabase kedua khusus uji ditunda sampai Tahap 5 (bot Telegram) atau klien pertama, mana yang lebih dulu. Ini tafsiran gerbang PRD bagian 17 yang disetujui pemilik, bukan penghapusan gerbang |
+| Gerbang Tahap 2 (13 Nov 2026) | **Lulus dengan catatan.** Uji "demo hidup setelah 8 hari tanpa dipakai" (PRD bagian 17) berjalan di belakang lewat Cadangan malam dan dicek sekitar 21 Nov 2026. Bila Supabase ternyata dijeda, diperbaiki saat itu (reset 3 menit) tanpa menghentikan tahap yang sedang jalan. Tahap 3 boleh dimulai sekarang (aturan 10 di CLAUDE.md) |
+| U9 dan U2 (13 Nov 2026) | Tidak menghalangi gerbang Tahap 3 dan 4. Acuan untuk pembangunan adalah **bentuk file asli** (lihat "Bentuk file asli" di bawah); pencocokan dengan hitungan manusia (file asli ditandai tangan, gaji dihitung orang lain) dilakukan saat berjalan berdampingan di perusahaan pertama. Klaim portofolio tetap "diuji dengan data simulasi berformat mesin asli" (PRD bagian 1) |
 | Cara kerja (13 Nov 2026) | "Buat" berlaku per paket yang ditulis lengkap; Claude yang memicu pemasangan lewat cabang `pasang` (tag ditolak jalur akses Claude, HTTP 403); tidak ada perkiraan waktu tanpa diukur |
 
 ## Langkah berikutnya (satu per satu, masing-masing menunggu "buat")
@@ -84,7 +86,45 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 ## Sisa gerbang Tahap 2
 
 - ~~Tempat uji terpisah dari utama~~: diputuskan pemilik 13 Nov 2026, lihat tabel keputusan (tempat uji = Postgres sementara di GitHub untuk demo).
-- Demo masih hidup setelah 8 hari tanpa dipakai (paling cepat sekitar 21 Nov 2026).
+- ⏳ Demo masih hidup setelah 8 hari tanpa dipakai: berjalan di belakang, cek sekitar 21 Nov 2026 (cara cek: Supabase menjawab dan run Cadangan malam terjadwal tetap hijau setiap hari). Tidak menghalangi Tahap 3.
+
+## Bentuk file asli (dicek 13 Nov 2026, isi pribadi tidak dicatat)
+
+Kedua file ada di folder Drive tertutup "PROJECT ABSENSI" milik banajaka35@gmail.com. Hanya bentuknya yang dipakai.
+
+**File 1: ekspor mentah mesin finger** ("absen feb. 2026.xls", 275 baris, 8 orang). Sama dengan PRD bagian 5.
+
+| Kolom | Isi |
+| --- | --- |
+| Nama | nama karyawan |
+| No.ID | **18 digit**, harus dibaca sebagai teks (celah M1) |
+| Tgl/Waktu | `dd/mm/yyyy jj.mm.dd` (pemisah jam titik) |
+| (tanpa judul) | jam yang sama tanpa detik; terbukti salinan kolom Tgl/Waktu di semua 275 baris |
+| Status | `C/Masuk` (137) atau `C/Keluar` (138) |
+
+Data simulasi (`data/simulasi/*/mesin/*.csv.gz`) sudah berbentuk sama persis (5 kolom, judul sama, cara tulis jam sama). **Beda satu: ID simulasi 5 digit, ID asli 18 digit.** Pembaca tap di Tahap 3 wajib diuji juga dengan ID 18 digit.
+
+**File 2: rekap HRD yang disusun dari data mesin** (file .xlsx berisi satu orang, November 2025; nama file memuat nama orang sungguhan, jadi tidak ditulis di sini). Kolom: No.ID (18 digit), NIP (sama dengan No.ID), Nama, Tgl/Waktu (`dd/mm/yyyy jj.mm`, kadang dengan detik). Tanpa kolom Status. Berisi tap tercatat dua kali (sekali dengan detik, sekali tanpa) — contoh salah salin manual yang harus dibuang otomatis oleh aturan "buang dobel" (PRD bagian 7). Ini contoh bentuk keluaran yang biasa dilihat HRD, bukan masukan mesin.
+
+**Pertanyaan terbuka untuk Tahap 6 (Sheets):** bentuk file 2 pada dasarnya daftar tap per orang, sedangkan PRD celah D4 melarang log tap mentah di Sheets. Pilihan: (a) tetap PRD: Sheets hanya rekap, rincian tap lewat rincian gaji atau keberatan; (b) tambah satu tab "rincian tap per orang" seperti file 2. Diputuskan pemilik di Tahap 6.
+
+## Rencana Tahap 3 sampai 9 (PRD bagian 17)
+
+⏳ = syarat yang menunggu waktu atau orang lain; berjalan di belakang (aturan 10).
+
+| Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
+| --- | --- | --- | --- |
+| 3 | Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
+| 4 | Hitung gaji, halaman demo sederhana, unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | Tabel TER/PTKP dan batas JP 2026 dicek ke sumber resmi; U2 pembanding manusia dipindah ke berjalan berdampingan |
+| 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
+| 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
+| 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
+| 8 | Pendaftaran karyawan, pesan gaji, keberatan, rilis dengan PIN | Rincian gaji sampai ke Telegram | — |
+| 9 | Web penuh, coba aturan, paket pasang | Web siap didemokan | U11 waktu operator; wawancara 2–3 HRD (hanya untuk angka penghematan) |
+
+Cara kerja yang disepakati: satu "buat" per tahap dengan daftar paket lengkap; di akhir tiap tahap pemilik melihat bukti (jumlah baris di Supabase, 3 contoh orang lengkap, hasil uji). Tiap tahap sebaiknya dimulai di chat baru dengan kalimat:
+
+> Baca CLAUDE.md dan docs/serah-terima.md di repo banajaka35-design/Future-ABSENSI cabang main. Lalu tulis daftar paket Tahap 3 lengkap untuk saya "buat".
 
 ## Sebelum dipasang untuk perusahaan sungguhan
 

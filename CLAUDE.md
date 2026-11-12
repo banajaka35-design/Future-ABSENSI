@@ -13,6 +13,7 @@ Sistem absensi fingerprint dan payroll otomatis. Rancangan lengkap ada di PRD v3
 7. **"Buat" berlaku untuk satu paket** (keputusan pemilik, 13 Nov 2026). Sebelum meminta "buat", tulis daftar lengkap isi paket: apa yang diubah, apa yang dipasang ke Supabase, apa yang belum pasti. Yang tidak tertulis di daftar tidak ikut dikerjakan.
 8. **Supabase hanya diubah lewat workflow "Pasang ke Supabase" atau "Reset Supabase"**, tidak pernah langsung (SQL editor, alat AI seperti apply_migration, atau skrip dari komputer). Claude boleh memicunya sendiri dengan mendorong commit terbaru main ke cabang `pasang` (`git push --force origin main:pasang`) atau `reset` (`git push --force origin main:reset`), hanya bila paket yang di-"buat" menyebut pemasangan atau reset, dan hanya setelah uji otomatis commit itu lulus. Membaca Supabase untuk memeriksa hasil boleh kapan saja. Reset hanya untuk pemasangan demo (skripnya menolak bila ada karyawan yang bukan data simulasi).
 9. Tidak ada perkiraan waktu tanpa diukur. Kalau terpaksa menebak, tulis sebagai tebakan beserta alasannya.
+10. **Syarat gerbang yang hanya menunggu waktu atau menunggu orang lain tidak menghentikan pekerjaan** (keputusan pemilik, 13 Nov 2026). Syarat seperti itu dimulai sedini mungkin, berjalan di belakang, dan dicatat di `docs/serah-terima.md`; tahap berikutnya tetap jalan. Contoh: uji "demo hidup setelah 8 hari", hitungan pembanding oleh orang lain, wawancara HRD.
 
 ## Struktur folder
 
