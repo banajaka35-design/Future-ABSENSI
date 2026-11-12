@@ -21,14 +21,23 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Pasang klien psql
         run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
+      - name: Uji pembaca file (kasus jebakan bentuk file)
+        run: node --test sistem/urai/uji_urai.ts
       - name: Jalankan semua migrasi dari nol lalu semua uji
         env:
           DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: db/uji/jalankan.sh
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+      - name: Uji simulasi Tahap 3 (U1, U4, U6, sidik) dengan data simulasi lengkap Pabrik A
+        env:
+          ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: sistem/uji/jalankan_simulasi.sh
       - name: Pemeriksaan kewajaran data simulasi (isi data harus identik dengan yang tersimpan)
         run: cd generator && python3 buat_data.py > /dev/null && python3 periksa_kewajaran.py && git diff --exit-code -- ../data/simulasi/sidik_isi.txt
