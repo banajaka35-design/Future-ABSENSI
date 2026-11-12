@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 12 November 2026, 23.30 WIB, cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 12 November 2026, 23.35 WIB, cabang `main` dan `tahap-2b` (isinya sama).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -59,6 +59,19 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 - Tempat uji terpisah dari utama (saat ini hanya ada satu proyek Supabase).
 - "Ambil data tanpa login ditolak" dibuktikan di Supabase sungguhan, bukan hanya di Postgres sementara.
 - Demo masih hidup setelah 8 hari tanpa dipakai.
+
+## Sebelum dipasang untuk perusahaan sungguhan
+
+Workflow pasang-supabase bentuknya sudah bisa dipakai ulang, tetapi isinya masih khusus demo. Yang harus diubah sebelum perusahaan pertama (sesuai PRD bagian 13, 15, 18):
+
+| Hal | Sekarang (demo) | Untuk perusahaan sungguhan | Kapan |
+| --- | --- | --- | --- |
+| Data awal | CSV karangan Pabrik A di repo | Data asli tidak boleh masuk repo; masuk lewat template unggah, Drive tertutup, atau bot | Tahap 9 (paket pasang) |
+| Secret | Satu `SUPABASE_DB_URL` | Satu secret per perusahaan (kemungkinan lewat GitHub Environments); workflow memilih pemasangan | Saat pemasangan pertama |
+| Cadangan | Artifact GitHub 30 hari | Tidak boleh untuk data gaji asli; Supabase Pro + cadangan sendiri di tempat tertutup | Sebelum klien pertama |
+| Kecepatan muat | 22 menit untuk 1.044 orang | Kirim sekaligus (`COPY` atau insert banyak baris) | Disarankan segera, perubahannya kecil |
+| Wilayah Supabase | Mumbai | Dipilih saat membuat proyek klien; Singapura kemungkinan lebih dekat (Kemungkinan Besar) | Saat membuat proyek klien |
+| Pemilik akun | Akun pembangun (banajaka35) | Akun milik perusahaan, pembangun diundang sebagai pengelola | Saat pemasangan pertama |
 
 ## Belum dikerjakan, ditunda
 
