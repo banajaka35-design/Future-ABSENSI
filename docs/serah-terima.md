@@ -86,4 +86,4 @@ Workflow pasang-supabase bentuknya sudah bisa dipakai ulang, tetapi isinya masih
 
 - Sel A1 Google Sheets "PROJECT ABSENSI": sudah dikosongkan (13 Nov 2026).
 - File "TES CLAUDE - boleh dihapus.txt" di Drive: sudah dipindah ke Sampah (13 Nov 2026).
-- Cabang `tes-claude` di repo: **masih ada**. Sesi Claude tidak diizinkan menghapus cabang lewat jalurnya; pemilik menghapusnya sendiri di GitHub (Code → Branches → ikon tong sampah di baris `tes-claude`). Aman dihapus: isinya hanya `TES-CLAUDE.md`.
+- Cabang `tes-claude`: sudah dihapus pemilik (13 Nov 2026).
