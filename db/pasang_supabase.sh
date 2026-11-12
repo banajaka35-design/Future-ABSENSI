@@ -93,13 +93,7 @@ pasang() {
   echo "Pemeriksaan: $lulus lulus, $gagal gagal."
 
   echo "== Jumlah baris per tabel"
-  "${PSQL[@]}" -c "
-    select n.nspname || '.' || c.relname as tabel,
-           (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname),
-                                                false, true, '')))[1]::text::bigint as baris
-    from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where c.relkind in ('r', 'p') and not c.relispartition and n.nspname = any($SKEMA_SQL)
-    order by 1"
+  "${PSQL[@]}" -f db/hitung_baris.sql
 
   if [ "$gagal" -ne 0 ] || [ "$lulus" -eq 0 ]; then
     exit 1

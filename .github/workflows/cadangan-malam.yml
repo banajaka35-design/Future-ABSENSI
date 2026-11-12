@@ -1,0 +1,98 @@
+name: Cadangan malam
+
+# Setiap malam: cadangkan skema proyek dari Supabase, buktikan cadangan itu bisa dipulihkan ke
+# Postgres 17 kosong dengan jumlah baris yang sama, lalu sentuh Supabase lewat jalur API supaya
+# proyek gratis tidak dijeda (PRD celah D7, aturan pondasi 11).
+# Jadwal hanya berjalan dari cabang main.
+on:
+  schedule:
+    - cron: "20 19 * * *" # 02.20 WIB
+  workflow_dispatch:
+
+concurrency:
+  group: cadangan-malam
+  cancel-in-progress: false
+
+jobs:
+  cadangan:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Periksa secret
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "GAGAL: secret SUPABASE_DB_URL kosong atau tidak ditemukan." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Pasang klien Postgres 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Cadangan
+        run: |
+          mkdir -p cadangan
+          FILE="cadangan/malam-$(date -u +%Y%m%d-%H%M%S).dump"
+          db/pasang_supabase.sh cadangan "$FILE"
+          if [ ! -s "$FILE" ]; then
+            echo "GAGAL: file cadangan tidak terbentuk (Supabase tidak berisi skema proyek?)." >&2
+            exit 1
+          fi
+          echo "FILE_CADANGAN=$FILE" >> "$GITHUB_ENV"
+
+      - name: Simpan cadangan (14 hari)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cadangan-malam-${{ github.run_number }}
+          path: cadangan/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Uji pemulihan ke Postgres 17 kosong
+        env:
+          SUMBER_URL: ${{ secrets.SUPABASE_DB_URL }}
+          TUJUAN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: db/uji_pemulihan.sh "$FILE_CADANGAN"
+
+      - name: Sentuhan lewat jalur API Supabase
+        env:
+          KUNCI: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          # Alamat proyek diambil dari nama pengguna di SUPABASE_DB_URL (postgres.<ref>).
+          REF="$(printf '%s' "$DB_URL" | sed -nE 's#^postgres(ql)?://postgres\.([a-z0-9]+):.*#\2#p')"
+          if [ -z "$REF" ]; then
+            echo "::warning::Kode proyek tidak terbaca dari SUPABASE_DB_URL; sentuhan API dilewati."
+            exit 0
+          fi
+          if [ -z "$KUNCI" ]; then
+            echo "::warning::Secret SUPABASE_PUBLISHABLE_KEY belum ada; sentuhan API dilewati (hanya sentuhan lewat database)."
+            exit 0
+          fi
+          KODE="$(curl -s -o /dev/null -w '%{http_code}' -m 30 -H "apikey: $KUNCI" "https://$REF.supabase.co/rest/v1/")"
+          echo "Jawaban jalur API: HTTP $KODE"
+          # 2xx/4xx berarti proyek hidup dan menjawab (tabel proyek memang tidak dibuka untuk umum).
+          # 000 = tidak tersambung, 5xx = proyek bermasalah atau dijeda.
+          if [ "$KODE" = "000" ] || [ "${KODE:0:1}" = "5" ]; then
+            echo "GAGAL: jalur API Supabase tidak menjawab dengan benar (HTTP $KODE)." >&2
+            exit 1
+          fi
