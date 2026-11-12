@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 13 November 2026, 00.45 WIB, cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 13 November 2026, 00.45 WIB (hasil reset Supabase), cabang `main` dan `tahap-2b` (isinya sama).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -78,6 +78,8 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 - Pemeriksaan izin pemicu (tombol/cabang) dipindah ke `db/periksa_pemicu.sh`, dipakai bersama Pasang dan Reset. Keduanya berbagi antrean `ubah-supabase` supaya tidak jalan bersamaan.
 - Cadangan malam juga jalan otomatis setelah Reset berhasil.
 - Uji lokal (Postgres 16): reset penuh 2,6 detik, hasil 39 tabel/10.859 baris, celah akses 0; database dengan satu karyawan bukan simulasi ditolak dan tidak disentuh.
+- **Dijalankan di Supabase (13 Nov 2026, 00.37–00.43 WIB, diukur):** uji otomatis 61 detik (68 lulus); Reset Supabase sekitar 3 menit (cadangan 48 detik, kosongkan 8 detik, pasang dari nol + data awal 106 detik; sebelumnya muat karyawan saja 22 menit); Cadangan malam jalan otomatis sesudahnya sekitar 1,5 menit: pemulihan 39 tabel/10.859 baris sama, uji tanpa login LULUS (katalog kosong, 5 permintaan ditolak HTTP 406). Dicek langsung di Supabase: migrasi 0001–0005 terpasang ulang pukul 00.39–00.40 dengan sidik sama seperti repo; 39 tabel/10.859 baris; karyawan 1.044; contoh 10001 Eka Susanto, PRD, Rp4.100.000, transfer; celah fungsi 0; skema `uji` tidak tertinggal; tidak ada transaksi menggantung.
+- Catatan: 106 detik untuk pasang dari nol jauh di atas 2,6 detik di lokal. Dugaan (Kemungkinan Besar): `db/pasang.sh` dan pemeriksaan isi membuka koneksi baru untuk setiap perintah kecil (puluhan koneksi), dan tiap koneksi ke pooler dari server GitHub butuh beberapa detik. Belum diukur per langkah; tidak mendesak.
 
 ## Sisa gerbang Tahap 2
 
