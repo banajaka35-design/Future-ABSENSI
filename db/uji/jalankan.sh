@@ -7,16 +7,20 @@ DB_URL="${DB_URL:-postgresql://postgres:postgres@localhost:5432/postgres}"
 PSQL=(psql "$DB_URL" -X -q -v ON_ERROR_STOP=1)
 
 "${PSQL[@]}" -f db/uji/persiapan_peran.sql
-for f in db/migrasi/*.sql; do
-  echo "Migrasi: $f"
-  "${PSQL[@]}" -f "$f"
-done
+DB_URL="$DB_URL" db/pasang.sh
+echo "Pasang ulang harus melewati semua migrasi:"
+DB_URL="$DB_URL" db/pasang.sh | grep -c "Lewati" | xargs -I{} echo "  {} migrasi dilewati"
 "${PSQL[@]}" -f db/uji/alat.sql
 LOG="$(mktemp)"
 for f in db/uji/[0-9]*.sql; do
   echo "Uji: $f"
   "${PSQL[@]}" -t -o /dev/null -f "$f" 2>&1 | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | tee -a "$LOG"
 done
+
+echo "Data awal Pabrik A:"
+"${PSQL[@]}" -f db/data_awal/pabrik_a_struktur.sql
+python3 db/data_awal/muat_karyawan.py A | "${PSQL[@]}" -o /dev/null
+"${PSQL[@]}" -t -o /dev/null -f db/data_awal/cek_data_awal.sql 2>&1 | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | tee -a "$LOG"
 
 LULUS=$(grep -c "LULUS" "$LOG" || true)
 GAGAL=$(grep -c "GAGAL" "$LOG" || true)
