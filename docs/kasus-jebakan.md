@@ -76,6 +76,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | C11 | Karyawan berhenti 18 Feb, ada tap 19 Feb | Tap 19 Feb tidak dihitung; peringatan ke HRD | PRD |
 | C12 | P3 tanpa tap 19 Feb (hari kerja biasa) | Alpha; setelah perintah "sakit tgl 19" menjadi sakit dan gaji dihitung ulang | Asli, PRD |
 | C13 | Alpha 3 hari kerja berturut-turut | Peringatan alpha beruntun ke HRD | PRD |
+| C14 | Divisi berisi 2 karyawan aktif; keduanya tanpa tap di hari kerja | Bukan anomali massal (di bawah minimal 3 karyawan aktif): keduanya alpha seperti biasa dan masuk rekap harian | PRD v3.1 |
 
 ## D. Lembur
 
@@ -138,7 +139,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 ## Keputusan yang sudah ditutup (v1.1)
 
 1. **Tap tunggal di tengah shift:** diperlakukan seperti lupa tap pulang, ditandai ambigu, masuk rekap harian HRD (kasus B08).
-2. **Hari tanpa tap massal:** di atas ambang 50% karyawan aktif satu divisi, tidak langsung alpha; pemberitahuan segera; periode tertahan sampai HRD menetapkan (kasus C06, F08).
+2. **Hari tanpa tap massal:** di atas ambang 50% karyawan aktif satu divisi yang berisi minimal 3 karyawan aktif, tidak langsung alpha; pemberitahuan segera; periode tertahan sampai HRD menetapkan (kasus C06, C14, F08).
 3. **Jadwal Ramadan:** jadwal bertanggal biasa dengan pengingat tahunan ke HRD (kasus C07).
 
-Jumlah kasus: 83.
+Jumlah kasus: 84.
