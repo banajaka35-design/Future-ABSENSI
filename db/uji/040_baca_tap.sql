@@ -371,6 +371,13 @@ create temp table uji_sidik as select hitung.baca_tap((select min(id) from fakta
 insert into uji_sidik select hitung.baca_tap((select min(id) from fakta.periode));
 select uji.sama('sidik: dua kali hitung tanpa perubahan masukan menghasilkan sidik sama',
   (select count(distinct v.sidik_hasil) from uji_sidik s join hitung.versi_hitung v on v.id = s.versi)::int, 1);
+set local timezone = 'Asia/Jakarta';
+insert into uji_sidik select hitung.baca_tap((select min(id) from fakta.periode));
+set local timezone = 'America/New_York';
+insert into uji_sidik select hitung.baca_tap((select min(id) from fakta.periode));
+reset timezone;
+select uji.sama('sidik: sama walau zona waktu sesi berbeda (Supabase UTC, komputer kerja WIB)',
+  (select count(distinct v.sidik_hasil) from uji_sidik s join hitung.versi_hitung v on v.id = s.versi)::int, 1);
 select uji.harus_ditolak('versi: hasil yang sudah jadi tidak boleh diubah',
   $$update hitung.hasil_harian set status = 'hadir' where id_karyawan = 'C12'$$);
 select uji.harus_ditolak('versi: versi hitung tidak boleh dihapus', $$delete from hitung.versi_hitung$$);
