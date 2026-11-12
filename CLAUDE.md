@@ -9,6 +9,7 @@ Sistem absensi fingerprint dan payroll otomatis. Rancangan lengkap ada di PRD v3
 3. Bahasa Indonesia sederhana di dokumen, pesan commit, dan pesan untuk pengguna.
 4. Pisahkan yang terbukti dari yang masih dugaan. Angka kecepatan dan penghematan hanya ditulis setelah diukur.
 5. Hasil diperiksa sampai ke gudang data dan Sheets, tidak cukup dari balasan bot.
+6. Sebelum mengubah apa pun, baca `docs/serah-terima.md` (posisi terakhir, keputusan, temuan) dan perbarui file itu setiap kali satu langkah selesai.
 
 ## Struktur folder
 
