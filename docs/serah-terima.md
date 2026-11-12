@@ -2,12 +2,12 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 13 November 2026, 00.05 WIB, cabang `main` dan `tahap-2b` (isinya sama).
+Terakhir diperbarui: 13 November 2026, 00.40 WIB, cabang `main` dan `tahap-2b` (isinya sama).
 
 ## Aturan sebelum mengubah apa pun
 
 1. Tarik isi GitHub terbaru, lalu baca `CLAUDE.md` dan file ini.
-2. **GitHub adalah satu-satunya sumber kebenaran.** Apa pun yang dipasang ke Supabase harus sudah ada di GitHub lebih dulu, dan dipasang lewat workflow, bukan langsung dari chat.
+2. **GitHub adalah satu-satunya sumber kebenaran.** Apa pun yang dipasang ke Supabase harus sudah ada di GitHub lebih dulu, dan dipasang lewat workflow "Pasang ke Supabase", bukan langsung dari chat (aturan 8 di CLAUDE.md). Claude memicunya dengan tag `pasang-*` setelah "buat" untuk paket yang menyebut pemasangan.
 3. **Satu proyek dikerjakan di satu chat dalam satu waktu.** Kalau berpindah chat, mulai dari file ini.
 4. Setiap perubahan dijelaskan ke pemilik proyek dalam satu paragraf bahasa sederhana: apa yang diubah, kenapa, dan cara mengeceknya.
 
@@ -47,6 +47,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 | Umur simpan cadangan | 30 hari (artifact GitHub; hanya untuk data simulasi, tidak untuk perusahaan sungguhan) |
 | Urutan | Gabung tahap-2b ke main dikerjakan sebelum workflow pasang-supabase dijalankan |
 | Cadangan malam | Pukul 02.20 WIB, disimpan 14 hari, ditambah sentuhan lewat jalur API (ikut saran) |
+| Cara kerja (13 Nov 2026) | "Buat" berlaku per paket yang ditulis lengkap; Claude yang memicu pemasangan lewat tag `pasang-*`; tidak ada perkiraan waktu tanpa diukur |
 
 ## Langkah berikutnya (satu per satu, masing-masing menunggu "buat")
 
@@ -57,11 +58,19 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 5. ~~Pemilik menambah secret `SUPABASE_PUBLISHABLE_KEY` dan menjalankan Cadangan malam~~ **Selesai (12 Nov 2026, run #1, sekitar 1,5 menit)**: cadangan 256 KB tersimpan (artifact `cadangan-malam-1`, sampai 26 Nov 2026); pemulihan ke Postgres 17 kosong tanpa galat, 39 tabel/10.858 baris sama dengan Supabase (dicek ulang langsung di Supabase: 39 tabel, 10.858 baris). **Belum tuntas:** sentuhan API menjawab HTTP 401. Artinya proyek hidup dan menjawab, tetapi belum terbukti kuncinya diterima: halaman `/rest/v1/` kemungkinan memang menolak kunci publik (Kemungkinan Besar). **Diperbaiki 12 Nov 2026, 23.45 WIB:** sentuhan kini ke `/auth/v1/settings` dan hanya HTTP 200 yang lulus; secret kosong atau kunci salah membuat workflow gagal. Terbukti di run #2 (13 Nov 2026, 00.0x WIB, commit 1790ef8): HTTP 200, kunci publik diterima; cadangan dan pemulihan 39 tabel/10.858 baris kembali sama.
 6. Tunggu 8 hari tanpa dipakai (paling cepat sekitar 21 Nov 2026) untuk gerbang "demo masih hidup".
 
-## Sisa gerbang Tahap 2 setelah langkah di atas
+## Paket 13 Nov 2026: tutup pintu + aturan baru
+
+- Migrasi `0005_cabut_izin_fungsi.sql`: izin menjalankan fungsi proyek dicabut dari PUBLIC, termasuk untuk fungsi baru (aturan bawaan global, karena aturan per skema tidak bisa mencabut izin bawaan Postgres; kesalahan ini tertangkap uji otomatis sebelum dipasang).
+- Uji otomatis `db/uji/030_akses_katalog.sql`: katalog izin kosong untuk anon/authenticated, fungsi baru tertutup, pemicu tetap mencatat jejak walau peran penulis tidak punya izin fungsi.
+- `db/cek_akses.sql` + `db/uji_akses_supabase.sh`: uji "tanpa login ditolak" di Supabase sungguhan, tingkat database dan internet (kunci publik harus diterima di `/auth/v1/settings`, lalu 5 permintaan data harus ditolak). Dijalankan di Cadangan malam.
+- Cadangan malam juga jalan otomatis setelah "Pasang ke Supabase" berhasil.
+- "Pasang ke Supabase" bisa dipicu tag `pasang-*`; tag ditolak kalau bukan commit terbaru main atau uji otomatisnya belum lulus.
+
+## Sisa gerbang Tahap 2
 
 - Tempat uji terpisah dari utama (saat ini hanya ada satu proyek Supabase).
-- "Ambil data tanpa login ditolak" dibuktikan di Supabase sungguhan, bukan hanya di Postgres sementara.
-- Demo masih hidup setelah 8 hari tanpa dipakai.
+- Demo masih hidup setelah 8 hari tanpa dipakai (paling cepat sekitar 21 Nov 2026).
+- "Ambil data tanpa login ditolak" di Supabase sungguhan: lihat hasil paket 13 Nov di atas.
 
 ## Sebelum dipasang untuk perusahaan sungguhan
 
