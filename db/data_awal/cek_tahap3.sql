@@ -8,7 +8,7 @@ select uji.sama('tahap 3: setiap periode punya hasil baca tap',
   (select count(*) from fakta.periode p where not exists (select 1 from hitung.versi_terakhir v where v.periode_id = p.id))::int, 0);
 select uji.sama('tahap 3: setiap karyawan aktif punya hasil di setiap hari periode',
   (select count(*) from hitung.versi_terakhir v
-   join fakta.periode p on p.id = v.periode_id
+   join fakta.periode p on p.id = v.periode_id and v.jenis = 'baca_tap'
    cross join lateral generate_series(p.tanggal_awal::timestamp, p.tanggal_akhir::timestamp, interval '1 day') d
    join induk.status_kerja s on s.jenis = 'mulai' and s.tanggal <= d::date
    where not exists (select 1 from induk.status_kerja b where b.id_karyawan = s.id_karyawan and b.jenis = 'berhenti' and b.tanggal < d::date)

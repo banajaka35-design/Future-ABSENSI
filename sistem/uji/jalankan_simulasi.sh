@@ -41,14 +41,28 @@ echo "== Data lengkap (file ekspor + file lanjutan, koreksi jam mesin tercatat)"
 siapkan uji_sim_a ekspor ya
 echo "  Jumlah: $(nilai "select count(*) from fakta.tap_mentah") tap mentah, \
 $(nilai "select count(*) from hitung.hasil_harian h join hitung.versi_terakhir v on v.id = h.versi_id") hari-orang"
-echo "  Lama hitung per periode (ms): $(nilai "select string_agg(lama_ms::text, ' ' order by periode_id) from hitung.versi_hitung")"
+echo "  Lama hitung per periode (ms): $(nilai "select string_agg(lama_ms::text, ' ' order by periode_id) from hitung.versi_hitung where jenis = 'baca_tap'")"
 if python3 sistem/uji/u1_banding.py A; then cek "U1 dengan koreksi jam mesin" lulus lulus; else cek "U1 dengan koreksi jam mesin" gagal lulus; fi
+
+echo "== Hitung gaji (paket 4b-1)"
+nilai "select count(hitung.hitung_gaji(id)) from fakta.periode" > /dev/null
+echo "  Lama hitung gaji per periode (ms): $(nilai "select string_agg(lama_ms::text, ' ' order by periode_id) from hitung.versi_hitung where jenis = 'hitung_gaji'")"
+if python3 sistem/uji/u2_pembanding.py; then cek "U2 versi mesin: kalkulator pembanding sama dengan sistem sampai rupiah" lulus lulus;
+else cek "U2 versi mesin: kalkulator pembanding sama dengan sistem sampai rupiah" gagal lulus; fi
+CEK_GAJI="$({ echo "begin;"; cat db/uji/alat.sql db/data_awal/cek_gaji.sql db/data_awal/cek_tahap3.sql; echo "rollback;"; } \
+  | psql "$DB_URL" -X -q -t -o /dev/null 2>&1 || true)"
+echo "$CEK_GAJI" | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | grep -E "LULUS|GAGAL|hasil:" || true
+cek "pemeriksaan gaji dan tahap 3 sesudah hitung gaji tanpa GAGAL" "$(echo "$CEK_GAJI" | grep -c GAGAL || true)" 0
+P1G="$(nilai "select min(id) from fakta.periode")"
+nilai "select hitung.hitung_gaji($P1G)" > /dev/null
+cek "dua kali hitung gaji menghasilkan sidik yang sama" \
+  "$(nilai "select count(distinct sidik_hasil) from hitung.versi_hitung where periode_id = $P1G and jenis = 'hitung_gaji'")" 1
 
 echo "== Sidik"
 P1="$(nilai "select min(id) from fakta.periode")"
 nilai "select hitung.baca_tap($P1)" > /dev/null
 cek "dua kali hitung menghasilkan sidik hasil yang sama" \
-  "$(nilai "select count(distinct sidik_hasil) from hitung.versi_hitung where periode_id = $P1")" 1
+  "$(nilai "select count(distinct sidik_hasil) from hitung.versi_hitung where periode_id = $P1 and jenis = 'baca_tap'")" 1
 
 echo "== U4: kirim ulang dan pembatalan"
 SEBELUM="$(nilai "$SIDIK_HASIL")"

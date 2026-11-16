@@ -104,12 +104,27 @@ pasang() {
 $(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p order by nomor desc limit 1") ms di database"
   done
 
+  echo "== Hitung gaji (hanya periode yang belum punya hasil gaji dari baca tap terakhir)"
+  # Daftar diambil dulu ke variabel: galat di dalam "for ... in $(...)" tidak menghentikan skrip.
+  local daftar_gaji
+  daftar_gaji="$(nilai "select p.id from fakta.periode p
+                        join hitung.versi_terakhir b on b.periode_id = p.id and b.jenis = 'baca_tap'
+                        where not exists (select 1 from hitung.versi_terakhir g
+                                          where g.periode_id = p.id and g.jenis = 'hitung_gaji' and g.versi_sumber = b.id)
+                        order by p.id")"
+  for p in $daftar_gaji; do
+    mulai=$(date +%s%N)
+    "${PSQL[@]}" -t -A -o /dev/null -c "select hitung.hitung_gaji($p)"
+    echo "  periode $p: $(( ($(date +%s%N) - mulai) / 1000000 )) ms dari server GitHub, \
+$(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p and jenis = 'hitung_gaji' order by nomor desc limit 1") ms di database"
+  done
+
   echo "== Pemeriksaan data awal"
   # Alat uji tidak boleh tertinggal di database utama: dipasang dan dijalankan dalam satu transaksi
   # yang dibatalkan di akhir.
   local log
   log="$(mktemp)"
-  { echo "begin;"; cat db/uji/alat.sql db/data_awal/cek_data_awal.sql db/data_awal/cek_tahap3.sql; echo "rollback;"; } \
+  { echo "begin;"; cat db/uji/alat.sql db/data_awal/cek_data_awal.sql db/data_awal/cek_tahap3.sql db/data_awal/cek_gaji.sql; echo "rollback;"; } \
     | "${PSQL[@]}" -t -o /dev/null 2>&1 | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | tee "$log"
   local lulus gagal
   lulus="$(grep -c "LULUS" "$log" || true)"
