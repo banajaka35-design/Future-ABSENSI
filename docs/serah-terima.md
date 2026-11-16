@@ -182,6 +182,7 @@ Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file 
 | Diubah | `db/pasang_supabase.sh` (file ini dijalankan setiap pemasangan, sesudah struktur Pabrik A), `db/uji/jalankan.sh` (dijalankan dua kali; jalan kedua harus tidak mengubah apa pun), `db/data_awal/cek_data_awal.sql` (kalender 2026 dihitung terpisah; 5 pemeriksaan baru untuk kalender 2027 dan JP) |
 | Tidak diubah | `pabrik_a_struktur.sql`, migrasi, `sistem/uji/jalankan_simulasi.sh` (uji simulasi tidak memakai tanggal 2027 atau JP) |
 | Keterbatasan | Baris JP lama hanya bisa ditutup per 2 Jan 2026, jadi 1 Jan 2026 tetap memakai angka lama (detail di `docs/cek-aturan-hukum.md` bagian 6) |
+| Pasang ke Supabase percobaan 1 (run 43863851023) | **Gagal sebelum menyentuh Supabase**: langkah "Pasang klien Postgres 17" putus saat mengunduh kunci dari postgresql.org (`curl: (55) unexpected eof`). Cadangan dan migrasi tidak sempat jalan. Dugaan [Kemungkinan Besar]: gangguan jaringan sesaat. Diulang dengan commit berikutnya |
 | Uji lokal (Postgres 16) | `db/uji/jalankan.sh`: 184 lulus, 0 gagal. `pasang_supabase.sh pasang` di database kosong: semua dimuat, pemeriksaan 21 lulus, sekitar 32 detik; dijalankan ulang: semua dilewati, pemeriksaan 21 lulus, isi JP tetap 4 baris per bagian |
 
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
