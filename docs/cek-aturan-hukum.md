@@ -48,8 +48,8 @@ Uji otomatis `db/uji/050_aturan_resmi.sql` memeriksa jumlah lapisan, tidak ada c
 
 | Hal | Di Supabase sekarang | Yang benar | Dasar | Label | Tindakan |
 | --- | --- | --- | --- | --- | --- |
-| Batas upah JP Jan–Feb 2026 | 10.547.000 (berlaku sejak 1 Jan 2026, tanpa akhir) | **10.547.400** (berlaku Mar 2025–Feb 2026) | Surat BPJS Ketenagakerjaan Feb 2025 (batas mulai Maret 2025) | Pasti | **Perlu dibetulkan**, belum dikerjakan (lihat bagian 6) |
-| Batas upah JP sejak 1 Mar 2026 | (tidak ada) | **11.086.300** | Surat BPJS Ketenagakerjaan No. B/1226/022026 tgl 25 Feb 2026; diumumkan juga oleh akun resmi BPJS dan Antara | Pasti | **Perlu ditambahkan**, belum dikerjakan |
+| Batas upah JP Jan–Feb 2026 | 10.547.000 (berlaku sejak 1 Jan 2026, tanpa akhir) | **10.547.400** (berlaku Mar 2025–Feb 2026) | Surat BPJS Ketenagakerjaan Feb 2025 (batas mulai Maret 2025) | Pasti | Dibetulkan 16 Nov 2026 (`db/data_awal/aturan_resmi.sql`); 1 Jan 2026 tetap angka lama, lihat bagian 6 |
+| Batas upah JP sejak 1 Mar 2026 | (tidak ada) | **11.086.300** | Surat BPJS Ketenagakerjaan No. B/1226/022026 tgl 25 Feb 2026; diumumkan juga oleh akun resmi BPJS dan Antara | Pasti | Ditambahkan 16 Nov 2026 (`db/data_awal/aturan_resmi.sql`) |
 | Persen iuran BPJS (Kes 1%/4%, JHT 2%/3,7%, JP 1%/2%, JKK 0,24%, JKM 0,3%) | sesuai | sama | Beberapa sumber 2026: tarif tidak berubah | Kemungkinan Besar | Tidak ada |
 | Batas upah BPJS Kesehatan | 12.000.000 | sama | Kasus E05 | Kemungkinan Besar (tidak dicek ulang di paket ini) | Dicek di 4b |
 | UMK Kabupaten Langkat 2026 | 3.402.892 | **sama** | SK Gubernur Sumut No. 188.44/908/KPTS/2025, 24 Des 2025 (dikutip detik, goodstats, UMSU) | Pasti | Tidak ada |
@@ -72,10 +72,12 @@ SKB Menteri Agama, Menteri Ketenagakerjaan, dan Menteri PANRB No. 1205, 3, dan 2
 
 Catatan: tanggal Idul Fitri dan Idul Adha bisa digeser Keputusan Menteri Agama (disebut dalam SKB). Isra Mikraj muncul dua kali karena jatuh dua kali dalam tahun Masehi 2027.
 
-**Belum dimasukkan ke Supabase** (alasan di bagian 6).
+Dimasukkan 16 Nov 2026 lewat `db/data_awal/aturan_resmi.sql` (paket data aturan resmi).
 
 ## 6. Yang belum dikerjakan dan alasannya
 
 Daftar paket 4a menulis "migrasi 0008 berisi TER, PTKP, kalender 2027, dan perbaikan JP/UMK". Saat dikerjakan ternyata **kalender dan BPJS tidak bisa diisi lewat migrasi**: keduanya dimuat oleh `db/data_awal/pabrik_a_struktur.sql`, dan pemasangan (`db/pasang_supabase.sh`) hanya memuat file itu kalau tabelnya masih kosong. Kalau migrasi mengisi kalender 2027 lebih dulu, pemasangan dari nol (uji otomatis dan Reset) akan berhenti dengan "setengah ada"; perbaikan JP lewat migrasi akan tertimpa angka lama saat Reset. Mengubah alur pemasangan tidak tertulis di daftar paket, jadi tidak dikerjakan (aturan 7 CLAUDE.md). Yang dipasang hanya TER dan PTKP (tabel yang tidak diisi data awal).
 
-Usulan paket kecil berikutnya (menunggu "buat"): file data aturan resmi yang bisa dijalankan berulang (kalender 2027, batas JP 2025 dan 2026), dimuat setiap pemasangan setelah struktur; `pabrik_a_struktur.sql` tidak diubah; pemeriksaan data awal disesuaikan (hitung kalender 2026 saja).
+**Diselesaikan di paket "data aturan resmi" (16 Nov 2026):** file `db/data_awal/aturan_resmi.sql` yang aman dijalankan berulang, dimuat setiap pemasangan sesudah struktur Pabrik A. `pabrik_a_struktur.sql` tidak diubah.
+
+Keterbatasan [Pasti]: baris bertanggal hanya boleh ditutup, tidak boleh diubah nilainya, dan tanggal tutup harus sesudah tanggal mulai. Baris JP lama (10.547.000 sejak 1 Jan 2026) karena itu ditutup per 2 Jan 2026, sehingga **tanggal 1 Jan 2026 saja masih memakai 10.547.000** (selisih batas Rp400; iuran JP karyawan selisih paling banyak Rp4). Ini juga terjadi di setiap pemasangan dari nol, karena angka lama tetap dimuat dari `pabrik_a_struktur.sql`. Untuk perusahaan sungguhan data awal tidak memakai file ini (lihat serah terima, "Sebelum dipasang untuk perusahaan sungguhan").

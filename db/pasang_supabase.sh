@@ -76,6 +76,9 @@ pasang() {
     'python3 db/data_awal/muat_karyawan.py A | "${PSQL[@]}" -o /dev/null' \
     induk.karyawan induk.karyawan_riwayat induk.status_kerja induk.penugasan_regu induk.pemetaan_id_mesin
 
+  echo "== Data aturan resmi (kalender, batas JP; aman dijalankan berulang)"
+  "${PSQL[@]}" -o /dev/null -f db/data_awal/aturan_resmi.sql
+
   echo "== Data simulasi Tahap 3 Pabrik A"
   muat_bila_kosong "periode uji" \
     '"${PSQL[@]}" -o /dev/null -f db/data_awal/pabrik_a_tahap3.sql' \

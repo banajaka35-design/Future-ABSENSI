@@ -174,6 +174,16 @@ Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file 
 - Tahap 7: arti "berhenti tgl X" = hari kerja terakhir (dipakai mesin baca tap, sesuai C11); PRD bagian 9 menulis "nonaktif sejak tanggal itu", perlu diseragamkan.
 - Angka tetap di `hitung.baca_tap` (daftar di laporan Tahap 3, temuan 8) dipindah ke tabel aturan bila perusahaan perlu mengubahnya.
 
+## Paket data aturan resmi (16 Nov 2026)
+
+| Hal | Isi |
+| --- | --- |
+| File baru | `db/data_awal/aturan_resmi.sql`: kalender 2027 (18 libur nasional, 8 cuti bersama, SKB 15 Sep 2026) dan batas upah JP (10.547.400 Mar 2025–Feb 2026; 11.086.300 sejak 1 Mar 2026). Aman dijalankan berulang |
+| Diubah | `db/pasang_supabase.sh` (file ini dijalankan setiap pemasangan, sesudah struktur Pabrik A), `db/uji/jalankan.sh` (dijalankan dua kali; jalan kedua harus tidak mengubah apa pun), `db/data_awal/cek_data_awal.sql` (kalender 2026 dihitung terpisah; 5 pemeriksaan baru untuk kalender 2027 dan JP) |
+| Tidak diubah | `pabrik_a_struktur.sql`, migrasi, `sistem/uji/jalankan_simulasi.sh` (uji simulasi tidak memakai tanggal 2027 atau JP) |
+| Keterbatasan | Baris JP lama hanya bisa ditutup per 2 Jan 2026, jadi 1 Jan 2026 tetap memakai angka lama (detail di `docs/cek-aturan-hukum.md` bagian 6) |
+| Uji lokal (Postgres 16) | `db/uji/jalankan.sh`: 184 lulus, 0 gagal. `pasang_supabase.sh pasang` di database kosong: semua dimuat, pemeriksaan 21 lulus, sekitar 32 detik; dijalankan ulang: semua dilewati, pemeriksaan 21 lulus, isi JP tetap 4 baris per bagian |
+
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 
 ⏳ = syarat yang menunggu waktu atau orang lain; berjalan di belakang (aturan 10).
@@ -181,7 +191,7 @@ Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file 
 | Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
 | --- | --- | --- | --- |
 | 3 | ~~Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file~~ **Selesai 13 Nov 2026** | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
-| 4 | 4a ✓ cek hukum + TER/PTKP · 4b hitung gaji · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; batas JP dicek, menunggu dibetulkan; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
+| 4 | 4a ✓ cek hukum + TER/PTKP · 4b hitung gaji · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
 | 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
 | 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
@@ -209,7 +219,7 @@ Workflow pasang-supabase bentuknya sudah bisa dipakai ulang, tetapi isinya masih
 
 - ~~Tabel TER dan PTKP~~: terisi lewat migrasi 0008 (paket 4a).
 - Data awal struktur Pabrik B: Tahap 4b (U5).
-- Batas upah Jaminan Pensiun: sudah dicek (paket 4a), **angka di Supabase salah dan belum dibetulkan**; kalender 2027 belum dimuat. Keduanya menunggu paket kecil "data aturan resmi".
+- ~~Batas upah Jaminan Pensiun dan kalender 2027~~: dibetulkan dan dimuat di paket "data aturan resmi" (16 Nov 2026).
 - Peringatan advisor `public.rls_auto_enable()` adalah bawaan Supabase, dibiarkan.
 
 ## Sisa tes sambungan

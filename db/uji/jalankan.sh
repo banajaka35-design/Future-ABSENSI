@@ -20,6 +20,13 @@ done
 echo "Data awal Pabrik A:"
 "${PSQL[@]}" -f db/data_awal/pabrik_a_struktur.sql
 python3 db/data_awal/muat_karyawan.py A | "${PSQL[@]}" -o /dev/null
+echo "Data aturan resmi (dijalankan dua kali: yang kedua tidak boleh mengubah apa pun):"
+"${PSQL[@]}" -o /dev/null -f db/data_awal/aturan_resmi.sql
+SEBELUM="$("${PSQL[@]}" -t -A -c "select count(*) from jejak.perubahan")"
+"${PSQL[@]}" -o /dev/null -f db/data_awal/aturan_resmi.sql
+SESUDAH="$("${PSQL[@]}" -t -A -c "select count(*) from jejak.perubahan")"
+if [ "$SEBELUM" = "$SESUDAH" ]; then echo "  LULUS  aturan resmi: jalan kedua tidak mengubah apa pun" | tee -a "$LOG";
+else echo "  GAGAL  aturan resmi: jalan kedua mengubah $((SESUDAH - SEBELUM)) baris" | tee -a "$LOG"; fi
 "${PSQL[@]}" -t -o /dev/null -f db/data_awal/cek_data_awal.sql 2>&1 | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | tee -a "$LOG"
 
 LULUS=$(grep -c "LULUS" "$LOG" || true)
