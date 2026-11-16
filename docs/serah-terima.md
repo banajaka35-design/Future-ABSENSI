@@ -15,7 +15,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 ## Posisi sekarang: Tahap 4 berjalan, paket 4a selesai
 
-Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Sebelum 4b ada dua hal yang menunggu: keputusan pemilik atas `docs/permintaan-perubahan-01.md`, dan naskah resmi UU 27/2026 (PDF JDIH) di Drive.
+Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Sebelum 4b masih menunggu satu hal: **naskah resmi UU 27/2026 (PDF JDIH) di folder Drive "PROJECT ABSENSI"**, lalu Claude mengecek pasal 116, 118, 125, 140, 150, 310 serta batas potongan 50% dan THR.
 
 ## Diskusi 16 Nov 2026 (keputusan pemilik proyek)
 

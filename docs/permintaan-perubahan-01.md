@@ -1,6 +1,6 @@
 # Permintaan perubahan 01: cuti bersama dan dasar lembur setelah UU 27/2026
 
-Diajukan 16 November 2026 (paket 4a) · status: **menunggu keputusan pemilik proyek** · belum ada kasus, kode, atau data yang diubah.
+Diajukan 16 November 2026 (paket 4a) · status: **usulan 1 dan 2 disetujui pemilik proyek 16 Nov 2026, 19.27 WIB** · kasus, kode, dan data dikerjakan di paket 4b (belum ada yang diubah).
 
 Kasus jebakan dikunci (v1.1, 12 Nov 2026) dan hanya boleh diubah lewat permintaan perubahan. Dasar hukum dan labelnya ada di `docs/cek-aturan-hukum.md`.
 
@@ -39,7 +39,8 @@ Usulan cara memutuskan:
 
 Pasal 116 ayat 1 [Kemungkinan Besar]: lembur butuh perintah tertulis atau digital dan persetujuan pekerja. Pengaturan `lembur = otomatis` membayar lembur yang terjadi walau tanpa perintah. Membayar lembur yang benar-benar dikerjakan tetap wajib, jadi hitungannya tidak diubah. Yang perlu dipikirkan nanti (kuesioner pemasangan, Tahap 7): apakah sistem mencatat perintah dan persetujuan lembur sebagai bukti untuk perusahaan.
 
-## Yang diminta dari pemilik proyek
+## Keputusan pemilik proyek (16 Nov 2026)
 
-- Setuju / tidak setuju usulan 1 (kasus C02b + pengaturan Pabrik B bertanggal).
-- Pilih cara untuk usulan 2 (tunggu naskah resmi dulu, atau pakai "yang lebih menguntungkan pekerja" untuk sementara).
+- **Usulan 1 disetujui:** kasus C02 tetap; tambah kasus C02b; pengaturan cuti bersama Pabrik B bertanggal (`potong_cuti` sampai 27 Okt 2026, `dibayar` sejak 28 Okt 2026).
+- **Usulan 2 disetujui, cara sementara:** untuk tanggal sejak 28 Okt 2026 dasar lembur = yang terbesar dari (a) pokok + tunjangan tetap dan (b) 75% seluruh upah bila aturan lama berlaku; hasilnya ditandai "perlu dikonfirmasi HRD". Kasus D11 tetap untuk tanggal sebelumnya; kasus D11b ditulis di paket 4b. Dicek ulang setelah PDF resmi UU 27/2026 ada di Drive, dan lagi saat PP pelaksana terbit (paling lambat 28 Okt 2027).
+- Usulan 3 tetap catatan untuk kuesioner pemasangan.
