@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 16 November 2026, cabang `main` (paket 4a dan paket data aturan resmi selesai dan terpasang di Supabase).
+Terakhir diperbarui: 16 November 2026, cabang `main` (paket 4b-1 inti hitung gaji Pabrik A selesai dan terpasang di Supabase).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -13,7 +13,7 @@ Terakhir diperbarui: 16 November 2026, cabang `main` (paket 4a dan paket data at
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 4 berjalan, paket 4a selesai
+## Posisi sekarang: Tahap 4 berjalan, paket 4a dan 4b-1 selesai; berikutnya 4b-2
 
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
@@ -187,6 +187,22 @@ Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file 
 | Dicek langsung di Supabase (16 Nov 2026, 19.2x WIB) | Kalender 2026 tetap 22 tanggal; 2027: 18 libur nasional + 8 cuti bersama. JP per bagian: 10.547.400 (1 Mar 2025–31 Des 2025), 10.547.000 (1 Jan 2026 saja), 10.547.400 (2 Jan–28 Feb 2026), 11.086.300 (sejak 1 Mar 2026). Jejak perubahan: 34 baris baru (26 kalender + 2 penutupan + 6 baris JP), sesuai. Karyawan 1.044 dan hasil harian 119.853 tidak berubah; skema `uji` tidak tertinggal; tidak ada transaksi menggantung |
 | Uji lokal (Postgres 16) | `db/uji/jalankan.sh`: 184 lulus, 0 gagal. `pasang_supabase.sh pasang` di database kosong: semua dimuat, pemeriksaan 21 lulus, sekitar 32 detik; dijalankan ulang: semua dilewati, pemeriksaan 21 lulus, isi JP tetap 4 baris per bagian |
 
+## Paket 4b-1 (16 Nov 2026): inti hitung gaji Pabrik A
+
+Laporan lengkap: `docs/laporan-tahap-4b-1.md`. Aturan yang diikuti kode: `docs/aturan-hitung-gaji.md` (ditulis dan di-commit sebelum kode, commit 884c361).
+
+| Hal | Isi |
+| --- | --- |
+| Kode | Migrasi 0009 (`hitung.hitung_gaji`, tabel `rincian_gaji` dan `ringkasan_gaji`, fungsi bagian, pengaturan `izin_dibayar` dan `pembulatan_pph21`); `db/pasang_supabase.sh` menghitung gaji setelah baca tap; `db/data_awal/cek_gaji.sql` |
+| Uji | `db/uji/060_hitung_gaji.sql` (64 uji, kunci K1–K18), pembanding `sistem/uji/u2_pembanding.py` di uji simulasi |
+| Hasil | Uji database 248 lulus; uji simulasi 12 lulus; pembanding 4.037 orang-periode selisih 0; GitHub lulus; Pasang ke Supabase lulus (pemeriksaan 26 lulus); Cadangan malam otomatis sesudahnya |
+| Dicek langsung di Supabase | 0009 sidik `ce63fb99f40e` sama dengan repo; 4 versi gaji, masing-masing dari baca tap terakhir; 4.037 ringkasan, 57.189 rincian; total gaji bersih = total rincian di tiap periode; celah tabel dan fungsi gaji 0; skema `uji` tidak tertinggal; tidak ada transaksi menggantung |
+| Lama hitung | Supabase 7,4–12,2 detik per periode (di atas batas 8 detik jalur API; Tahap 5 harus lewat koneksi langsung) |
+
+**Keputusan yang perlu diambil pemilik (tidak menghalangi 4b-2):** peringatan "lewat batas 4 jam" ikut menghitung shift di hari libur (sesuai Penjelasan Pasal 116), sehingga muncul 1.859 kali; tetap atau dipisah (laporan 4b-1 temuan 2).
+
+**Paket 4b-2 (belum ditulis daftarnya):** THR (cek Permenaker 6/2016), kasbon, denda, batas potongan 50% (cek PP 36/2021), pembulatan tunai dan sisanya, saldo cuti (kasus C02, C02b), PPh Desember (hitung ulang setahun; data simulasi hanya 4 periode), Pabrik B (U5), U10 anomali, U12 tunai.
+
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 
 ⏳ = syarat yang menunggu waktu atau orang lain; berjalan di belakang (aturan 10).
@@ -194,7 +210,7 @@ Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file 
 | Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
 | --- | --- | --- | --- |
 | 3 | ~~Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file~~ **Selesai 13 Nov 2026** | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
-| 4 | 4a ✓ cek hukum + TER/PTKP · 4b hitung gaji · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
+| 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 THR, kasbon, tunai, PPh Desember, Pabrik B · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
 | 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
 | 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
