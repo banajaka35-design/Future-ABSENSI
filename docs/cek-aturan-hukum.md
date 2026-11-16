@@ -6,30 +6,34 @@ Label: **[Pasti]** = dibaca dari sumber resmi, atau dari dua sumber berbeda yang
 
 ## Batasan pengecekan ini
 
-- **Naskah resmi UU 27/2026 belum terbaca.** Situs JDIH Setneg dan peraturan.bpk.go.id ditolak jaringan kerja Claude, dan halaman JDIH Kemnaker tidak memuat isi pasal. Isi pasal di bawah diambil dari salinan teks hasil pindai (regulasikerja.com, bukan naskah resmi) dan dicocokkan dengan beberapa berita. **Sebelum paket 4b (rumus gaji) dimulai, pemilik proyek mengunduh PDF resmi dari JDIH ke folder Drive "PROJECT ABSENSI"**, lalu pasal-pasal di tabel 1 dicek ulang dari PDF itu.
+- **Naskah resmi UU 27/2026 sudah dibaca (16 Nov 2026, 19.4x WIB):** file `UU Nomor 27 Tahun 2026.pdf` dari JDIH BPK (peraturan.bpk.go.id, 183 halaman, 12,8 MB; Lembaran Negara 2026 Nomor 179, Tambahan LN Nomor 7222), diunduh pemilik proyek ke komputernya lalu dibaca Claude lewat lapisan teks PDF. Semua pasal di tabel 1 dicocokkan dengan naskah itu, termasuk bagian Penjelasan. File tidak disimpan di repo.
 - Ini bukan nasihat hukum. Untuk perusahaan sungguhan, pasal-pasal yang dipakai sebaiknya diperiksa juga oleh orang yang paham hukum ketenagakerjaan.
 
 ## 1. UU 27/2026 tentang Pelindungan Ketenagakerjaan
 
-Diundangkan dan berlaku 28 Oktober 2026 (JDIH Kemnaker) [Pasti]. Mencabut UU 13/2003 dan sebagian UU 6/2023 (Cipta Kerja) [Pasti, beberapa berita + JDIH].
+Disahkan, diundangkan, dan berlaku 28 Oktober 2026 (Pasal 313; LN 2026 Nomor 179) [Pasti, naskah resmi]. Mencabut UU 13/2003 dan Pasal 80 huruf a serta Pasal 81 lampiran UU 6/2023 (Pasal 311) [Pasti, naskah resmi].
 
 | Hal | Isi | Pasal | Label | Dampak ke sistem |
 | --- | --- | --- | --- | --- |
-| Jam kerja normal | 7 jam/hari untuk 6 hari kerja, 8 jam/hari untuk 5 hari kerja; 40 jam/minggu | 115 ayat 2 | Kemungkinan Besar | Sama dengan aturan lama; pola hari kerja tetap isian per perusahaan |
-| Batas lembur | Paling lama 4 jam/hari dan 18 jam/minggu; perlu persetujuan pekerja dan perintah tertulis atau digital | 116 ayat 1 | Kemungkinan Besar | Kasus D09/D10 (peringatan, tetap dibayar penuh) tetap berlaku. Pertanyaan baru di bawah soal pengaturan "lembur otomatis" |
-| Upah lembur hari kerja | Jam pertama 1,5 × upah sejam, jam berikutnya 2 × | 116 ayat 2 | Kemungkinan Besar | Sama dengan `aturan.pengali_lembur` jenis `kerja` (dari PP 35/2021) |
-| Upah sejam | **(Upah pokok + tunjangan tetap) ÷ 173** | 116 ayat 3, 125 ayat 5 | Kemungkinan Besar | **Bisa bentrok dengan kasus D11** (lihat bagian 4) |
-| Lembur hari libur/istirahat | 6 hari kerja: jam 1–7 ×2, jam 8 ×3, jam 9–11 ×4; hari kerja terpendek: jam 1–5 ×2, jam 6 ×3, jam 7–9 ×4; 5 hari kerja: jam 1–8 ×2, jam 9 ×3, jam 10–12 ×4 | 125 ayat 3–4 | Kemungkinan Besar | Sama dengan isi `aturan.pengali_lembur` sekarang (44 baris) |
-| Cuti tahunan | Paling sedikit 12 hari kerja setelah 12 bulan bekerja terus-menerus | 118 ayat 5 | Kemungkinan Besar | Sama dengan `aturan.cuti` (12 hari, setelah 12 bulan) |
-| Cuti bersama | Cuti bersama yang ditetapkan Pemerintah Pusat **tidak mengurangi hak cuti tahunan** | 118 ayat 6 | Kemungkinan Besar (banyak berita mengutip kalimat yang sama) | **Pilihan "cuti bersama potong cuti" tidak boleh lagi dipakai untuk tanggal sejak 28 Okt 2026.** Lihat `docs/permintaan-perubahan-01.md` |
-| Istirahat panjang | 30 hari kalender setelah 5 tahun kerja berturut-turut; tahun itu tidak dapat cuti tahunan | 118 ayat 2c dan 4 | Kemungkinan Besar | Belum ada di sistem; dicatat untuk saldo cuti (Tahap 4b atau sesudahnya) |
-| Upah minimum | Upah terendah per bulan; pemberi kerja dilarang membayar di bawahnya | 140 ayat 2 dan 5 | Kemungkinan Besar | Batas bawah: gaji pokok (+ tunjangan tetap) tidak boleh di bawah UMK. Mesin hitung memberi peringatan, tidak diam-diam menaikkan |
-| Ada tunjangan tidak tetap | Upah pokok paling sedikit sebesar upah minimum | 140 ayat 3 | Kemungkinan Besar | Pemeriksaan data karyawan di Tahap 4b |
-| Komposisi upah | Upah pokok paling sedikit 75% dari (upah pokok + tunjangan tetap) | 150 | Kemungkinan Besar | Pemeriksaan data karyawan di Tahap 4b |
-| Aturan pelaksana lama | Aturan pelaksana UU 13/2003 dan UU 6/2023 **masih berlaku** selama tidak bertentangan dengan UU ini | 310 | Kemungkinan Besar | PP 35/2021 dan PP 36/2021 masih dipakai untuk hal yang tidak diatur ulang UU 27/2026 |
-| Batas waktu aturan pelaksana baru | Paling lama 1 tahun sejak diundangkan (sampai 28 Okt 2027) | 312 | Kemungkinan Besar | Rumus bisa berubah lagi sebelum Okt 2027; semua angka tetap disimpan bertanggal |
+| Jam kerja normal | 7 jam/hari untuk 6 hari kerja, 8 jam/hari untuk 5 hari kerja; 40 jam/minggu | 115 ayat 2 | Pasti | Sama dengan aturan lama; pola hari kerja tetap isian per perusahaan |
+| Batas lembur | Paling lama 4 jam/hari dan 18 jam/minggu; perlu persetujuan pekerja dan perintah tertulis atau digital | 116 ayat 1 | Pasti | Kasus D09/D10 (peringatan, tetap dibayar penuh) tetap berlaku. Pertanyaan baru di bawah soal pengaturan "lembur otomatis" |
+| Upah lembur hari kerja | Jam pertama 1,5 × upah sejam, jam berikutnya 2 × | 116 ayat 2 | Pasti | Sama dengan `aturan.pengali_lembur` jenis `kerja` (dari PP 35/2021) |
+| Upah sejam | **(Upah pokok + tunjangan tetap) ÷ 173** | 116 ayat 3, 125 ayat 5 | Pasti | **Bisa bentrok dengan kasus D11** (lihat bagian 4) |
+| Lembur hari libur/istirahat | 6 hari kerja: jam 1–7 ×2, jam 8 ×3, jam 9–11 ×4; hari kerja terpendek: jam 1–5 ×2, jam 6 ×3, jam 7–9 ×4; 5 hari kerja: jam 1–8 ×2, jam 9 ×3, jam 10–12 ×4 | 125 ayat 3–4 | Pasti | Sama dengan isi `aturan.pengali_lembur` sekarang (44 baris) |
+| Cuti tahunan | Paling sedikit 12 hari kerja setelah 12 bulan bekerja terus-menerus | 118 ayat 5 | Pasti | Sama dengan `aturan.cuti` (12 hari, setelah 12 bulan) |
+| Cuti bersama | Cuti bersama yang ditetapkan Pemerintah Pusat **tidak mengurangi hak cuti tahunan** | 118 ayat 6 | Pasti | **Pilihan "cuti bersama potong cuti" tidak boleh lagi dipakai untuk tanggal sejak 28 Okt 2026.** Lihat `docs/permintaan-perubahan-01.md` |
+| Istirahat panjang | 30 hari kalender setelah 5 tahun kerja berturut-turut; tahun itu tidak dapat cuti tahunan | 118 ayat 2c dan 4 | Pasti | Belum ada di sistem; dicatat untuk saldo cuti (Tahap 4b atau sesudahnya) |
+| Upah minimum | Upah bulanan terendah (tanpa tunjangan, atau pokok + tunjangan tetap); **berlaku untuk pekerja dengan masa kerja kurang dari 1 tahun**; pengusaha dilarang membayar di bawahnya | 140 ayat 1, 2, 5 | Pasti | Batas bawah: gaji pokok (+ tunjangan tetap) tidak boleh di bawah UMK. Mesin hitung memberi peringatan, tidak diam-diam menaikkan |
+| Ada tunjangan tidak tetap | Upah pokok paling sedikit sebesar upah minimum | 140 ayat 3 | Pasti | Pemeriksaan data karyawan di Tahap 4b |
+| Komposisi upah | Upah pokok paling sedikit 75% dari (upah pokok + tunjangan tetap) | 150 | Pasti | Pemeriksaan data karyawan di Tahap 4b |
+| Arti tunjangan tetap | Tambahan di luar upah pokok yang tetap besaran dan waktu bayarnya, **tidak dikaitkan dengan kehadiran atau prestasi** | Penjelasan 116 ayat 3 | Pasti | Uang makan per hari hadir, premi hadir, tunjangan shift malam = tidak tetap (sesuai isian demo sekarang); dicek di kuesioner pemasangan |
+| Kesepakatan di bawah aturan | Kesepakatan upah yang lebih rendah dari peraturan batal demi hukum; yang berlaku peraturan | 135 ayat 4–5 | Pasti | Dasar prinsip "batas bawah hukum dijaga mesin hitung, bukan pilihan HRD" |
+| Denda | Pekerja yang melanggar karena sengaja/lalai dapat didenda; pengaturan denda oleh Pemerintah | 135 ayat 7–9 | Pasti | Rinciannya menunggu PP; sampai itu `aturan.tingkat_denda` tetap wajib punya dasar pasal (celah C2) |
+| Kebijakan pengupahan lain | THR, hal yang dapat diperhitungkan dengan upah (potongan), upah tidak masuk kerja, dan lainnya diatur dengan **Peraturan Pemerintah** | 134 ayat 4–5 | Pasti | UU tidak memuat angka batas potongan 50% atau rumus THR |
+| Aturan pelaksana lama | Aturan pelaksana UU 13/2003 dan UU 6/2023 **masih berlaku** selama tidak bertentangan dengan UU ini | 310 | Pasti | PP 35/2021 dan PP 36/2021 masih dipakai untuk hal yang tidak diatur ulang UU 27/2026 |
+| Batas waktu aturan pelaksana baru | Paling lama 1 tahun sejak diundangkan (sampai 28 Okt 2027) | 312 | Pasti | Rumus bisa berubah lagi sebelum Okt 2027; semua angka tetap disimpan bertanggal |
 
-Belum ditemukan di UU 27/2026 (perlu dicek dari naskah resmi): batas potongan upah 50%, THR, rincian iuran BPJS. Sampai terbukti diatur ulang, dipakai aturan lama (PP 36/2021, Permenaker 6/2016, PP jaminan sosial) [Menebak, berdasar Pasal 310].
+Tidak ada di UU 27/2026 [Pasti, dicari di seluruh naskah]: angka batas potongan upah 50%, rumus THR, rincian iuran BPJS. UU menyerahkannya ke Peraturan Pemerintah (Pasal 134 ayat 5). Sampai PP baru terbit, aturan lama tetap berlaku sepanjang tidak bertentangan (Pasal 310) [Pasti]. Isi aturan lama itu (PP 36/2021 tentang batas potongan, Permenaker 6/2016 tentang THR) belum dicek di paket ini [Menebak]; dicek di paket 4b sebelum rumusnya ditulis.
 
 ## 2. Pajak: TER PPh 21 dan PTKP
 
@@ -58,7 +62,7 @@ Uji otomatis `db/uji/050_aturan_resmi.sql` memeriksa jumlah lapisan, tidak ada c
 
 | Kasus/pengaturan | Isi sekarang | Aturan baru | Label | Usulan |
 | --- | --- | --- | --- | --- |
-| C02 dan pengaturan `cuti_bersama = potong_cuti` (Pabrik B, `docs/data-simulasi.md`) | Cuti bersama boleh memotong saldo cuti | Pasal 118 ayat 6: tidak mengurangi cuti tahunan | Kemungkinan Besar | Permintaan perubahan 01 |
+| C02 dan pengaturan `cuti_bersama = potong_cuti` (Pabrik B, `docs/data-simulasi.md`) | Cuti bersama boleh memotong saldo cuti | Pasal 118 ayat 6: tidak mengurangi cuti tahunan | Pasti (naskah resmi) | Permintaan perubahan 01 |
 | D11 | Dasar lembur = 75% × (pokok + tetap + tidak tetap) bila pokok + tetap di bawah 75% | Pasal 116 ayat 3: upah sejam = (pokok + tetap) ÷ 173, tanpa menyebut 75% | Menebak apakah aturan 75% lama masih berlaku lewat Pasal 310 atau dianggap bertentangan | Pertanyaan terbuka di permintaan perubahan 01; diputuskan sebelum paket 4b |
 | Pengaturan `lembur = otomatis` | Lembur dibayar tanpa perintah | Pasal 116 ayat 1: lembur butuh perintah tertulis/digital dan persetujuan pekerja | Menebak dampaknya | Membayar lembur yang terjadi tetap wajib; yang dipertanyakan adalah apakah sistem perlu mencatat perintah/persetujuan. Pertanyaan untuk kuesioner pemasangan |
 

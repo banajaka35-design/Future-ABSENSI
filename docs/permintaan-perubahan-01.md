@@ -12,7 +12,7 @@ Prinsip yang diusulkan: **aturan dipakai menurut tanggal kejadian.** Kejadian se
 
 ## Usulan 1: cuti bersama tidak memotong cuti tahunan sejak 28 Okt 2026
 
-Pasal 118 ayat 6 [Kemungkinan Besar]: cuti bersama yang ditetapkan Pemerintah Pusat tidak mengurangi hak cuti tahunan.
+Pasal 118 ayat 6 [Pasti, naskah resmi]: cuti bersama yang ditetapkan Pemerintah Pusat tidak mengurangi hak cuti tahunan.
 
 | Yang terdampak | Sekarang | Usulan |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Pasal 118 ayat 6 [Kemungkinan Besar]: cuti bersama yang ditetapkan Pemerintah Pu
 
 Kasus D11 memakai aturan lama: bila upah pokok + tunjangan tetap di bawah 75% dari seluruh upah (termasuk tunjangan tidak tetap), dasar lembur = 75% × seluruh upah.
 
-UU 27/2026 Pasal 116 ayat 3 dan Pasal 125 ayat 5 [Kemungkinan Besar] menulis upah sejam = (upah pokok + tunjangan tetap) ÷ 173, tanpa menyebut aturan 75%. Pasal 310 [Kemungkinan Besar] membiarkan aturan pelaksana lama tetap berlaku selama tidak bertentangan.
+UU 27/2026 Pasal 116 ayat 3 dan Pasal 125 ayat 5 [Pasti, naskah resmi] menulis upah sejam = (upah pokok + tunjangan tetap) ÷ 173, tanpa menyebut aturan 75%. Pasal 310 [Pasti, naskah resmi] membiarkan aturan pelaksana lama tetap berlaku selama tidak bertentangan.
 
 Yang belum diketahui [Menebak]: apakah aturan 75% (di aturan pelaksana lama) dianggap bertentangan dengan Pasal 116 ayat 3, atau tetap berlaku sampai PP baru terbit (paling lambat 28 Okt 2027).
 
@@ -37,10 +37,10 @@ Usulan cara memutuskan:
 
 ## Usulan 3: pengaturan "lembur otomatis" — dicatat, tidak diubah
 
-Pasal 116 ayat 1 [Kemungkinan Besar]: lembur butuh perintah tertulis atau digital dan persetujuan pekerja. Pengaturan `lembur = otomatis` membayar lembur yang terjadi walau tanpa perintah. Membayar lembur yang benar-benar dikerjakan tetap wajib, jadi hitungannya tidak diubah. Yang perlu dipikirkan nanti (kuesioner pemasangan, Tahap 7): apakah sistem mencatat perintah dan persetujuan lembur sebagai bukti untuk perusahaan.
+Pasal 116 ayat 1 [Pasti, naskah resmi]: lembur butuh perintah tertulis atau digital dan persetujuan pekerja. Pengaturan `lembur = otomatis` membayar lembur yang terjadi walau tanpa perintah. Membayar lembur yang benar-benar dikerjakan tetap wajib, jadi hitungannya tidak diubah. Yang perlu dipikirkan nanti (kuesioner pemasangan, Tahap 7): apakah sistem mencatat perintah dan persetujuan lembur sebagai bukti untuk perusahaan.
 
 ## Keputusan pemilik proyek (16 Nov 2026)
 
 - **Usulan 1 disetujui:** kasus C02 tetap; tambah kasus C02b; pengaturan cuti bersama Pabrik B bertanggal (`potong_cuti` sampai 27 Okt 2026, `dibayar` sejak 28 Okt 2026).
-- **Usulan 2 disetujui, cara sementara:** untuk tanggal sejak 28 Okt 2026 dasar lembur = yang terbesar dari (a) pokok + tunjangan tetap dan (b) 75% seluruh upah bila aturan lama berlaku; hasilnya ditandai "perlu dikonfirmasi HRD". Kasus D11 tetap untuk tanggal sebelumnya; kasus D11b ditulis di paket 4b. Dicek ulang setelah PDF resmi UU 27/2026 ada di Drive, dan lagi saat PP pelaksana terbit (paling lambat 28 Okt 2027).
+- **Usulan 2 disetujui, cara sementara:** untuk tanggal sejak 28 Okt 2026 dasar lembur = yang terbesar dari (a) pokok + tunjangan tetap dan (b) 75% seluruh upah bila aturan lama berlaku; hasilnya ditandai "perlu dikonfirmasi HRD". Kasus D11 tetap untuk tanggal sebelumnya; kasus D11b ditulis di paket 4b. Naskah resmi sudah dibaca 16 Nov 2026: tetap tidak menyebut aturan 75%, jadi cara sementara ini tetap dipakai. Dicek lagi saat PP pelaksana terbit (paling lambat 28 Okt 2027).
 - Usulan 3 tetap catatan untuk kuesioner pemasangan.
