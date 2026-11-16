@@ -45,6 +45,8 @@ Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah
 | Dokumen | `docs/cek-aturan-hukum.md` (tabel aturan → angka → pasal/sumber → label), `docs/permintaan-perubahan-01.md` (cuti bersama dan dasar lembur setelah UU 27/2026; menunggu keputusan) |
 | Migrasi 0008 | `0008_ter_ptkp.sql`: tarif TER bulanan PPh 21 (A 44, B 40, C 41 lapisan; Lampiran PP 58/2023) dan PTKP 8 status (PMK 101/2016). Hanya menambah baris |
 | Uji | `db/uji/050_aturan_resmi.sql`: jumlah lapisan, tanpa celah, batas "sampai dengan", kasus E04 (Rp261.350), PTKP |
+| Hasil (diukur 16 Nov 2026) | Uji lokal Postgres 16: 178 lulus, 0 gagal. GitHub "Uji database" commit 00a8b29: lulus (termasuk uji simulasi Tahap 3), sekitar 4 menit. "Pasang ke Supabase" lewat cabang `pasang`: lulus, sekitar 2,5 menit (cadangan dulu, hanya 0008 dipasang). "Cadangan malam" otomatis sesudahnya: lulus |
+| Dicek langsung di Supabase | 0008 terpasang 16 Nov 2026 18.57 WIB, sidik `94184888ffef` sama dengan repo; TER A 44 / B 40 / C 41; PTKP 8 status sesuai PMK 101/2016; bruto 10.454.000 kategori A = 250 (2,5%); karyawan 1.044 dan hasil harian 119.853 tidak berubah; skema `uji` tidak tertinggal; tidak ada transaksi menggantung |
 
 **Temuan paket 4a:**
 
