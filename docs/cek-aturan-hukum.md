@@ -1,0 +1,81 @@
+# Cek aturan hukum untuk hitung gaji (Tahap 4)
+
+Dicek 16 November 2026 oleh Claude (paket 4a). Tujuan: setiap angka yang dipakai mesin hitung gaji punya dasar hukum yang tertulis, dan jelas mana yang sudah pasti dan mana yang masih dugaan.
+
+Label: **[Pasti]** = dibaca dari sumber resmi, atau dari dua sumber berbeda yang isinya sama · **[Kemungkinan Besar]** = dari salinan tidak resmi atau berita, belum dari naskah resmi · **[Menebak]** = belum ada sumber, hanya dugaan.
+
+## Batasan pengecekan ini
+
+- **Naskah resmi UU 27/2026 belum terbaca.** Situs JDIH Setneg dan peraturan.bpk.go.id ditolak jaringan kerja Claude, dan halaman JDIH Kemnaker tidak memuat isi pasal. Isi pasal di bawah diambil dari salinan teks hasil pindai (regulasikerja.com, bukan naskah resmi) dan dicocokkan dengan beberapa berita. **Sebelum paket 4b (rumus gaji) dimulai, pemilik proyek mengunduh PDF resmi dari JDIH ke folder Drive "PROJECT ABSENSI"**, lalu pasal-pasal di tabel 1 dicek ulang dari PDF itu.
+- Ini bukan nasihat hukum. Untuk perusahaan sungguhan, pasal-pasal yang dipakai sebaiknya diperiksa juga oleh orang yang paham hukum ketenagakerjaan.
+
+## 1. UU 27/2026 tentang Pelindungan Ketenagakerjaan
+
+Diundangkan dan berlaku 28 Oktober 2026 (JDIH Kemnaker) [Pasti]. Mencabut UU 13/2003 dan sebagian UU 6/2023 (Cipta Kerja) [Pasti, beberapa berita + JDIH].
+
+| Hal | Isi | Pasal | Label | Dampak ke sistem |
+| --- | --- | --- | --- | --- |
+| Jam kerja normal | 7 jam/hari untuk 6 hari kerja, 8 jam/hari untuk 5 hari kerja; 40 jam/minggu | 115 ayat 2 | Kemungkinan Besar | Sama dengan aturan lama; pola hari kerja tetap isian per perusahaan |
+| Batas lembur | Paling lama 4 jam/hari dan 18 jam/minggu; perlu persetujuan pekerja dan perintah tertulis atau digital | 116 ayat 1 | Kemungkinan Besar | Kasus D09/D10 (peringatan, tetap dibayar penuh) tetap berlaku. Pertanyaan baru di bawah soal pengaturan "lembur otomatis" |
+| Upah lembur hari kerja | Jam pertama 1,5 × upah sejam, jam berikutnya 2 × | 116 ayat 2 | Kemungkinan Besar | Sama dengan `aturan.pengali_lembur` jenis `kerja` (dari PP 35/2021) |
+| Upah sejam | **(Upah pokok + tunjangan tetap) ÷ 173** | 116 ayat 3, 125 ayat 5 | Kemungkinan Besar | **Bisa bentrok dengan kasus D11** (lihat bagian 4) |
+| Lembur hari libur/istirahat | 6 hari kerja: jam 1–7 ×2, jam 8 ×3, jam 9–11 ×4; hari kerja terpendek: jam 1–5 ×2, jam 6 ×3, jam 7–9 ×4; 5 hari kerja: jam 1–8 ×2, jam 9 ×3, jam 10–12 ×4 | 125 ayat 3–4 | Kemungkinan Besar | Sama dengan isi `aturan.pengali_lembur` sekarang (44 baris) |
+| Cuti tahunan | Paling sedikit 12 hari kerja setelah 12 bulan bekerja terus-menerus | 118 ayat 5 | Kemungkinan Besar | Sama dengan `aturan.cuti` (12 hari, setelah 12 bulan) |
+| Cuti bersama | Cuti bersama yang ditetapkan Pemerintah Pusat **tidak mengurangi hak cuti tahunan** | 118 ayat 6 | Kemungkinan Besar (banyak berita mengutip kalimat yang sama) | **Pilihan "cuti bersama potong cuti" tidak boleh lagi dipakai untuk tanggal sejak 28 Okt 2026.** Lihat `docs/permintaan-perubahan-01.md` |
+| Istirahat panjang | 30 hari kalender setelah 5 tahun kerja berturut-turut; tahun itu tidak dapat cuti tahunan | 118 ayat 2c dan 4 | Kemungkinan Besar | Belum ada di sistem; dicatat untuk saldo cuti (Tahap 4b atau sesudahnya) |
+| Upah minimum | Upah terendah per bulan; pemberi kerja dilarang membayar di bawahnya | 140 ayat 2 dan 5 | Kemungkinan Besar | Batas bawah: gaji pokok (+ tunjangan tetap) tidak boleh di bawah UMK. Mesin hitung memberi peringatan, tidak diam-diam menaikkan |
+| Ada tunjangan tidak tetap | Upah pokok paling sedikit sebesar upah minimum | 140 ayat 3 | Kemungkinan Besar | Pemeriksaan data karyawan di Tahap 4b |
+| Komposisi upah | Upah pokok paling sedikit 75% dari (upah pokok + tunjangan tetap) | 150 | Kemungkinan Besar | Pemeriksaan data karyawan di Tahap 4b |
+| Aturan pelaksana lama | Aturan pelaksana UU 13/2003 dan UU 6/2023 **masih berlaku** selama tidak bertentangan dengan UU ini | 310 | Kemungkinan Besar | PP 35/2021 dan PP 36/2021 masih dipakai untuk hal yang tidak diatur ulang UU 27/2026 |
+| Batas waktu aturan pelaksana baru | Paling lama 1 tahun sejak diundangkan (sampai 28 Okt 2027) | 312 | Kemungkinan Besar | Rumus bisa berubah lagi sebelum Okt 2027; semua angka tetap disimpan bertanggal |
+
+Belum ditemukan di UU 27/2026 (perlu dicek dari naskah resmi): batas potongan upah 50%, THR, rincian iuran BPJS. Sampai terbukti diatur ulang, dipakai aturan lama (PP 36/2021, Permenaker 6/2016, PP jaminan sosial) [Menebak, berdasar Pasal 310].
+
+## 2. Pajak: TER PPh 21 dan PTKP
+
+| Hal | Isi | Dasar | Label | Di Supabase |
+| --- | --- | --- | --- | --- |
+| Tarif TER bulanan | Kategori A 44 lapisan, B 40, C 41; 0% sampai 34% | Lampiran PP 58/2023, berlaku 1 Jan 2024 | **Pasti**: dua salinan lampiran (tabel ortax.org dan salinan pindai lampiran PP) isinya sama baris per baris; jumlah lapisan sama dengan ringkasan KPMG | Diisi migrasi 0008 |
+| PTKP | TK/0 54 jt; TK/1 dan K/0 58,5 jt; TK/2 dan K/1 63 jt; TK/3 dan K/2 67,5 jt; K/3 72 jt (setahun) | PMK 101/PMK.010/2016 | Pasti (beberapa sumber pajak, termasuk berita DJP 2026: belum berubah) | Diisi migrasi 0008 |
+| Kategori TER per status PTKP | A: TK/0, TK/1, K/0 · B: TK/2, TK/3, K/1, K/2 · C: K/3 | PP 58/2023 | Pasti | Diisi migrasi 0008 |
+| Rencana perubahan PTKP 2027 | Pemerintah sedang menyiapkan PMK penyesuaian PTKP (berita 24 Okt 2026), belum terbit | — | Kemungkinan Besar akan berubah | Dicek lagi sebelum gaji Januari 2027. Bila berubah, kemungkinan besar tabel TER ikut berubah |
+| Masa pajak Desember | Tidak memakai TER; dihitung ulang setahun dengan tarif Pasal 17 | PMK 168/2023 | Pasti | Belum ada; Tahap 4b |
+| Cara pembulatan PPh 21 | Belum dicek | — | Menebak | Ditanyakan di Tahap 4b (kontrak data bagian 9 ayat 2) |
+
+Uji otomatis `db/uji/050_aturan_resmi.sql` memeriksa jumlah lapisan, tidak ada celah antar lapisan, batas "sampai dengan", dan kasus jebakan E04 (TK/0, bruto 10.454.000 → 2,5% → Rp261.350).
+
+## 3. BPJS dan upah minimum
+
+| Hal | Di Supabase sekarang | Yang benar | Dasar | Label | Tindakan |
+| --- | --- | --- | --- | --- | --- |
+| Batas upah JP Jan–Feb 2026 | 10.547.000 (berlaku sejak 1 Jan 2026, tanpa akhir) | **10.547.400** (berlaku Mar 2025–Feb 2026) | Surat BPJS Ketenagakerjaan Feb 2025 (batas mulai Maret 2025) | Pasti | **Perlu dibetulkan**, belum dikerjakan (lihat bagian 6) |
+| Batas upah JP sejak 1 Mar 2026 | (tidak ada) | **11.086.300** | Surat BPJS Ketenagakerjaan No. B/1226/022026 tgl 25 Feb 2026; diumumkan juga oleh akun resmi BPJS dan Antara | Pasti | **Perlu ditambahkan**, belum dikerjakan |
+| Persen iuran BPJS (Kes 1%/4%, JHT 2%/3,7%, JP 1%/2%, JKK 0,24%, JKM 0,3%) | sesuai | sama | Beberapa sumber 2026: tarif tidak berubah | Kemungkinan Besar | Tidak ada |
+| Batas upah BPJS Kesehatan | 12.000.000 | sama | Kasus E05 | Kemungkinan Besar (tidak dicek ulang di paket ini) | Dicek di 4b |
+| UMK Kabupaten Langkat 2026 | 3.402.892 | **sama** | SK Gubernur Sumut No. 188.44/908/KPTS/2025, 24 Des 2025 (dikutip detik, goodstats, UMSU) | Pasti | Tidak ada |
+
+## 4. Bentrok dengan kasus jebakan dan pengaturan simulasi
+
+| Kasus/pengaturan | Isi sekarang | Aturan baru | Label | Usulan |
+| --- | --- | --- | --- | --- |
+| C02 dan pengaturan `cuti_bersama = potong_cuti` (Pabrik B, `docs/data-simulasi.md`) | Cuti bersama boleh memotong saldo cuti | Pasal 118 ayat 6: tidak mengurangi cuti tahunan | Kemungkinan Besar | Permintaan perubahan 01 |
+| D11 | Dasar lembur = 75% × (pokok + tetap + tidak tetap) bila pokok + tetap di bawah 75% | Pasal 116 ayat 3: upah sejam = (pokok + tetap) ÷ 173, tanpa menyebut 75% | Menebak apakah aturan 75% lama masih berlaku lewat Pasal 310 atau dianggap bertentangan | Pertanyaan terbuka di permintaan perubahan 01; diputuskan sebelum paket 4b |
+| Pengaturan `lembur = otomatis` | Lembur dibayar tanpa perintah | Pasal 116 ayat 1: lembur butuh perintah tertulis/digital dan persetujuan pekerja | Menebak dampaknya | Membayar lembur yang terjadi tetap wajib; yang dipertanyakan adalah apakah sistem perlu mencatat perintah/persetujuan. Pertanyaan untuk kuesioner pemasangan |
+
+## 5. Kalender 2027 (SKB 3 Menteri)
+
+SKB Menteri Agama, Menteri Ketenagakerjaan, dan Menteri PANRB No. 1205, 3, dan 2 Tahun 2026, ditandatangani 15 Sep 2026. Daftar dibaca dari halaman berita resmi setneg.go.id dan cocok dengan Kompas, Katadata, Fortune (18 hari libur nasional, 8 cuti bersama) [Pasti untuk tanggal; nama hari dicek dengan kalender].
+
+**Libur nasional (18 hari):** 1 Jan (Tahun Baru), 5 Jan (Isra Mikraj 1448 H), 6 Feb (Imlek), 8 Mar (Nyepi), 10–11 Mar (Idul Fitri), 26 Mar (Wafat Yesus Kristus), 28 Mar (Paskah), 1 Mei (Hari Buruh), 6 Mei (Kenaikan Yesus Kristus), 17 Mei (Idul Adha), 20 Mei (Waisak), 1 Jun (Hari Lahir Pancasila), 6 Jun (1 Muharam), 15 Agu (Maulid Nabi), 17 Agu (Hari Kemerdekaan), 25 Des (Natal), 26 Des (Isra Mikraj 1449 H).
+
+**Cuti bersama (8 hari):** 5 Feb (Imlek), 9 Mar, 12 Mar, 15 Mar (Idul Fitri), 25 Mar (Wafat Yesus Kristus), 18 Mei (Idul Adha), 19 Mei (Waisak), 24 Des (Natal).
+
+Catatan: tanggal Idul Fitri dan Idul Adha bisa digeser Keputusan Menteri Agama (disebut dalam SKB). Isra Mikraj muncul dua kali karena jatuh dua kali dalam tahun Masehi 2027.
+
+**Belum dimasukkan ke Supabase** (alasan di bagian 6).
+
+## 6. Yang belum dikerjakan dan alasannya
+
+Daftar paket 4a menulis "migrasi 0008 berisi TER, PTKP, kalender 2027, dan perbaikan JP/UMK". Saat dikerjakan ternyata **kalender dan BPJS tidak bisa diisi lewat migrasi**: keduanya dimuat oleh `db/data_awal/pabrik_a_struktur.sql`, dan pemasangan (`db/pasang_supabase.sh`) hanya memuat file itu kalau tabelnya masih kosong. Kalau migrasi mengisi kalender 2027 lebih dulu, pemasangan dari nol (uji otomatis dan Reset) akan berhenti dengan "setengah ada"; perbaikan JP lewat migrasi akan tertimpa angka lama saat Reset. Mengubah alur pemasangan tidak tertulis di daftar paket, jadi tidak dikerjakan (aturan 7 CLAUDE.md). Yang dipasang hanya TER dan PTKP (tabel yang tidak diisi data awal).
+
+Usulan paket kecil berikutnya (menunggu "buat"): file data aturan resmi yang bisa dijalankan berulang (kalender 2027, batas JP 2025 dan 2026), dimuat setiap pemasangan setelah struktur; `pabrik_a_struktur.sql` tidak diubah; pemeriksaan data awal disesuaikan (hitung kalender 2026 saja).

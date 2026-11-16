@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 13 November 2026, 02.40 WIB, cabang `main` (Tahap 3 selesai dan terpasang di Supabase).
+Terakhir diperbarui: 16 November 2026, cabang `main` (paket 4a: catatan diskusi 16 Nov, cek aturan hukum, migrasi 0008 TER dan PTKP).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -13,9 +13,49 @@ Terakhir diperbarui: 13 November 2026, 02.40 WIB, cabang `main` (Tahap 3 selesai
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 3 (pembaca tap) lulus dan terpasang; berikutnya Tahap 4
+## Posisi sekarang: Tahap 4 berjalan, paket 4a selesai
 
-Ringkasan Tahap 3 ada di bagian "Tahap 3" di bawah dan lengkapnya di `docs/laporan-tahap-3.md`.
+Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Sebelum 4b ada dua hal yang menunggu: keputusan pemilik atas `docs/permintaan-perubahan-01.md`, dan naskah resmi UU 27/2026 (PDF JDIH) di Drive.
+
+## Diskusi 16 Nov 2026 (keputusan pemilik proyek)
+
+| Hal | Isi |
+| --- | --- |
+| Sumber tanggal merah | **SKB 3 Menteri resmi** (terbit setahun sekali). API kalender online tidak dipakai sebagai sumber utama (milik pihak ketiga, bisa salah atau mati); API hanya boleh sebagai pembanding |
+| Libur nasional dan cuti bersama | Libur nasional wajib untuk semua perusahaan. Cuti bersama dipilih per perusahaan oleh HRD (mana yang dipakai) |
+| Kalender 2027 | Sudah diumumkan pemerintah (SKB 15 Sep 2026); daftar tanggal sudah dicek (`docs/cek-aturan-hukum.md` bagian 5); **belum dimasukkan ke Supabase** |
+| UU 27/2026 tentang Pelindungan Ketenagakerjaan | Berlaku sejak 28 Okt 2026, mencabut UU 13/2003 dan sebagian UU Cipta Kerja. Antara lain: lembur maks 4 jam/hari dan 18 jam/minggu dengan persetujuan pekerja; cuti bersama tidak mengurangi cuti tahunan (Pasal 118 ayat 6). PRD v3.1 masih memakai aturan lama. Tidak menghalangi Tahap 3; **wajib dicek ke teks resmi UU sebelum rumus gaji (paket 4b)**. Hasil cek pertama: `docs/cek-aturan-hukum.md` |
+| Prinsip isian, bukan kode | Perbedaan gaji, lembur, dan aturan per karyawan atau per perusahaan disimpan sebagai **isian (data)**, bukan kode. Batas bawah hukum (UMK, rumus lembur minimal, BPJS, PPh 21) tidak boleh dilanggar; batas bawah ini dijaga mesin hitung, bukan pilihan HRD |
+
+**Pertanyaan yang wajib masuk kuesioner pemasangan** (Tahap 9, dicatat 16 Nov 2026):
+
+1. Hari kerja 5 atau 6 hari seminggu?
+2. Ada bagian yang bekerja 7 hari atau bergiliran (shift)? Bagian mana?
+3. Cuti bersama mana saja yang dipakai perusahaan?
+4. Ada libur khusus perusahaan (ulang tahun perusahaan, libur daerah, dan sebagainya)?
+5. Bayaran bila karyawan masuk di tanggal merah?
+6. Bila tanggal merah jatuh di hari libur mingguan karyawan, apa yang terjadi (diganti hari lain atau tidak)?
+7. Siapa yang tetap wajib masuk di tanggal merah (satpam, produksi, dan sebagainya)?
+8. Ada libur keagamaan tambahan untuk karyawan tertentu?
+
+## Paket 4a (16 Nov 2026): cek aturan hukum dan isian TER/PTKP
+
+| Hal | Isi |
+| --- | --- |
+| Dokumen | `docs/cek-aturan-hukum.md` (tabel aturan → angka → pasal/sumber → label), `docs/permintaan-perubahan-01.md` (cuti bersama dan dasar lembur setelah UU 27/2026; menunggu keputusan) |
+| Migrasi 0008 | `0008_ter_ptkp.sql`: tarif TER bulanan PPh 21 (A 44, B 40, C 41 lapisan; Lampiran PP 58/2023) dan PTKP 8 status (PMK 101/2016). Hanya menambah baris |
+| Uji | `db/uji/050_aturan_resmi.sql`: jumlah lapisan, tanpa celah, batas "sampai dengan", kasus E04 (Rp261.350), PTKP |
+
+**Temuan paket 4a:**
+
+- **Batas upah JP di Supabase salah** [Pasti]: tercatat 10.547.000 sejak 1 Jan 2026 tanpa akhir. Yang benar 10.547.400 (Mar 2025–Feb 2026) dan **11.086.300 sejak 1 Mar 2026** (surat BPJS Ketenagakerjaan B/1226/022026). Belum dibetulkan (lihat temuan berikut).
+- **Kalender dan BPJS tidak bisa diisi lewat migrasi** [Pasti]: keduanya dimuat `db/data_awal/pabrik_a_struktur.sql`, dan pemasangan hanya memuatnya kalau tabel masih kosong. Migrasi yang mengisi kalender lebih dulu membuat pemasangan dari nol berhenti "setengah ada"; perbaikan JP lewat migrasi tertimpa saat Reset. Mengubah alur pemasangan tidak ada di daftar paket, jadi kalender 2027 dan JP **tidak dikerjakan** dan diusulkan sebagai paket kecil tersendiri.
+- **UMK Langkat 2026 = 3.402.892 sudah benar** [Pasti] (SK Gubernur Sumut 188.44/908/KPTS/2025).
+- **Naskah resmi UU 27/2026 belum terbaca** (situs JDIH ditolak jaringan kerja Claude). Isi pasal diambil dari salinan pindai tidak resmi + berita [Kemungkinan Besar].
+- **Upah sejam menurut UU 27/2026 = (pokok + tunjangan tetap) ÷ 173**; kasus D11 (dasar 75% dari seluruh upah) mungkin tidak berlaku untuk tanggal sesudah 28 Okt 2026 [Menebak]. Masuk permintaan perubahan 01.
+- **Data simulasi punya periode sesudah UU baru** (Pabrik A 21 Nov–20 Des 2026, Pabrik B Des 2026), termasuk cuti bersama 24 Des 2026. Pabrik B memakai "cuti bersama memotong cuti", yang tidak sah lagi untuk tanggal itu.
+- **PTKP kemungkinan berubah untuk 2027** (pemerintah sedang menyiapkan PMK, berita 24 Okt 2026); kalau berubah, tabel TER kemungkinan ikut berubah. Dicek lagi sebelum gaji Januari 2027.
+- Uji lama `010_pondasi.sql` "tarif TER tumpang tindih ditolak" masih lulus, tetapi sekarang baris pertamanya sudah ditolak karena menimpa tarif resmi 0008 (alasan berbeda, hasil sama). Uji baru di 050 menguji hal yang sama dengan jelas.
 
 ## Tahap 2 (gudang data): lulus dengan catatan
 
@@ -139,7 +179,7 @@ Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file 
 | Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
 | --- | --- | --- | --- |
 | 3 | ~~Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file~~ **Selesai 13 Nov 2026** | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
-| 4 | Hitung gaji, halaman demo sederhana, unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | Tabel TER/PTKP dan batas JP 2026 dicek ke sumber resmi; U2 pembanding manusia dipindah ke berjalan berdampingan |
+| 4 | 4a ✓ cek hukum + TER/PTKP · 4b hitung gaji · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; batas JP dicek, menunggu dibetulkan; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
 | 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
 | 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
@@ -165,9 +205,9 @@ Workflow pasang-supabase bentuknya sudah bisa dipakai ulang, tetapi isinya masih
 
 ## Belum dikerjakan, ditunda
 
-- Tabel TER dan PTKP: Tahap 4.
-- Data awal struktur Pabrik B: Tahap 4 (U5).
-- Batas upah Jaminan Pensiun 2026: perlu dicek.
+- ~~Tabel TER dan PTKP~~: terisi lewat migrasi 0008 (paket 4a).
+- Data awal struktur Pabrik B: Tahap 4b (U5).
+- Batas upah Jaminan Pensiun: sudah dicek (paket 4a), **angka di Supabase salah dan belum dibetulkan**; kalender 2027 belum dimuat. Keduanya menunggu paket kecil "data aturan resmi".
 - Peringatan advisor `public.rls_auto_enable()` adalah bawaan Supabase, dibiarkan.
 
 ## Sisa tes sambungan
