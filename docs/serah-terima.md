@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 16 November 2026, cabang `main` (paket 4a: catatan diskusi 16 Nov, cek aturan hukum, migrasi 0008 TER dan PTKP).
+Terakhir diperbarui: 16 November 2026, cabang `main` (paket 4a dan paket data aturan resmi selesai dan terpasang di Supabase).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -183,6 +183,8 @@ Paket di-"buat" pemilik 13 Nov 2026 dengan keputusan 1a (perintah HRD dari file 
 | Tidak diubah | `pabrik_a_struktur.sql`, migrasi, `sistem/uji/jalankan_simulasi.sh` (uji simulasi tidak memakai tanggal 2027 atau JP) |
 | Keterbatasan | Baris JP lama hanya bisa ditutup per 2 Jan 2026, jadi 1 Jan 2026 tetap memakai angka lama (detail di `docs/cek-aturan-hukum.md` bagian 6) |
 | Pasang ke Supabase percobaan 1 (run 43863851023) | **Gagal sebelum menyentuh Supabase**: langkah "Pasang klien Postgres 17" putus saat mengunduh kunci dari postgresql.org (`curl: (55) unexpected eof`). Cadangan dan migrasi tidak sempat jalan. Dugaan [Kemungkinan Besar]: gangguan jaringan sesaat. Diulang dengan commit berikutnya |
+| Pasang ke Supabase percobaan 2 (run 43864833126, commit 8561407) | **Lulus**, sekitar 2,5 menit: cadangan dulu, semua migrasi dan data lama dilewati, data aturan resmi dijalankan, pemeriksaan 21 lulus 0 gagal. Cadangan malam otomatis sesudahnya: lulus |
+| Dicek langsung di Supabase (16 Nov 2026, 19.2x WIB) | Kalender 2026 tetap 22 tanggal; 2027: 18 libur nasional + 8 cuti bersama. JP per bagian: 10.547.400 (1 Mar 2025–31 Des 2025), 10.547.000 (1 Jan 2026 saja), 10.547.400 (2 Jan–28 Feb 2026), 11.086.300 (sejak 1 Mar 2026). Jejak perubahan: 34 baris baru (26 kalender + 2 penutupan + 6 baris JP), sesuai. Karyawan 1.044 dan hasil harian 119.853 tidak berubah; skema `uji` tidak tertinggal; tidak ada transaksi menggantung |
 | Uji lokal (Postgres 16) | `db/uji/jalankan.sh`: 184 lulus, 0 gagal. `pasang_supabase.sh pasang` di database kosong: semua dimuat, pemeriksaan 21 lulus, sekitar 32 detik; dijalankan ulang: semua dilewati, pemeriksaan 21 lulus, isi JP tetap 4 baris per bagian |
 
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
