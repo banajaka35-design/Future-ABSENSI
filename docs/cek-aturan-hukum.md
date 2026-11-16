@@ -85,3 +85,19 @@ Daftar paket 4a menulis "migrasi 0008 berisi TER, PTKP, kalender 2027, dan perba
 **Diselesaikan di paket "data aturan resmi" (16 Nov 2026):** file `db/data_awal/aturan_resmi.sql` yang aman dijalankan berulang, dimuat setiap pemasangan sesudah struktur Pabrik A. `pabrik_a_struktur.sql` tidak diubah.
 
 Keterbatasan [Pasti]: baris bertanggal hanya boleh ditutup, tidak boleh diubah nilainya, dan tanggal tutup harus sesudah tanggal mulai. Baris JP lama (10.547.000 sejak 1 Jan 2026) karena itu ditutup per 2 Jan 2026, sehingga **tanggal 1 Jan 2026 saja masih memakai 10.547.000** (selisih batas Rp400; iuran JP karyawan selisih paling banyak Rp4). Ini juga terjadi di setiap pemasangan dari nol, karena angka lama tetap dimuat dari `pabrik_a_struktur.sql`. Untuk perusahaan sungguhan data awal tidak memakai file ini (lihat serah terima, "Sebelum dipasang untuk perusahaan sungguhan").
+
+## 7. Cek tambahan untuk paket 4b-1 (16 Nov 2026)
+
+| Hal | Isi | Dasar | Label | Dipakai di |
+| --- | --- | --- | --- | --- |
+| Upah saat tidak bekerja | Upah tidak dibayar bila pekerja tidak bekerja (ayat 1), **kecuali** sakit, haid sakit, menikah/menikahkan/khitan/baptis anak/istri melahirkan/keluarga meninggal, kewajiban negara, ibadah, istirahat (cuti), tugas serikat, tugas pendidikan, mogok sah (ayat 2) | UU 27/2026 Pasal 149 ayat 1–2 | Pasti (naskah resmi) | Alpha tidak dibayar; sakit dan cuti dibayar; **izin tanpa alasan di ayat 2 tidak dibayar** (pengaturan `izin_dibayar`, bawaan `tidak`) |
+| Upah sakit berkepanjangan | 4 bulan pertama 100%, 4 bulan kedua 75%, 4 bulan ketiga 50%, selanjutnya 25% | Pasal 149 ayat 3 | Pasti | Data simulasi tidak punya sakit lebih dari 4 bulan; dianggap 100%. Sakit panjang belum dihitung (dicatat sebagai batasan) |
+| Cuti dibayar penuh | Pekerja yang memakai istirahat mingguan dan cuti tahunan berhak upah penuh | Pasal 123 ayat 1 | Pasti | Status `cuti` dibayar |
+| Hari libur resmi | Pekerja tidak wajib bekerja pada hari libur resmi | Pasal 125 ayat 1 | Pasti | Alpha di hari libur nasional (operasi 7 hari) tidak memotong upah; diberi tanda |
+| Lembur menurut Penjelasan | "Waktu kerja lembur" termasuk kerja pada hari istirahat mingguan dan hari libur resmi | Penjelasan Pasal 116 ayat 1 huruf c | Pasti | Peringatan batas 4 jam/hari dan 18 jam/minggu ikut menghitung lembur di hari libur (berbeda dengan PP 35/2021 lama) |
+| Istirahat | Paling sedikit ½ jam setelah 4 jam kerja terus-menerus, tidak termasuk jam kerja | Pasal 118 ayat 2a | Pasti | Lembur di hari libur tanpa jadwal: dikurangi 60 menit istirahat bila hadir lebih dari 4 jam (angka tetap, sama dengan istirahat jadwal) |
+| Saat PPh 21 terutang | Saat pembayaran atau terutangnya penghasilan, mana yang lebih dulu; dipotong per masa pajak | PMK 168/2023 Pasal 19 ayat 1–2 | Kemungkinan Besar (dari salinan teks pasal.id, belum naskah resmi) | Masa pajak = bulan tanggal bayar gaji |
+| Pembulatan PKP | Penghasilan kena pajak dibulatkan ke bawah hingga ribuan rupiah | PMK 168/2023 Pasal 8 ayat 4 | Kemungkinan Besar | Hitung ulang Desember (paket 4b-2) |
+| Pembulatan PPh 21 TER | Tidak ditemukan aturan pembulatan nominal PPh | — | Menebak | Pengaturan baru `pembulatan_pph21`, bawaan `bawah` (ke bawah ke rupiah) |
+| Contoh resmi TER | Tuan A, K/0: gaji 20 jt + tunjangan 10 jt + JKK 100 rb + JKM 60 rb = bruto 30.160.000 × TER A 13% = **Rp3.920.800** (masa Januari) | Ilustrasi Lampiran PMK 168/2023, dikutip DDTCNews | Kemungkinan Besar (kutipan, bukan naskah lampiran) | Kasus uji K1 di `docs/kunci-gaji.md` |
+| Batas bawah iuran BPJS Kesehatan | Batas paling rendah upah dasar iuran = UMK (bila tidak ada, UMP); batas atas Rp12 juta | Perpres 64/2020 Pasal 32 ayat 1–3 | Pasti (kutipan naskah di jdih.kemenkeu dan peraturan.go.id) | Dasar iuran Kesehatan dijepit antara UMK dan 12 juta |

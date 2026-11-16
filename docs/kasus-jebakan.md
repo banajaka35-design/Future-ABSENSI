@@ -1,6 +1,6 @@
 # Kasus Jebakan — Tahap 0
 
-Versi 1.1 · dikunci 12 November 2026 · acuan: PRD v3.1
+Versi 1.2 · dikunci 12 November 2026, ditambah 16 November 2026 lewat permintaan perubahan 01 (C02b, D11b; kasus lain tidak berubah) · acuan: PRD v3.1, UU 27/2026
 
 Daftar ini ditulis **sebelum** pembaca tap dan mesin hitung dibuat. Setiap kasus menyebut kejadian dan hasil yang diharapkan. Kode dinyatakan benar hanya kalau semua kasus di sini lulus (uji U1, U2, U4, U6, U10, U12, U14). Kasus tidak boleh diubah agar kode lulus; perubahan hanya lewat permintaan perubahan (PRD v3 bagian 3).
 
@@ -65,6 +65,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | --- | --- | --- | --- |
 | C01 | Tidak ada tap 17 Feb 2026 (Imlek) | Libur, bukan alpha | Asli |
 | C02 | Tidak ada tap 16 Feb 2026 (cuti bersama), pengaturan "dibayar" / "potong cuti" | Libur dibayar / cuti dengan saldo berkurang 1 | Asli, PRD |
+| C02b | Tidak ada tap 24 Des 2026 (cuti bersama Natal), pengaturan "potong cuti" berlaku sejak sebelum 28 Okt 2026 | Libur dibayar; saldo cuti **tidak** berkurang; peringatan "pengaturan potong cuti tidak berlaku sejak 28 Okt 2026 (UU 27/2026 Pasal 118 ayat 6)" | Permintaan perubahan 01 |
 | C03 | Tidak ada tap di hari libur bergilir orang itu | Libur, bukan alpha | PRD B11 |
 | C04 | Masuk 8 jam di hari libur bergilir (pola 6 hari) | Seluruh 8 jam lembur hari libur (lihat E06) | PRD |
 | C05 | Operasi 7 hari: dijadwalkan dan masuk shift Pagi 21 Mar 2026 (Idul Fitri) | Seluruh jam kerja dibayar tarif lembur hari libur | PRD, Aturan |
@@ -93,6 +94,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | D09 | Lembur 4,5 jam di hari kerja | Dibayar penuh; peringatan batas 4 jam dan wajib makan | Aturan |
 | D10 | Total lembur 19 jam dalam satu minggu | Dibayar penuh; peringatan batas 18 jam | Aturan |
 | D11 | Upah pokok 2.000.000 + tetap 500.000 + tidak tetap 1.500.000; lembur 2 jam | Dasar lembur 75% × 4.000.000 = 3.000.000; 3,5 × 3.000.000/173 = Rp60.694 | Aturan |
+| D11b | Sama dengan D11, lembur tanggal 2 Nov 2026 | Rp60.694 (dasar terbesar) + tanda "dasar lembur 75% perlu dikonfirmasi HRD" | Permintaan perubahan 01 |
 | D12 | Kantor Jumat pulang 18:26 (jadwal 16:30) | Lebih 116 menit, dibayar 90 menit = Rp57.803 | Asli (P4 6 Feb) |
 
 ## E. Gaji, pajak, dan pembayaran
