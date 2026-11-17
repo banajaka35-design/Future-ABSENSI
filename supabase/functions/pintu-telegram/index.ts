@@ -15,7 +15,9 @@ const alat: Alat = {
     if (!apiBoleh(nama)) throw new Error(`fungsi ${nama} tidak boleh dipanggil`);
     const baris = isi === undefined
       ? await sql.unsafe(`select api.${nama}() as h`)
-      : await sql.unsafe(`select api.${nama}($1::jsonb) as h`, [JSON.stringify(isi)]);
+      // $1 sebagai teks lalu diubah ke jsonb oleh database. Dengan `$1::jsonb` saja, postgres.js mengubah teks JSON
+      // menjadi JSON sekali lagi (string di dalam jsonb), sehingga semua isian terbaca kosong (ditemukan uji nyata 17 Nov).
+      : await sql.unsafe(`select api.${nama}($1::text::jsonb) as h`, [JSON.stringify(isi)]);
     return baris[0].h;
   },
   async telegram(metode, isi) {
