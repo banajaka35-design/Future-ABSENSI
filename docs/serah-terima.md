@@ -13,7 +13,7 @@ Terakhir diperbarui: 17 November 2026, cabang `main` (paket 5e masuk lewat kode 
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 5 selesai (5a–5e, 5d-2); usulan perbaikan kecil 5e terbuka; berikutnya Tahap 6
+## Posisi sekarang: Tahap 5 selesai (5a–5e, 5d-2, 5e-2); berikutnya Tahap 6 (tulis daftar paket dulu)
 
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
@@ -281,7 +281,7 @@ Dipecah (urutan sekarang): **5a** ukur dan percepat hitung · **5b** pintu Teleg
 
 **Gerbang Tahap 5** (PRD bagian 17: "U14 lulus; pengingat file terkirim"): terpenuhi. Unggah cadangan lewat web (pindahan dari Tahap 4): ada (5d). 5e selesai (di bawah).
 
-**5e selesai** (`docs/laporan-tahap-5e.md`, rancangan `docs/login-email.md`): migrasi 0020, masuk halaman unggah dengan kode 6 angka lewat email (Brevo), hasilnya tautan unggah 5d. Uji nyata 17 Nov 2026: kode email no. 6 dipakai, kiriman no. 22 (rusak Excel, asal web) ditolak dan pemberitahuan segera terkirim. Penyiapan Brevo oleh pemilik: kunci `future-absensi` (Transactional email Read/write, mati bila 90 hari tidak dipakai), pemblokiran IP untuk kunci API dimatikan, secret `BREVO_API_KEY` dan `PEMBANGUN_EMAIL`. Usulan terbuka (belum di-"buat"): email yang gagal terkirim jangan menghabiskan jatah 3 kode per 15 menit.
+**5e selesai** (`docs/laporan-tahap-5e.md`, rancangan `docs/login-email.md`): migrasi 0020, masuk halaman unggah dengan kode 6 angka lewat email (Brevo), hasilnya tautan unggah 5d. Uji nyata 17 Nov 2026: kode email no. 6 dipakai, kiriman no. 22 (rusak Excel, asal web) ditolak dan pemberitahuan segera terkirim. Penyiapan Brevo oleh pemilik: kunci `future-absensi` (Transactional email Read/write, mati bila 90 hari tidak dipakai), pemblokiran IP untuk kunci API dimatikan, secret `BREVO_API_KEY` dan `PEMBANGUN_EMAIL`. Email yang gagal terkirim tidak lagi menghabiskan jatah: **diperbaiki di paket 5e-2** (migrasi 0021, uji nyata masuk lewat email lulus).
 
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 

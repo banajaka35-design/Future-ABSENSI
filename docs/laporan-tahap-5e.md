@@ -37,3 +37,15 @@ Jumlah uji otomatis: database 444 lulus; bot 33 lulus; penyambung 19 lulus.
 - Email kode uji nyata 17 Nov 2026 masuk **Inbox** Gmail pemilik [Pasti, laporan pemilik]. Ke alamat lain (bukan Gmail yang sama dengan pengirim) belum diuji; bisa masuk Spam [Menebak]. Untuk perusahaan sungguhan tetap disarankan domain sendiri.
 - Kunci Brevo mati sesudah 90 hari tanpa pemakaian; tidak ada pemeriksa otomatis untuk ini.
 - Pemberitahuan segera dan ringkasan hitungan tetap lewat Telegram.
+
+## Paket 5e-2 (17 Nov 2026): email gagal tidak menghabiskan jatah
+
+Kode: commit 524424b, migrasi 0021. Kode email yang ditolak Brevo ditandai `gagal_kirim`: tidak dihitung dalam jatah 3 kode per email per 15 menit (tetap dihitung dalam batas 50 per jam) dan tidak bisa dipakai. Menutup temuan 2 di atas.
+
+| Uji | Hasil |
+| --- | --- |
+| Otomatis: Brevo gagal 3 kali lalu pulih → kode keempat terkirim dan bisa dipakai; kode gagal tidak bisa dipakai; penandaan hanya untuk email yang cocok dan kode yang belum dipakai; jatah tetap berlaku untuk kode terkirim; batas 50 per jam menghitung kode gagal | **Lulus** (database 453, bot 34, penyambung 19) |
+| Pemasangan | Percobaan pertama gagal mengunduh alat Postgres (curl 55, belum ada yang berubah); diulang, lulus |
+| Nyata: masuk lewat email sesudah pemasangan | **Lulus**: kode no. 7 dibuat 18.42.27, dipakai 18.42.53, tanpa salah |
+
+Bagian "Brevo gagal" hanya terbukti lewat uji otomatis; kegagalan Brevo tidak dibuat dengan sengaja di Supabase.
