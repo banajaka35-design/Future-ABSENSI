@@ -458,3 +458,22 @@ test("masukan rusak: kode bukan 6 angka, email tidak sah -> 400", async () => {
   assert.equal((await webTukarKode(alatEmail, "hrd111@contoh.id", "12ab56")).status, 400);
   assert.equal((await webMintaKode(alatEmail, "bukan-email")).status, 400);
 });
+
+test("5e-2: Brevo gagal 3 kali lalu pulih -> kode keempat langsung terkirim dan bisa dipakai", async () => {
+  psql("update induk.pengguna set email = 'pulih@contoh.id' where telegram_id = 333");
+  let gagal = 3;
+  const kotak: string[] = [];
+  const alatRewel: Alat = {
+    ...alat,
+    async email(_ke, _judul, isi) {
+      if (gagal-- > 0) throw new Error("Brevo 401: unrecognised IP address");
+      kotak.push(isi);
+    },
+  };
+  for (let i = 0; i < 3; i++) assert.equal((await webMintaKode(alatRewel, "pulih@contoh.id")).status, 502);
+  assert.equal(nilai("select count(*) from fakta.kode_email where email = 'pulih@contoh.id' and gagal_kirim is not null"), "3");
+  assert.equal((await webMintaKode(alatRewel, "pulih@contoh.id")).status, 200);
+  assert.equal(kotak.length, 1);
+  const kode = /\b(\d{6})\b/.exec(kotak[0])?.[1] ?? "";
+  assert.equal((await webTukarKode(alatRewel, "pulih@contoh.id", kode)).status, 200);
+});

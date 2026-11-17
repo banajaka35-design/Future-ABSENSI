@@ -32,7 +32,7 @@ const API_BOLEH = new Set([
   "pintu_pesan", "pintu_tunda", "pintu_ambil_tunda", "pintu_terima_file", "pintu_kerjakan",
   "pintu_pemberitahuan_ambil", "pintu_pengingat", "pintu_pemberitahuan_hasil",
   "pintu_buat_tautan", "pintu_periksa_tautan", "pintu_terima_web", "pintu_status_kiriman",
-  "pintu_minta_kode_email", "pintu_tukar_kode_email",
+  "pintu_minta_kode_email", "pintu_tukar_kode_email", "pintu_kode_email_gagal",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -528,6 +528,12 @@ export async function webMintaKode(alat: Alat, emailMasuk: string): Promise<Jawa
           `Bila Anda tidak meminta kode ini, abaikan email ini.`);
     } catch (e) {
       console.error(e);
+      // Paket 5e-2: kode yang tidak terkirim tidak menghabiskan jatah 3 kode per 15 menit dan tidak bisa dipakai.
+      try {
+        await alat.api("pintu_kode_email_gagal", { id: r.id, email });
+      } catch (e2) {
+        console.error(e2);
+      }
       return { status: 502, isi: { alasan: "Pengiriman email sedang gangguan; coba lagi sebentar." }, latar: null };
     }
   }

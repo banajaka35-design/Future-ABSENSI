@@ -303,4 +303,6 @@ test("Brevo menolak -> halaman diberi tahu gangguan (502)", async () => {
     method: "POST", headers: { origin: ASAL_WEB }, body: JSON.stringify({ email: "sambung@contoh.id" }) }),
     a, RAHASIA, RAHASIA_PENGINGAT, ASAL_WEB);
   assert.equal(respon.status, 502);
+  // 5e-2: kode yang tidak terkirim ditandai gagal (tidak menghabiskan jatah, tidak bisa dipakai)
+  assert.equal(nilai("select gagal_kirim is not null from fakta.kode_email where email = 'sambung@contoh.id' order by id desc limit 1"), "t");
 });

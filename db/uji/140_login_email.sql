@@ -64,7 +64,8 @@ insert into hasil_uji values ('bot_tetap', api.pintu_terima_file(jsonb_build_obj
 reset role;
 
 create function pg_temp.h(p text) returns jsonb language sql as $$ select isi from hasil_uji where nama = p $$;
-select uji.sama('E1: email terdaftar (huruf besar, spasi) mendapat kode', pg_temp.h('e1'), '{"kirim": true, "email": "hrd@contoh.id"}'::jsonb);
+select uji.sama('E1: email terdaftar (huruf besar, spasi) mendapat kode',
+  pg_temp.h('e1') - 'id', '{"kirim": true, "email": "hrd@contoh.id"}'::jsonb);
 select uji.sama('E1: kode berlaku 10 menit, hanya sidik tersimpan',
   (select (berlaku_sampai - dibuat)::text || '/' || (sidik = repeat('a', 64)) from fakta.kode_email where email = 'hrd@contoh.id'),
   '00:10:00/true');
