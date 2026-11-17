@@ -37,3 +37,15 @@ Jumlah uji otomatis: database 420 lulus; bot 25 lulus; penyambung (postgres.js s
 - Batas ukuran file yang diterima Edge Function sungguhan **belum diukur** (uji memakai file kecil). Batas di kode: 50 MB.
 - Login masih lewat Telegram; cadangan saat Telegram mati total untuk mendapatkan tautan adalah paket 5e (email).
 - Siapa pun bisa membuka halaman `/unggah`; tanpa kode yang sah tidak ada yang diproses.
+
+## Paket 5d-2 (17 Nov 2026): bot tidak diam bila database menolak masuk
+
+Kode: commit 61c79ff. Edge Function mencoba ulang galat sambungan/masuk (3 percobaan); bila tetap gagal, pengirim diberi pesan gangguan dan Telegram dijawab 503 supaya pesan dikirim ulang (dokumen setWebhook: permintaan yang tidak dijawab 2xx diulang, lalu Telegram menyerah sesudah beberapa kali). `db/pasang_pintu.sh` masuk sebagai `pintu` lewat pooler sampai berhasil sesudah mengganti kata sandi.
+
+| Uji | Hasil |
+| --- | --- |
+| Otomatis (penyambung, postgres.js sungguhan): ditolak sekali lalu berhasil; ditolak terus → 503 + pesan gangguan, tidak tercatat, kiriman ulang diproses sekali; tombol; teks galat pooler dengan kode lain; galat lain tetap 200; kode rahasia salah tidak menyentuh database | **Lulus** (17 uji penyambung) |
+| Pemasangan: skrip masuk sebagai `pintu` | Berhasil pada percobaan ke-1 |
+| Nyata: pesan "halo" pukul 16.52 WIB, sekitar 3 menit sesudah pemasangan | **Lulus**: dibalas pada kiriman pertama; log Edge Function tanpa percobaan ulang |
+
+Catatan [Pasti, log Supavisor]: satu penolakan kata sandi `pintu` tercatat pukul 16.45.59 WIB, saat pemasangan; sumbernya tidak terbaca dari log [Menebak: kolam sambungan lama di pooler]. Kolam `pintu` lama ditutup pooler pukul 16.48. Jalur coba ulang di Edge Function belum pernah terpakai di Supabase sungguhan; baru terbukti di uji otomatis.
