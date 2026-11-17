@@ -251,8 +251,8 @@ select uji.sama('K10 (D11b): dasar memang 75% (lebih besar dari pokok + tetap)',
   hitung.dasar_lembur(2500000, pg_temp.r('D11B', 'uang_makan') + pg_temp.r('D11B', 'premi_hadir')) > 2500000, true);
 select uji.sama('K10 (D11b): tanda perlu dikonfirmasi HRD',
   'dasar_lembur_75_perlu_konfirmasi_hrd' = any((pg_temp.g('D11B')).peringatan), true);
-select uji.sama('masa Desember: PPh 21 belum dihitung (0) dan diberi tanda',
-  (select r.nominal = 0 and 'pph_desember_belum_dihitung' = any(g.peringatan)
+select uji.sama('masa Desember tanpa data Jan-Nov: PPh 21 ditahan (0) dan diberi tanda (aturan v3 L2)',
+  (select r.nominal = 0 and 'pph_masa_terakhir_tertahan' = any(g.peringatan)
    from hitung.rincian_gaji r
    join hitung.ringkasan_gaji g on g.versi_id = r.versi_id and g.id_karyawan = r.id_karyawan
    join hitung.versi_terakhir v on v.id = r.versi_id
