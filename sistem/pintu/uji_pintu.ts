@@ -1,16 +1,18 @@
 // Uji pintu Telegram (paket 5b, kasus T1-T8 di docs/pintu-telegram.md; paket 5c, kasus N1-N9 dan P1-P7 di
-// docs/pemberitahuan-segera.md) dengan pesan Telegram tiruan,
+// docs/pemberitahuan-segera.md; paket 5d, kasus W1-W11 di docs/unggah-web.md) dengan pesan Telegram tiruan,
 // file simulasi Pabrik A, dan Postgres sementara. Database dipanggil sebagai peran `pintu`, seperti Edge Function.
 // Pemakaian: DB_URL=... node --test sistem/pintu/uji_pintu.ts  (database sudah berisi struktur dan karyawan Pabrik A,
 // periode, tanpa tap; disiapkan oleh sistem/uji/uji_pintu.sh)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
-  apiBoleh, BATAS_PESAN, JENIS_SEGERA, susunPesanSegera, tanganiPengingat, tanganiPermintaan, type Alat,
+  apiBoleh, BATAS_PESAN, JENIS_SEGERA, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webPeriksa, webStatus,
+  webUnggah, type Alat,
 } from "./inti.ts";
 
 const DB = process.env.DB_URL!;
@@ -273,4 +275,105 @@ test("P3: hari ke-2 tanpa akun bos: HRD diingatkan, bos dicatat dilewati", async
   assert.deepEqual(r.pesan.map((p) => p.chat_id).sort(), [HRD, 333, PEMBANGUN]);
   assert.match(r.pesan[0].text, /hari ke-2.*bos juga diberi tahu/);
   assert.deepEqual(r.hasil.dilewati, [{ kepada: "bos", status: "dilewati_tanpa_akun_bos", mesin: ["MA1", "MA2"] }]);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 5d: unggah lewat web (kasus W1-W9, W11 di docs/unggah-web.md)
+// ---------------------------------------------------------------------------
+
+alat.alamatUnggah = "https://halaman.uji/unggah/";
+const sha256 = (t: string) => createHash("sha256").update(t).digest("hex");
+const kodeDari = (teks: string) => /#kode=([0-9a-f]{64})$/.exec(teks)?.[1] ?? "";
+let KODE = "";
+
+test("W2: /unggah dari akun bukan HRD ditolak tanpa tautan", async () => {
+  const r = await kirimUpdate(JSON.stringify({ update_id: 801, message: { message_id: 801, chat: { id: BUKAN }, from: { id: BUKAN }, text: "/unggah" } }));
+  assert.match(r.pesan[0].text, /belum terdaftar/);
+  assert.equal(nilai("select count(*) from fakta.tautan_unggah"), "0");
+});
+
+test("W1: /unggah dari HRD -> tautan 15 menit; database hanya menyimpan sidik kode", async () => {
+  const r = await kirimUpdate(JSON.stringify({ update_id: 802, message: { message_id: 802, chat: { id: HRD }, from: { id: HRD }, text: "/unggah" } }));
+  KODE = kodeDari(r.pesan[0].text);
+  assert.match(r.pesan[0].text, /^Tautan unggah file mesin \(berlaku 15 menit/);
+  assert.ok(r.pesan[0].text.includes("https://halaman.uji/unggah/#kode="));
+  assert.equal(r.pesan[0].link_preview_options.is_disabled, true);
+  assert.equal(KODE.length, 64);
+  assert.equal(nilai(`select count(*) from fakta.tautan_unggah where sidik = '${sha256(KODE)}'`), "1");
+  assert.equal(nilai(`select count(*) from fakta.tautan_unggah where sidik = '${KODE}'`), "0");
+  const p = await webPeriksa(alat, KODE);
+  assert.equal(p.status, 200);
+  assert.deepEqual(p.isi.mesin, ["MA1", "MA2"]);
+});
+
+test("W3: kode palsu ditolak; file tidak diproses", async () => {
+  assert.equal((await webPeriksa(alat, "0".repeat(64))).status, 401);
+  assert.equal((await webPeriksa(alat, "bukan-kode")).status, 401);
+  const r = await webUnggah(alat, "0".repeat(64), "palsu.csv", fileSim("A_p2_MA1.csv"), "MA1");
+  assert.equal(r.status, 401);
+  assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'palsu.csv'"), "0");
+});
+
+async function unggah(nama: string, isi: Uint8Array, mesin: string, kode = KODE, a: Alat = alat) {
+  const awal = terkirim.length;
+  const r = await webUnggah(a, kode, nama, isi, mesin);
+  if (r.latar) await r.latar;
+  return { ...r, pesan: terkirim.slice(awal).filter((t) => t.metode === "sendMessage").map((t) => t.isi) };
+}
+
+test("W8: file rusak Excel lewat web ditolak; pemberitahuan segera ke semua penerima", async () => {
+  const r = await unggah("excel_web.csv", BERKAS.F_EXCEL, "MA2");
+  assert.equal(r.status, 200);
+  assert.equal(r.isi.hasil, "ditolak");
+  assert.match(r.isi.alasan, /Excel/);
+  for (const tg of [HRD, 333, PEMBANGUN]) assert.match(segera(r.pesan, tg)[0] ?? "", /excel_web\.csv/, String(tg));
+  assert.equal(nilai("select asal from fakta.kiriman_file where nama_file = 'excel_web.csv'"), "web");
+  assert.equal(belumTerkirim(), "0");
+});
+
+test("W7: file yang sudah diterima lewat bot, diunggah lagi lewat web -> ditolak dobel", async () => {
+  const r = await unggah("A_p1_MA1_lagi.csv", BERKAS.F_MA1, "MA1");
+  assert.equal(r.isi.hasil, "ditolak");
+  assert.match(r.isi.alasan, /sudah diterima sebelumnya/);
+});
+
+test("W6, W9: file sah lewat web (tautan yang sama) diterima, dihitung, status terbaca; ringkasan ke Telegram", async () => {
+  const r = await unggah("A_p2_MA1.csv", fileSim("A_p2_MA1.csv"), "MA1");
+  assert.equal(r.isi.hasil, "diterima", JSON.stringify(r.isi));
+  assert.ok(r.isi.jumlah_tap > 0);
+  assert.equal(nilai(`select asal || '/' || (pengirim = (select id from induk.pengguna where telegram_id = ${HRD}))
+                      from fakta.kiriman_file where id = ${r.isi.kiriman_id}`), "web/true");
+  const s = await webStatus(alat, KODE, r.isi.kiriman_id);
+  assert.equal(s.status, 200);
+  assert.equal(s.isi.selesai, true);
+  assert.ok(s.isi.periode.length >= 1 && s.isi.periode.every((p: any) => p.status === "selesai" && p.hasil.orang > 0));
+  assert.ok(r.pesan.some((p) => p.chat_id === HRD && /diunggah lewat web \(mesin MA1\)/.test(p.text)));
+  assert.ok(r.pesan.some((p) => p.chat_id === HRD && /^Periode .*gaji bersih Rp/.test(p.text)));
+  assert.equal(belumTerkirim(), "0");
+});
+
+test("cadangan: Telegram gagal total -> file web tetap diterima dan dihitung", async () => {
+  const mati: Alat = { ...alat, async telegram() { throw new Error("Telegram tidak bisa dihubungi"); } };
+  const r = await unggah("A_p2_MA2.csv", fileSim("A_p2_MA2.csv"), "MA2", KODE, mati);
+  assert.equal(r.isi.hasil, "diterima");
+  const s = await webStatus(alat, KODE, r.isi.kiriman_id);
+  assert.equal(s.isi.selesai, true);
+  assert.ok(s.isi.periode.every((p: any) => p.status === "selesai"));
+  // pemberitahuan yang gagal terkirim tercatat gagal, tidak hilang diam-diam
+  assert.equal(nilai("select count(*) from fakta.pemberitahuan where status = 'akan_dikirim'"), "0");
+});
+
+test("W11: status kiriman dengan tautan akun lain ditolak", async () => {
+  const r = await kirimUpdate(JSON.stringify({ update_id: 803, message: { message_id: 803, chat: { id: 333 }, from: { id: 333 }, text: "/unggah" } }));
+  const lain = kodeDari(r.pesan[0].text);
+  const id = Number(nilai("select max(id) from fakta.kiriman_file where asal = 'web'"));
+  assert.equal((await webStatus(alat, lain, id)).status, 404);
+});
+
+test("W4: tautan lewat 15 menit ditolak", async () => {
+  psql(`update fakta.tautan_unggah set berlaku_sampai = now() - interval '1 minute' where sidik = '${sha256(KODE)}'`);
+  assert.equal((await webPeriksa(alat, KODE)).status, 401);
+  const r = await webUnggah(alat, KODE, "telat.csv", fileSim("A_p3_MA1.csv"), "MA1");
+  assert.equal(r.status, 401);
+  assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'telat.csv'"), "0");
 });

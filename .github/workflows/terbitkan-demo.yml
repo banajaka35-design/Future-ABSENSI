@@ -57,6 +57,20 @@ jobs:
       - name: Periksa angka demo sama dengan gudang
         run: python3 web/periksa_data.py web/demo
 
+      - name: Alamat Edge Function untuk halaman unggah (paket 5d)
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.parse as u
+          p = u.urlsplit(os.environ["DB_URL"])
+          user = p.username or ""
+          ref = user.split(".", 1)[1] if "." in user else (re.match(r"db\.([a-z0-9]+)\.supabase\.co", p.hostname or "") or [None, ""])[1]
+          if not ref:
+              raise SystemExit("GAGAL: nomor proyek Supabase tidak bisa dibaca dari DB_URL.")
+          with open("web/demo/unggah/alamat.json", "w") as f:
+              json.dump({"fungsi": f"https://{ref}.supabase.co/functions/v1/pintu-telegram"}, f)
+          print("Alamat fungsi ditulis untuk proyek", ref)
+          PY
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

@@ -1,7 +1,10 @@
 // Penyambung Edge Function pintu-telegram (paket 5b; dipisah dari index.ts di paket 5c supaya bisa diuji di Node
 // dengan postgres.js sungguhan, sistem/pintu/uji_sambung.ts). Tidak memakai API khusus Deno.
 // index.ts hanya membuat sambungan database, membaca rahasia, dan memanggil `layani`.
-import { apiBoleh, tanganiPengingat, tanganiPermintaan, type Alat, type HasilUraiRingkas } from "./inti.ts";
+import {
+  apiBoleh, BATAS_UKURAN_WEB, tanganiPengingat, tanganiPermintaan, webPeriksa, webStatus, webUnggah,
+  type Alat, type HasilUraiRingkas, type JawabanWeb,
+} from "./inti.ts";
 
 // Bagian postgres.js yang dipakai.
 export interface Sql {
@@ -13,8 +16,10 @@ export function buatAlat(
   token: string,
   urai: (teks: string, pilihan: { tanggal_kirim?: string }) => HasilUraiRingkas,
   ambil: typeof fetch = fetch,
+  alamatUnggah = "",
 ): Alat {
   return {
+    alamatUnggah,
     async api(nama, isi) {
       if (!apiBoleh(nama)) throw new Error(`fungsi ${nama} tidak boleh dipanggil`);
       const baris = isi === undefined
@@ -45,14 +50,19 @@ export function buatAlat(
   };
 }
 
-// Satu permintaan HTTP. Kepala `x-pengingat-rahasia` -> pengingat kirim file (dari pg_cron atau pemicu manual);
-// selain itu pesan dari Telegram. Kerja berat dikembalikan sebagai `latar` untuk EdgeRuntime.waitUntil.
+// Satu permintaan HTTP:
+//   ?jalur=periksa|unggah|status -> halaman unggah (paket 5d), hanya dari alamat halaman (`asalWeb`);
+//   kepala `x-pengingat-rahasia` -> pengingat kirim file (dari pg_cron atau pemicu manual);
+//   selain itu pesan dari Telegram. Kerja berat dikembalikan sebagai `latar` untuk EdgeRuntime.waitUntil.
 export async function layani(
   req: Request,
   alat: Alat,
   rahasiaTelegram: string,
   rahasiaPengingat: string,
+  asalWeb = "",
 ): Promise<{ respon: Response; latar: Promise<void> | null }> {
+  const jalur = new URL(req.url).searchParams.get("jalur");
+  if (jalur !== null) return layaniWeb(req, jalur, alat, asalWeb);
   try {
     const kodePengingat = req.headers.get("x-pengingat-rahasia");
     if (kodePengingat !== null) {
@@ -77,5 +87,58 @@ export async function layani(
     // Tetap 200 supaya Telegram tidak mengirim ulang terus; nomor pesan sudah tercatat.
     console.error(e);
     return { respon: new Response("ok", { status: 200 }), latar: null };
+  }
+}
+
+// Halaman unggah (paket 5d, docs/unggah-web.md). Hanya dari alamat halaman demo; kode tautan diperiksa database.
+async function layaniWeb(
+  req: Request,
+  jalur: string,
+  alat: Alat,
+  asalWeb: string,
+): Promise<{ respon: Response; latar: Promise<void> | null }> {
+  const asal = req.headers.get("origin");
+  const kepala: Record<string, string> = { "vary": "origin" };
+  if (!asalWeb || asal !== asalWeb) {
+    return { respon: new Response("ditolak", { status: 403, headers: kepala }), latar: null };
+  }
+  kepala["access-control-allow-origin"] = asalWeb;
+  if (req.method === "OPTIONS") {
+    kepala["access-control-allow-methods"] = "POST";
+    kepala["access-control-allow-headers"] = "content-type";
+    kepala["access-control-max-age"] = "600";
+    return { respon: new Response(null, { status: 204, headers: kepala }), latar: null };
+  }
+  const json = (j: JawabanWeb) => ({
+    respon: new Response(JSON.stringify(j.isi), { status: j.status, headers: { ...kepala, "content-type": "application/json" } }),
+    latar: j.latar,
+  });
+  try {
+    if (req.method !== "POST") return json({ status: 405, isi: { alasan: "Harus POST." }, latar: null });
+    if (jalur === "unggah") {
+      const panjang = Number(req.headers.get("content-length") ?? 0);
+      if (panjang > BATAS_UKURAN_WEB + 1024 * 1024) {
+        return json({ status: 413, isi: { hasil: "ditolak", alasan: "File lebih dari 50 MB." }, latar: null });
+      }
+      const form = await req.formData();
+      const file = form.get("file");
+      if (!file || typeof file === "string") {
+        return json({ status: 400, isi: { hasil: "ditolak", alasan: "File belum dipilih." }, latar: null });
+      }
+      const isi = new Uint8Array(await file.arrayBuffer());
+      return json(await webUnggah(alat, String(form.get("kode") ?? ""), file.name || "file", isi, String(form.get("mesin") ?? "")));
+    }
+    let badan: any = {};
+    try {
+      badan = JSON.parse(await req.text());
+    } catch {
+      return json({ status: 400, isi: { alasan: "Isi permintaan tidak terbaca." }, latar: null });
+    }
+    if (jalur === "periksa") return json(await webPeriksa(alat, String(badan.kode ?? "")));
+    if (jalur === "status") return json(await webStatus(alat, String(badan.kode ?? ""), Number(badan.kiriman_id)));
+    return json({ status: 404, isi: { alasan: "Jalur tidak dikenal." }, latar: null });
+  } catch (e) {
+    console.error(e);
+    return json({ status: 500, isi: { hasil: "gagal", alasan: "Terjadi galat di server; coba lagi." }, latar: null });
   }
 }

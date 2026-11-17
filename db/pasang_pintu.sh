@@ -78,8 +78,10 @@ echo "Lama memasang: $(( ($(date +%s%N) - mulai) / 1000000 )) ms"
 
 BERKAS="$(mktemp)"
 trap 'rm -f "$BERKAS"' EXIT
-printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_RAHASIA=%s\nPINTU_DB_URL=%s\nPENGINGAT_RAHASIA=%s\n' \
-  "$TELEGRAM_BOT_TOKEN" "$RAHASIA" "$PINTU_DB_URL" "$RAHASIA_PENGINGAT" > "$BERKAS"
+# ASAL_WEB: alamat halaman unggah (paket 5d); Edge Function hanya menerima unggahan web dari alamat ini.
+ASAL_WEB="${ASAL_WEB:-https://future-absensi-demo.pages.dev}"
+printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_RAHASIA=%s\nPINTU_DB_URL=%s\nPENGINGAT_RAHASIA=%s\nASAL_WEB=%s\n' \
+  "$TELEGRAM_BOT_TOKEN" "$RAHASIA" "$PINTU_DB_URL" "$RAHASIA_PENGINGAT" "$ASAL_WEB" > "$BERKAS"
 npx --yes supabase@2 secrets set --project-ref "$REF" --env-file "$BERKAS"
 
 echo "== Alamat bot di Telegram"

@@ -1,5 +1,5 @@
 // Inti pintu Telegram (paket 5b, docs/pintu-telegram.md; pemberitahuan segera dan pengingat paket 5c,
-// docs/pemberitahuan-segera.md).
+// docs/pemberitahuan-segera.md; unggah lewat web paket 5d, docs/unggah-web.md).
 // Tidak memakai API khusus Node atau Deno (hanya fetch, crypto.subtle, TextDecoder, Intl), dan semua akses keluar
 // lewat `alat`, supaya modul yang sama diuji di Node (sistem/pintu/uji_pintu.ts) dan dipakai di Edge Function.
 // Database hanya disentuh lewat fungsi skema api (peran `pintu`); pembaca file adalah sistem/urai (diberikan lewat alat).
@@ -20,14 +20,17 @@ export interface Alat {
   urai(teks: string, pilihan: { tanggal_kirim?: string }): HasilUraiRingkas;
   sekarang(): number; // milidetik
   tidur(ms: number): Promise<void>;
+  alamatUnggah?: string; // alamat halaman unggah (paket 5d), misalnya https://.../unggah/
 }
 
 export const BATAS_UKURAN = 20 * 1024 * 1024; // batas unduh file lewat bot Telegram
 export const BATAS_KERJA_MS = 110_000; // Edge Function gratis hidup paling lama 150 detik
+export const BATAS_UKURAN_WEB = 50 * 1024 * 1024; // batas unggah lewat web (paket 5d)
 
 const API_BOLEH = new Set([
   "pintu_pesan", "pintu_tunda", "pintu_ambil_tunda", "pintu_terima_file", "pintu_kerjakan",
   "pintu_pemberitahuan_ambil", "pintu_pengingat", "pintu_pemberitahuan_hasil",
+  "pintu_buat_tautan", "pintu_periksa_tautan", "pintu_terima_web", "pintu_status_kiriman",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -47,6 +50,26 @@ async function sidikSha256(isi: Uint8Array): Promise<string> {
 
 function kirim(alat: Alat, chat: number, teks: string, tambahan: Record<string, unknown> = {}) {
   return alat.telegram("sendMessage", { chat_id: chat, text: teks, ...tambahan });
+}
+
+// Kirim tanpa menghentikan pekerjaan bila Telegram gagal (unggah lewat web tetap jalan saat Telegram bermasalah).
+async function kirimAman(alat: Alat, chat: number | null, teks: string) {
+  if (chat === null) return;
+  try {
+    await kirim(alat, chat, teks);
+  } catch {
+    // diabaikan: hasil tetap tersimpan di database dan terbaca di halaman unggah
+  }
+}
+
+async function sidikTeks(teks: string): Promise<string> {
+  return sidikSha256(new TextEncoder().encode(teks));
+}
+
+function kodeAcak(): string {
+  const b = new Uint8Array(32);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 }
 
 // Pintu HTTP: kode rahasia Telegram diperiksa sebelum apa pun (kasus T8).
@@ -130,6 +153,12 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
   if (pesan?.text !== undefined) {
     const info = await alat.api("pintu_pesan", { update_id: updateId, telegram_id: pesan.from?.id, jenis: "teks" });
     if (!info.baru) return null;
+    if (/^\/unggah(@\w+)?\s*$/i.test(String(pesan.text).trim())) {
+      await kirim(alat, pesan.chat.id, await buatTautan(alat, pesan.from?.id, info.hrd), {
+        link_preview_options: { is_disabled: true },
+      });
+      return null;
+    }
     await kirim(
       alat,
       pesan.chat.id,
@@ -186,20 +215,20 @@ async function proses(
   }
 }
 
-export async function kerjakanAntrean(alat: Alat, chat: number, mulai: number): Promise<void> {
+export async function kerjakanAntrean(alat: Alat, chat: number | null, mulai: number): Promise<void> {
   while (alat.sekarang() - mulai < BATAS_KERJA_MS) {
     const r = await alat.api("pintu_kerjakan");
     if (r.kosong) return;
     if (r.sibuk) {
-      await kirim(alat, chat, "Hitungan lain sedang berjalan; periode ini akan dihitung sesudahnya.");
+      await kirimAman(alat, chat, "Hitungan lain sedang berjalan; periode ini akan dihitung sesudahnya.");
       return;
     }
     const p = r.periode;
     if (r.hasil?.galat) {
-      await kirim(alat, chat, `Periode ${p.awal} s.d. ${p.akhir} gagal dihitung: ${r.hasil.galat}`);
+      await kirimAman(alat, chat, `Periode ${p.awal} s.d. ${p.akhir} gagal dihitung: ${r.hasil.galat}`);
     } else {
       const x = r.hasil;
-      await kirim(
+      await kirimAman(
         alat,
         chat,
         `Periode ${p.awal} s.d. ${p.akhir}: ${angka(x.orang)} orang, gaji bersih ${rp(x.bersih)}. ` +
@@ -210,7 +239,7 @@ export async function kerjakanAntrean(alat: Alat, chat: number, mulai: number): 
     await kirimPemberitahuan(alat, chat); // sesudah setiap periode, bukan menunggu seluruh antrean (U14)
     if (r.sisa === 0) return;
   }
-  await kirim(alat, chat, "Sebagian periode masih di antrean; dihitung saat pesan berikutnya masuk.");
+  await kirimAman(alat, chat, "Sebagian periode masih di antrean; dihitung saat pesan berikutnya masuk.");
 }
 
 // ---------------------------------------------------------------------------
@@ -379,4 +408,90 @@ export async function tanganiPengingat(
     status: 200,
     hasil: { tanggal: r.tanggal, tutup_buku: r.tutup_buku, hari_ke: r.hari_ke, terkirim, dilewati: r.dilewati ?? [] },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Unggah cadangan lewat web (paket 5d, docs/unggah-web.md)
+// ---------------------------------------------------------------------------
+
+// Perintah /unggah: kode acak, database menyimpan sidiknya saja, tautan berlaku 15 menit.
+async function buatTautan(alat: Alat, telegramId: number, hrd: boolean): Promise<string> {
+  if (!hrd) return "Akun Anda belum terdaftar untuk mengirim file.";
+  if (!alat.alamatUnggah) return "Unggah lewat web belum disiapkan.";
+  const kode = kodeAcak();
+  const r = await alat.api("pintu_buat_tautan", { telegram_id: telegramId, sidik: await sidikTeks(kode) });
+  if (r.hasil !== "dibuat") return r.alasan ?? "Tautan tidak bisa dibuat.";
+  return `Tautan unggah file mesin (berlaku 15 menit, boleh untuk beberapa file, jangan dibagikan):\n` +
+    `${alat.alamatUnggah}#kode=${kode}`;
+}
+
+export interface JawabanWeb {
+  status: number;
+  isi: any;
+  latar: Promise<void> | null;
+}
+
+const TAUTAN_TIDAK_BERLAKU = "Tautan tidak berlaku atau sudah habis. Ketik /unggah di bot untuk tautan baru.";
+
+export async function webPeriksa(alat: Alat, kode: string): Promise<JawabanWeb> {
+  if (!/^[0-9a-f]{64}$/.test(kode)) return { status: 401, isi: { sah: false, alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
+  const r = await alat.api("pintu_periksa_tautan", { kode_sidik: await sidikTeks(kode) });
+  return r.sah
+    ? { status: 200, isi: r, latar: null }
+    : { status: 401, isi: { sah: false, alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
+}
+
+export async function webUnggah(
+  alat: Alat,
+  kode: string,
+  nama: string,
+  isi: Uint8Array,
+  mesin: string,
+): Promise<JawabanWeb> {
+  const mulai = alat.sekarang();
+  if (!/^[0-9a-f]{64}$/.test(kode)) return { status: 401, isi: { hasil: "ditolak", alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
+  if (!mesin) return { status: 400, isi: { hasil: "ditolak", alasan: "Pilih mesin asal file." }, latar: null };
+  if (isi.length > BATAS_UKURAN_WEB) {
+    return { status: 413, isi: { hasil: "ditolak", alasan: "File lebih dari 50 MB." }, latar: null };
+  }
+  const sidik = await sidikSha256(isi);
+  const h = alat.urai(new TextDecoder("utf-8").decode(isi), { tanggal_kirim: tanggalWib(Math.floor(mulai / 1000)) });
+  const r = await alat.api("pintu_terima_web", {
+    kode_sidik: await sidikTeks(kode),
+    nama_file: nama,
+    sidik,
+    mesin,
+    tap: h.tap.map((t) => [t.id_mesin, t.jam_lokal, t.status, t.baris]),
+    alasan: h.alasan,
+  });
+  if (r.tautan === false) return { status: 401, isi: { hasil: "ditolak", alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
+  const chat: number = Number(r.telegram_id);
+  const jawab = {
+    hasil: r.hasil,
+    alasan: r.alasan ?? null,
+    kiriman_id: r.kiriman_id ?? null,
+    jumlah_tap: r.jumlah_tap ?? 0,
+    tanggal_awal: r.tanggal_awal ?? null,
+    tanggal_akhir: r.tanggal_akhir ?? null,
+    baris_dibuang: h.baris_ditolak.length,
+    periode: r.periode ?? [],
+  };
+  const latar = r.hasil === "diterima"
+    ? (async () => {
+      await kirimAman(alat, chat, `File ${nama} diunggah lewat web (mesin ${mesin}): ${angka(r.jumlah_tap)} tap, ` +
+        `${r.tanggal_awal} s.d. ${r.tanggal_akhir}. Menghitung ulang...`);
+      await kerjakanAntrean(alat, chat, mulai);
+    })()
+    : kirimPemberitahuan(alat, null).then(() => {}); // file rusak Excel atau format: tingkat segera (U14)
+  return { status: 200, isi: jawab, latar };
+}
+
+export async function webStatus(alat: Alat, kode: string, kirimanId: number): Promise<JawabanWeb> {
+  if (!/^[0-9a-f]{64}$/.test(kode) || !Number.isFinite(kirimanId)) {
+    return { status: 401, isi: { alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
+  }
+  const r = await alat.api("pintu_status_kiriman", { kode_sidik: await sidikTeks(kode), kiriman_id: kirimanId });
+  if (r.tautan === false) return { status: 401, isi: { alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
+  if (!r.kiriman) return { status: 404, isi: { alasan: "Kiriman tidak ditemukan." }, latar: null };
+  return { status: 200, isi: r, latar: null };
 }

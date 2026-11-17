@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Future-ABSENSI · Unggah file mesin</title>
+<style>
+  :root { --tinta: #1d2430; --redup: #5b6576; --garis: #dde2ea; --latar: #f5f7fa; --kartu: #fff;
+          --aksen: #1f5fbf; --awas: #b4232a; --awas-latar: #fdecec; --hati: #8a5a00; --hati-latar: #fff4dc; --baik: #1d7a46; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--tinta); background: var(--latar); }
+  .simulasi { background: var(--hati-latar); border-bottom: 2px solid #e7b84a; padding: 10px 20px; font-weight: 600; color: var(--hati); }
+  .simulasi span { font-weight: 400; }
+  header, main { max-width: 720px; margin: 0 auto; padding: 16px 20px; }
+  h1 { font-size: 22px; margin: 4px 0; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  .kecil { color: var(--redup); font-size: 13px; }
+  section { background: var(--kartu); border: 1px solid var(--garis); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  select, input[type=file] { font: inherit; padding: 6px; border: 1px solid var(--garis); border-radius: 6px; width: 100%; max-width: 420px; background: #fff; }
+  button { margin-top: 16px; font: inherit; padding: 9px 18px; border-radius: 6px; border: 1px solid var(--aksen); background: var(--aksen); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .pesan { padding: 10px 12px; border-radius: 6px; margin-top: 12px; }
+  .pesan.salah { background: var(--awas-latar); color: var(--awas); }
+  .pesan.baik { background: #e8f5ee; color: var(--baik); }
+  .pesan.tunggu { background: var(--hati-latar); color: var(--hati); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--garis); vertical-align: top; }
+  th { font-size: 13px; color: var(--redup); font-weight: 600; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="simulasi" role="note">DEMO · <span>Pemasangan demo berisi data simulasi. File yang diunggah di sini masuk ke gudang data demo.</span></div>
+<header>
+  <h1>Unggah file mesin</h1>
+  <div class="kecil">Jalur cadangan selain bot Telegram. Tautan halaman ini didapat dengan mengetik <b>/unggah</b> di bot; berlaku 15 menit.</div>
+</header>
+<main>
+  <section id="bagian-tautan">
+    <div id="tautan" class="pesan tunggu">Memeriksa tautan…</div>
+  </section>
+
+  <section id="bagian-form" hidden>
+    <h2>Kirim file</h2>
+    <form id="form">
+      <label for="file">File ekspor dari aplikasi mesin</label>
+      <input type="file" id="file" name="file" required>
+      <div class="kecil">Kirim file langsung dari aplikasi mesin, jangan dibuka lalu disimpan di Excel. Paling besar 50 MB.</div>
+      <label for="mesin">Mesin asal file</label>
+      <select id="mesin" name="mesin" required></select>
+      <button type="submit" id="kirim">Kirim</button>
+    </form>
+  </section>
+
+  <section id="bagian-hasil" hidden>
+    <h2>Hasil</h2>
+    <div id="hasil"></div>
+    <div id="periode"></div>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const kode = new URLSearchParams(location.hash.slice(1)).get("kode") || "";
+  let fungsi = "";
+  const teks = (t) => document.createTextNode(t == null ? "" : String(t));
+  const rp = (n) => "Rp" + Number(n).toLocaleString("id-ID");
+
+  function pesan(el, jenis, isi) {
+    el.className = "pesan " + jenis;
+    el.textContent = isi;
+  }
+
+  async function panggil(jalur, badan) {
+    const r = await fetch(fungsi + "?jalur=" + jalur, {
+      method: "POST",
+      // text/plain: permintaan sederhana, tanpa kode tautan di alamat (kode hanya di isi permintaan)
+      headers: badan instanceof FormData ? undefined : { "content-type": "text/plain" },
+      body: badan instanceof FormData ? badan : JSON.stringify(badan),
+    });
+    let isi = {};
+    try { isi = await r.json(); } catch { isi = { alasan: "Jawaban server tidak terbaca (" + r.status + ")." }; }
+    return { status: r.status, isi };
+  }
+
+  function tabelPeriode(daftar) {
+    const t = document.createElement("table");
+    t.innerHTML = "<thead><tr><th>Periode</th><th>Status</th><th>Hasil</th></tr></thead>";
+    const b = document.createElement("tbody");
+    for (const p of daftar) {
+      const tr = document.createElement("tr");
+      const td = (x) => { const c = document.createElement("td"); c.appendChild(teks(x)); tr.appendChild(c); };
+      td(p.awal + " s.d. " + p.akhir);
+      td(p.status === "menunggu" ? "menunggu dihitung" : p.status);
+      if (p.galat) td("Gagal: " + p.galat);
+      else if (p.hasil) td(Number(p.hasil.orang).toLocaleString("id-ID") + " orang, gaji bersih " + rp(p.hasil.bersih) +
+                          (p.hasil.bisa_diajukan ? ", bisa diajukan" : ", belum bisa diajukan") +
+                          (p.hasil.segera > 0 ? ", " + p.hasil.segera + " pemberitahuan penting" : ""));
+      else td("");
+      b.appendChild(tr);
+    }
+    t.appendChild(b);
+    return t;
+  }
+
+  async function pantau(kirimanId) {
+    const wadah = $("periode");
+    for (let i = 0; i < 60; i++) {
+      await new Promise((s) => setTimeout(s, 3000));
+      let r;
+      try { r = await panggil("status", { kode, kiriman_id: kirimanId }); } catch { continue; }
+      if (r.status !== 200) {
+        wadah.replaceChildren(teks(r.isi.alasan || "Status tidak bisa dibaca."));
+        return;
+      }
+      const daftar = r.isi.periode || [];
+      wadah.replaceChildren(tabelPeriode(daftar));
+      if (r.isi.selesai) {
+        const p = document.createElement("div");
+        p.className = "kecil";
+        p.textContent = "Selesai dihitung. Ringkasan juga dikirim ke Telegram Anda.";
+        wadah.appendChild(p);
+        return;
+      }
+    }
+    const p = document.createElement("div");
+    p.className = "kecil";
+    p.textContent = "Sebagian periode masih di antrean; dihitung saat pesan atau unggahan berikutnya masuk.";
+    wadah.appendChild(p);
+  }
+
+  async function mulai() {
+    try {
+      const a = await fetch("alamat.json", { cache: "no-store" });
+      fungsi = (await a.json()).fungsi;
+    } catch {
+      pesan($("tautan"), "salah", "Halaman unggah belum disiapkan (alamat server tidak ditemukan).");
+      return;
+    }
+    if (!kode) {
+      pesan($("tautan"), "salah", "Tautan tidak lengkap. Ketik /unggah di bot Telegram untuk mendapatkan tautan.");
+      return;
+    }
+    let r;
+    try { r = await panggil("periksa", { kode }); } catch {
+      pesan($("tautan"), "salah", "Server tidak bisa dihubungi. Coba lagi sebentar.");
+      return;
+    }
+    if (r.status !== 200 || !r.isi.sah) {
+      pesan($("tautan"), "salah", r.isi.alasan || "Tautan tidak berlaku.");
+      return;
+    }
+    const sampai = new Date(r.isi.berlaku_sampai).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    pesan($("tautan"), "baik", "Tautan berlaku sampai pukul " + sampai + ". Boleh untuk beberapa file.");
+    const pilih = $("mesin");
+    pilih.replaceChildren();
+    const kosong = document.createElement("option");
+    kosong.value = ""; kosong.textContent = "— pilih mesin —";
+    pilih.appendChild(kosong);
+    for (const m of r.isi.mesin || []) {
+      const o = document.createElement("option");
+      o.value = m; o.textContent = m;
+      pilih.appendChild(o);
+    }
+    $("bagian-form").hidden = false;
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const file = $("file").files[0];
+    const mesin = $("mesin").value;
+    if (!file || !mesin) return;
+    const tombol = $("kirim");
+    tombol.disabled = true;
+    $("bagian-hasil").hidden = false;
+    $("periode").replaceChildren();
+    pesan($("hasil"), "tunggu", "Mengirim " + file.name + "…");
+    const f = new FormData();
+    f.append("kode", kode);
+    f.append("mesin", mesin);
+    f.append("file", file, file.name);
+    try {
+      const r = await panggil("unggah", f);
+      const x = r.isi;
+      if (r.status === 200 && x.hasil === "diterima") {
+        pesan($("hasil"), "baik", "File " + file.name + " diterima (mesin " + mesin + "): " +
+          Number(x.jumlah_tap).toLocaleString("id-ID") + " tap, " + x.tanggal_awal + " s.d. " + x.tanggal_akhir +
+          (x.baris_dibuang ? ", " + x.baris_dibuang + " baris dibuang" : "") + ". Kiriman no. " + x.kiriman_id + ". Menghitung ulang…");
+        $("periode").replaceChildren(tabelPeriode((x.periode || []).map((p) => ({ ...p, status: "menunggu" }))));
+        pantau(x.kiriman_id);
+      } else {
+        pesan($("hasil"), "salah", "File " + file.name + " ditolak: " + (x.alasan || "alasan tidak diketahui") +
+          (x.kiriman_id ? " (kiriman no. " + x.kiriman_id + ")" : ""));
+      }
+    } catch {
+      pesan($("hasil"), "salah", "Gagal mengirim. Periksa sambungan internet lalu coba lagi.");
+    } finally {
+      tombol.disabled = false;
+      $("file").value = "";
+    }
+  });
+
+  mulai();
+})();
+</script>
+</body>
+</html>

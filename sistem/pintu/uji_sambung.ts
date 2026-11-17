@@ -1,4 +1,5 @@
-// Uji penyambung Edge Function (paket 5c, kasus S1 di docs/pemberitahuan-segera.md): sistem/pintu/sambung.ts
+// Uji penyambung Edge Function (paket 5c, kasus S1 di docs/pemberitahuan-segera.md; paket 5d, kasus W10 dan
+// unggah multipart di docs/unggah-web.md): sistem/pintu/sambung.ts
 // dijalankan dengan postgres.js sungguhan (versi yang sama dengan index.ts) ke Postgres sementara sebagai peran `pintu`,
 // dan Telegram tiruan lewat fetch palsu. Menangkap kesalahan jenis 616651f (isian jsonb terbaca kosong).
 // Dijalankan oleh sistem/uji/uji_pintu.sh sesudah uji_pintu.ts (database berisi akun dan kiriman dari uji itu).
@@ -39,13 +40,15 @@ const fetchPalsu = (async (alamat: string | URL, pilihan?: RequestInit) => {
   return Response.json({ ok: true, result: hasil });
 }) as typeof fetch;
 
-const alat = buatAlat(sql, "TOKEN-UJI", urai, fetchPalsu);
+const ASAL_WEB = "https://halaman.uji";
+const alat = buatAlat(sql, "TOKEN-UJI", urai, fetchPalsu, `${ASAL_WEB}/unggah/`);
 
-async function kirim(badan: unknown, kepala: Record<string, string>) {
+async function kirim(badan: unknown, kepala: Record<string, string>, jalur = "", metode = "POST") {
   const awal = panggilan.length;
+  const isi = metode === "OPTIONS" ? undefined : badan instanceof FormData ? badan : JSON.stringify(badan);
   const { respon, latar } = await layani(
-    new Request("http://lokal/pintu-telegram", { method: "POST", headers: kepala, body: JSON.stringify(badan) }),
-    alat, RAHASIA, RAHASIA_PENGINGAT,
+    new Request(`http://lokal/pintu-telegram${jalur ? `?jalur=${jalur}` : ""}`, { method: metode, headers: kepala, body: isi }),
+    alat, RAHASIA, RAHASIA_PENGINGAT, ASAL_WEB,
   );
   if (latar) await latar;
   return { respon, pesan: panggilan.slice(awal).filter((p) => p.metode === "sendMessage").map((p) => p.isi) };
@@ -97,4 +100,70 @@ test("S1 + P7: pengingat lewat penyambung: rahasia salah 401, benar 200 dengan r
   assert.equal(j.hari_ke, 1);
   assert.equal(j.tutup_buku, "2026-04-20");
   assert.ok(r.pesan.some((p) => p.chat_id === HRD && /^PENGINGAT \(hari ke-1 sesudah tutup buku 20-04-2026\)/.test(p.text)));
+});
+
+// ---------------------------------------------------------------------------
+// Paket 5d: halaman unggah lewat penyambung (multipart sungguhan, aturan alamat asal)
+// ---------------------------------------------------------------------------
+
+let KODE = "";
+const dariHalaman = { origin: ASAL_WEB, "content-type": "text/plain" };
+
+test("W1 lewat penyambung: /unggah membalas tautan ke alamat halaman", async () => {
+  const r = await kirim({ update_id: 7101, message: { message_id: 3, chat: { id: HRD }, from: { id: HRD }, text: "/unggah" } },
+                        dariTelegram);
+  KODE = /#kode=([0-9a-f]{64})$/.exec(r.pesan[0].text)?.[1] ?? "";
+  assert.ok(r.pesan[0].text.includes(`${ASAL_WEB}/unggah/#kode=`));
+  assert.equal(KODE.length, 64);
+});
+
+test("W10: permintaan dari alamat lain atau tanpa alamat asal ditolak 403", async () => {
+  assert.equal((await kirim({ kode: KODE }, { origin: "https://jahat.contoh", "content-type": "text/plain" }, "periksa")).respon.status, 403);
+  assert.equal((await kirim({ kode: KODE }, { "content-type": "text/plain" }, "periksa")).respon.status, 403);
+});
+
+test("CORS: pemeriksaan awal (OPTIONS) dari alamat halaman diizinkan", async () => {
+  const r = await kirim(null, { origin: ASAL_WEB }, "status", "OPTIONS");
+  assert.equal(r.respon.status, 204);
+  assert.equal(r.respon.headers.get("access-control-allow-origin"), ASAL_WEB);
+});
+
+test("periksa tautan lewat penyambung: sah dengan daftar mesin; kode palsu 401", async () => {
+  const r = await kirim({ kode: KODE }, dariHalaman, "periksa");
+  assert.equal(r.respon.status, 200);
+  assert.equal(r.respon.headers.get("access-control-allow-origin"), ASAL_WEB);
+  assert.deepEqual((await r.respon.json()).mesin, ["MA1", "MA2"]);
+  assert.equal((await kirim({ kode: "1".repeat(64) }, dariHalaman, "periksa")).respon.status, 401);
+});
+
+test("W8 lewat penyambung: unggah multipart file rusak Excel -> ditolak, asal web, pemberitahuan segera", async () => {
+  const f = new FormData();
+  f.append("kode", KODE);
+  f.append("mesin", "MA2");
+  f.append("file", new File([FILE_EXCEL], "excel_web_sambung.csv", { type: "text/csv" }));
+  const r = await kirim(f, { origin: ASAL_WEB }, "unggah");
+  assert.equal(r.respon.status, 200);
+  const j = await r.respon.json();
+  assert.equal(j.hasil, "ditolak");
+  assert.match(j.alasan, /Excel/);
+  assert.equal(nilai("select asal from fakta.kiriman_file where nama_file = 'excel_web_sambung.csv'"), "web");
+  for (const tg of [HRD, PEMBANGUN]) {
+    assert.ok(r.pesan.some((p) => p.chat_id === tg && /^PEMBERITAHUAN SEGERA[\s\S]*excel_web_sambung\.csv/.test(p.text)), String(tg));
+  }
+  // status kiriman dari halaman
+  const s = await kirim({ kode: KODE, kiriman_id: j.kiriman_id }, dariHalaman, "status");
+  assert.equal(s.respon.status, 200);
+  assert.equal((await s.respon.json()).kiriman.hasil, "ditolak");
+});
+
+test("unggah tanpa file -> 400; kode palsu -> 401", async () => {
+  const f = new FormData();
+  f.append("kode", KODE);
+  f.append("mesin", "MA1");
+  assert.equal((await kirim(f, { origin: ASAL_WEB }, "unggah")).respon.status, 400);
+  const g = new FormData();
+  g.append("kode", "2".repeat(64));
+  g.append("mesin", "MA1");
+  g.append("file", new File([FILE_EXCEL], "x.csv"));
+  assert.equal((await kirim(g, { origin: ASAL_WEB }, "unggah")).respon.status, 401);
 });

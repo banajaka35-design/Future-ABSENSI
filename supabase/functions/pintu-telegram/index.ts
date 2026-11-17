@@ -1,4 +1,5 @@
-// Edge Function pintu-telegram (paket 5b, docs/pintu-telegram.md; paket 5c, docs/pemberitahuan-segera.md).
+// Edge Function pintu-telegram (paket 5b, docs/pintu-telegram.md; paket 5c, docs/pemberitahuan-segera.md;
+// paket 5d, docs/unggah-web.md).
 // Hanya pembuka: penyambung ada di sambung.ts (sistem/pintu/sambung.ts, diuji di Node dengan postgres.js sungguhan),
 // logika di inti.ts (sistem/pintu/inti.ts), pembaca file di urai.ts (sistem/urai/urai.ts).
 // Ketiganya disalin ke folder ini oleh workflow pemasangan sebelum dipasang; salinan tidak masuk repo.
@@ -8,12 +9,13 @@ import { urai } from "./urai.ts";
 import { buatAlat, layani } from "./sambung.ts";
 
 const sql = postgres(Deno.env.get("PINTU_DB_URL") ?? "", { prepare: false, max: 1, idle_timeout: 20 });
-const alat = buatAlat(sql, Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "", urai);
+const ASAL_WEB = Deno.env.get("ASAL_WEB") ?? ""; // alamat halaman unggah (paket 5d), mis. https://future-absensi-demo.pages.dev
+const alat = buatAlat(sql, Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "", urai, fetch, ASAL_WEB ? `${ASAL_WEB}/unggah/` : "");
 const RAHASIA = Deno.env.get("TELEGRAM_RAHASIA") ?? "";
 const RAHASIA_PENGINGAT = Deno.env.get("PENGINGAT_RAHASIA") ?? "";
 
 Deno.serve(async (req) => {
-  const { respon, latar } = await layani(req, alat, RAHASIA, RAHASIA_PENGINGAT);
+  const { respon, latar } = await layani(req, alat, RAHASIA, RAHASIA_PENGINGAT, ASAL_WEB);
   // deno-lint-ignore no-explicit-any
   if (latar) (globalThis as any).EdgeRuntime.waitUntil(latar.catch((e) => console.error(e)));
   return respon;
