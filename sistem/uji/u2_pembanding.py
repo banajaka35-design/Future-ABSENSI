@@ -67,6 +67,8 @@ class Data:
         self.batas_potongan = q("select * from aturan.batas_potongan")
         self.pasal17 = q("select * from aturan.tarif_pasal17")
         self.cuti = q("select * from aturan.cuti where cakupan = 'perusahaan'")
+        # Isian pajak awal tahun (aturan versi 5, L6): per orang per tahun.
+        self.pajak_awal = {(r["id_karyawan"], int(r["tahun"])): r for r in q("select * from induk.pajak_awal_tahun")}
         self.saldo_awal = defaultdict(list)
         for r in q("select * from induk.saldo_cuti_awal order by tanggal"):
             self.saldo_awal[r["id_karyawan"]].append(r)
@@ -322,14 +324,17 @@ def hitung_periode(data, periode, sejarah):
         terakhir = bayar.month == 12 or any(awal <= b <= akhir for b in data.berhenti.get(orang, []))
         tahun = sejarah.get(orang, {}).get("tahun", {}).get(bayar.year, [])
         if terakhir:
-            lengkap = all(any(tgl(p["tanggal_bayar"]).year == bayar.year and tgl(p["tanggal_bayar"]).month == m
-                              for p in data.periode) for m in range(1, bayar.month))
+            isian = data.pajak_awal.get((orang, bayar.year))
+            batas = int(isian["sampai_bulan"]) if isian else 0
+            lengkap = all(m <= batas or any(tgl(p["tanggal_bayar"]).year == bayar.year and tgl(p["tanggal_bayar"]).month == m
+                                            for p in data.periode) for m in range(1, bayar.month))
             if lengkap:
                 iuran_ini = -(r.get("bpjs_jht_karyawan", 0) + r.get("bpjs_jp_karyawan", 0))
-                b_tahun = sum(x["bruto"] for x in tahun) + bruto
-                iuran = sum(x["iuran"] for x in tahun) + iuran_ini
-                bulan_n = len(tahun) + 1
-                sudah = sum(x["pph"] for x in tahun)
+                dipakai = [x for x in tahun if x["bulan"] > batas]
+                b_tahun = sum(x["bruto"] for x in dipakai) + bruto + (int(isian["bruto"]) if isian else 0)
+                iuran = sum(x["iuran"] for x in dipakai) + iuran_ini + (int(isian["iuran"]) if isian else 0)
+                bulan_n = len(dipakai) + 1 + (int(isian["bulan_kerja"]) if isian else 0)
+                sudah = sum(x["pph"] for x in dipakai) + (int(isian["pph"]) if isian else 0)
                 bj = min(b_tahun * 5 // 100, 500000 * bulan_n)
                 acuan = max(D(bayar.year, 1, 1), data.mulai.get(orang, D(bayar.year, 1, 1)))
                 w_pajak = data.rw(orang, acuan) or w_akhir
@@ -401,7 +406,7 @@ def hitung_periode(data, periode, sejarah):
         else:
             dibayar, sisa = total, 0
         iuran_ini = -(r.get("bpjs_jht_karyawan", 0) + r.get("bpjs_jp_karyawan", 0))
-        r["_tahun"] = {"bruto": bruto, "iuran": iuran_ini, "pph": pph - r["pengembalian_pph21"]}
+        r["_tahun"] = {"bruto": bruto, "iuran": iuran_ini, "pph": pph - r["pengembalian_pph21"], "bulan": bayar.month}
         keluar[orang] = (r, bruto, bersih, dibayar, sisa)
     return keluar
 

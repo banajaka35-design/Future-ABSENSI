@@ -96,20 +96,6 @@ def main():
         for k in baca_gz(os.path.join(AKAR, pabrik, "kunci", f"{pabrik}_p{p}_kejadian.csv.gz")):
             if k["kejadian"] == "hadir" and "belum terdaftar di mesin" in k["catatan"]:
                 belum_daftar_hari[k["id_karyawan"]] += 1
-    # Kelemahan yang diketahui (temuan paket 4b-4, Pabrik B): karyawan baru yang hari kerja pertamanya
-    # sakit, izin, atau cuti dari HRD. Aturan "belum terdaftar di mesin" hanya melihat 2 hari kerja pertama,
-    # jadi pemberitahuan tidak muncul. Perbaikannya paket terpisah (keputusan pemilik 17 Nov 2026).
-    kejadian_semua = defaultdict(list)
-    for p in (1, 2, 3, 4):
-        jalur = os.path.join(AKAR, pabrik, "kunci", f"{pabrik}_p{p}_kejadian.csv.gz")
-        if os.path.exists(jalur):
-            for k in baca_gz(jalur):
-                kejadian_semua[k["id_karyawan"]].append(k)
-    hari_pertama_perintah = set()
-    for orang in belum_daftar_hari:
-        kerja = sorted((k for k in kejadian_semua[orang] if k["kode_jadwal"]), key=lambda k: k["tanggal_kerja"])
-        if kerja and kerja[0]["kejadian"] in ("sakit", "izin", "cuti"):
-            hari_pertama_perintah.add(orang)
 
     def dekat_pulang(kode, tanggal, t):
         m, pl = jadwal[kode]
@@ -228,10 +214,7 @@ def main():
             elif kj == "hadir" and "belum terdaftar di mesin" in k["catatan"]:
                 # Sistem tidak bisa tahu: aturan bawaan alpha + pemberitahuan "belum didaftar di mesin?" (F13).
                 catat("karyawan baru belum terdaftar: alpha", h["status"] in ("alpha", "tanpa_tap_massal"), contoh)
-                if belum_daftar_hari[k["id_karyawan"]] >= 2 and k["id_karyawan"] in hari_pertama_perintah:
-                    catat("kelemahan diketahui (4b-4): belum terdaftar, hari kerja pertama dari perintah HRD; ada pemberitahuan",
-                          k["id_karyawan"] in belum_daftar, contoh, harus=False)
-                elif belum_daftar_hari[k["id_karyawan"]] >= 2:
+                if belum_daftar_hari[k["id_karyawan"]] >= 2:
                     # PRD celah P3: tanda setelah 2-3 hari kerja tanpa tap.
                     catat("karyawan baru belum terdaftar 2 hari kerja atau lebih: ada pemberitahuan",
                           k["id_karyawan"] in belum_daftar, contoh)

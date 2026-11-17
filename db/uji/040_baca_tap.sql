@@ -223,6 +223,9 @@ insert into uji_tap select (select jsonb_agg(jsonb_build_array('F11', d::date ||
                              from generate_series('2026-03-16'::date, '2026-03-20', '1 day') d, unnest(array['14:58:00', '23:02:00']) j);
 -- F13: karyawan baru mulai 1 April, tanpa tap di hari-hari kerja pertamanya.
 select pg_temp.orang('F13', 'TP', '2026-04-01', '2026-04-03');
+-- F13b (permintaan perubahan 02): mulai 7 April, hari itu sakit (perintah HRD), 8-9 April tanpa tap.
+select pg_temp.orang('F13B', 'TP', '2026-04-07', '2026-04-09');
+insert into fakta.perintah_hrd (asal, jenis, id_karyawan, tanggal_mulai) values ('chat', 'sakit', 'F13B', '2026-04-07');
 
 -- B11 dan B12: Malam 20 Maret (tutup buku), pulang 21 Maret 07.02; mesin MB. Kiriman pertama tengah malam.
 select pg_temp.divisi('TB', 'MB', array['M', 'M', 'M', 'M', 'M', null, null]);   -- Jumat 20 Maret Malam, Sabtu 21 libur
@@ -338,6 +341,9 @@ select uji.sama('F11: tap cocok shift Siang memunculkan usulan tukar shift tiap 
 select uji.sama('F11: sebelum disetujui hasil tetap mengikuti jadwal Pagi', (pg_temp.h('F11', '2026-03-16')).kode_jadwal, 'P');
 select uji.sama('F13: karyawan baru tanpa tap di hari kerja pertamanya memicu peringatan', pg_temp.anomali('belum_terdaftar_mesin', 'F13'), 1::bigint);
 select uji.sama('F13: tetap alpha sampai dikoreksi', (pg_temp.h('F13', '2026-04-01')).status, 'alpha');
+select uji.sama('F13b: hari pertama sakit dari perintah HRD', (pg_temp.h('F13B', '2026-04-07')).status, 'sakit');
+select uji.sama('F13b: dua hari berikutnya alpha', (pg_temp.h('F13B', '2026-04-08')).status || '/' || (pg_temp.h('F13B', '2026-04-09')).status, 'alpha/alpha');
+select uji.sama('F13b: hari sakit dilewati, tetap ada pemberitahuan belum terdaftar di mesin', pg_temp.anomali('belum_terdaftar_mesin', 'F13B'), 1::bigint);
 select uji.sama('F14: tidak wajib tap, tanpa tap = hadir (bukan alpha)', (pg_temp.h('F14', '2026-03-24')).status, 'hadir');
 select uji.sama('F14: asal tidak wajib tap', (pg_temp.h('F14', '2026-03-24')).asal, 'tidak_wajib_tap');
 

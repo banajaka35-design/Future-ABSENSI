@@ -1,6 +1,6 @@
 # Aturan hitung gaji
 
-Versi 4 · 17 November 2026 (versi 1: 16 Nov, paket 4b-1; versi 2: bagian H–K, paket 4b-2; versi 3: bagian L–N, paket 4b-3; versi 4: bagian O, paket 4b-4) · setiap versi ditulis **sebelum** kodenya. Kode SQL (`hitung.hitung_gaji`) dan kalkulator pembanding (`sistem/uji/u2_pembanding.py`) sama-sama ditulis dari dokumen ini, terpisah satu sama lain, dan tidak berbagi kode. Kalau keduanya berbeda, yang diperiksa dulu dokumen ini.
+Versi 5 · 17 November 2026 (versi 1: 16 Nov, paket 4b-1; versi 2: bagian H–K, paket 4b-2; versi 3: bagian L–N, paket 4b-3; versi 4: bagian O, paket 4b-4; versi 5: L2, L3, L6, O2, paket 4b-5) · setiap versi ditulis **sebelum** kodenya. Kode SQL (`hitung.hitung_gaji`) dan kalkulator pembanding (`sistem/uji/u2_pembanding.py`) sama-sama ditulis dari dokumen ini, terpisah satu sama lain, dan tidak berbagi kode. Kalau keduanya berbeda, yang diperiksa dulu dokumen ini.
 
 Dasar hukum dan labelnya: `docs/cek-aturan-hukum.md`. Kasus uji dengan angka harapan: bagian "Kunci" di bawah dan kasus jebakan v1.2.
 
@@ -91,10 +91,12 @@ Nominal dari `aturan.komponen_lain` yang berlaku pada tanggalnya; hidup/mati dar
 ## L. PPh masa terakhir (versi 3)
 
 - **L1 Masa terakhir** = periode yang tanggal bayarnya di bulan Desember, atau periode yang memuat tanggal berhenti pegawai (status kerja `berhenti` di antara tanggal awal dan akhir).
-- **L2 Data setahun lengkap** bila untuk setiap bulan 1 sampai (bulan bayar − 1) tahun itu ada periode perusahaan yang tanggal bayarnya di bulan tersebut dan punya hasil hitung gaji. Tidak lengkap → PPh masa itu **tidak dihitung** (nilai 0), tanda `pph_masa_terakhir_tertahan`; periode itu tidak boleh diajukan (fungsi `hitung.periode_bisa_diajukan`).
-- **L3 Unsur setahun** (semua periode yang dibayar di tahun itu sebelum periode ini, versi gaji terakhirnya, ditambah periode ini): bruto = jumlah bruto pajak; iuran = jumlah iuran JHT + JP bagian karyawan; bulan = banyak periode itu yang memuat orang ini; PPh sudah dipotong = jumlah PPh 21 periode sebelumnya (dikurangi pengembaliannya bila ada).
+- **L2 Data setahun lengkap** (dinilai per orang, **versi 5**) bila untuk setiap bulan 1 sampai (bulan bayar − 1) tahun itu: bulan itu tercakup isian pajak awal tahun orang itu (L6), atau ada periode perusahaan yang tanggal bayarnya di bulan tersebut dan punya hasil hitung gaji. Tidak lengkap → PPh masa itu **tidak dihitung** (nilai 0), tanda `pph_masa_terakhir_tertahan`; periode itu tidak boleh diajukan (fungsi `hitung.periode_bisa_diajukan`).
+- **L3 Unsur setahun** (**versi 5**: isian pajak awal tahun L6, ditambah semua periode yang dibayar di tahun itu sebelum periode ini **di bulan sesudah bulan terakhir isian**, versi gaji terakhirnya, ditambah periode ini; bulan isian dihitung sebanyak `bulan_kerja` isian): bruto = jumlah bruto pajak; iuran = jumlah iuran JHT + JP bagian karyawan; bulan = banyak periode itu yang memuat orang ini; PPh sudah dipotong = jumlah PPh 21 periode sebelumnya (dikurangi pengembaliannya bila ada).
 - **L4** Biaya jabatan = min(5% × bruto dibulatkan ke bawah, 500.000 × bulan). Neto = bruto − biaya jabatan − iuran. PTKP = nilai setahun status PTKP (acuan sama dengan F3). PKP = ke bawah ribuan dari (neto − PTKP), paling kecil 0.
 - **L5** PPh setahun = tarif Pasal 17 berlapis (`aturan.tarif_pasal17`, berlaku tanggal bayar) atas PKP, dibulatkan ke bawah ke rupiah. PPh masa terakhir = PPh setahun − PPh sudah dipotong. Positif → komponen `pph21` (potongan). Negatif → `pph21` 0 dan komponen `pengembalian_pph21` (pendapatan, tidak ikut bruto pajak, tidak ikut dasar lembur dan batas potongan).
+
+- **L6 Isian pajak awal tahun** (**versi 5**): tabel `induk.pajak_awal_tahun`, satu baris per karyawan per tahun, diisi HRD dari sistem lama (bukti potong) untuk bulan-bulan sebelum sistem dipakai: `sampai_bulan` (1–11), `bulan_kerja` (banyak bulan bekerja di bagian itu, untuk batas biaya jabatan), `bruto`, `iuran` (JHT + JP bagian karyawan), `pph` (PPh 21 yang sudah dipotong). Periode sistem yang tanggal bayarnya di bulan ≤ `sampai_bulan` tidak ikut dijumlah (isian yang dipakai), supaya tidak terhitung dua kali.
 
 ## M. Saldo cuti (versi 3)
 
@@ -112,7 +114,7 @@ Nominal dari `aturan.komponen_lain` yang berlaku pada tanggalnya; hidup/mati dar
 Dasar: PRD v3.1 bagian H1 ("gaji berubah >15%, lembur divisi naik >30%") dan U10. Tanda tidak mengubah angka gaji dan tidak menahan pengajuan; HRD memeriksanya sebelum rilis. Fungsi `hitung.anomali_gaji(periode)` menghitungnya dari versi gaji terakhir, tidak disimpan.
 
 - **O1 Periode lalu** = periode dengan tanggal awal terbesar sebelum tanggal awal P yang punya versi gaji. Tidak ada → O2 dan O3 tidak diperiksa.
-- **O2 Gaji berubah** (`gaji_berubah`): untuk orang yang punya ringkasan gaji di P dan di periode lalu, nilai banding = jumlah rincian kelompok pendapatan **tanpa** `thr` dan `pengembalian_pph21`. Tanda bila nilai lalu > 0 dan |nilai P − nilai lalu| × 100 > 15 × nilai lalu (lebih dari 15%, naik atau turun). Isi tanda: nilai lalu, nilai P.
+- **O2 Gaji berubah** (`gaji_berubah`, **versi 5**): untuk orang yang punya ringkasan gaji di P dan di periode lalu, nilai banding = jumlah komponen `gaji_pokok`, `tunjangan_tetap`, dan `potongan_tidak_dibayar`. Lembur, uang makan, tunjangan shift malam, premi, THR, dan pengembalian PPh tidak dibanding (versi 4 membanding semua pendapatan kecuali THR; di Pabrik A hasilnya 430–504 tanda per periode, kebanyakan karena lembur hari raya; lembur sudah punya tanda O3). Tanda bila nilai lalu > 0 dan |nilai P − nilai lalu| × 100 > 15 × nilai lalu (lebih dari 15%, naik atau turun). Isi tanda: nilai lalu, nilai P.
 - **O3 Lembur divisi naik** (`lembur_divisi_naik`): divisi orang = divisi di hari terakhirnya di hasil harian periode itu. Jumlah komponen `lembur` per divisi di P dibanding periode lalu. Tanda bila jumlah P × 100 > 130 × jumlah lalu (lebih dari 30%), termasuk bila jumlah lalu 0 dan jumlah P > 0.
 - **O4 Aktif tanpa tap** (`aktif_tanpa_tap`): orang dengan gaji bersih > 0 di P yang tidak punya satu pun hari dengan asal `mesin` di hasil harian P (termasuk yang tidak wajib tap dan yang seluruh harinya dari perintah HRD; isi tanda menyebut asal harinya). Diperiksa juga di periode pertama.
 
@@ -168,6 +170,11 @@ Upah contoh kasus jebakan: gaji pokok 3.500.000 + tunjangan tetap 500.000 = 4.00
 | K44 (O4) | Seluruh hari periode berstatus sakit dari perintah HRD, tanpa tap mesin, gaji dibayar | tanda aktif tanpa tap | O4 |
 | K45 (O4) | Sama, tetapi satu hari ada tap mesin | tidak ada tanda | O4 |
 | K46 (O1) | Periode pertama | hanya O4 yang diperiksa | O1 |
+| K47 (O2 v5) | Upah tetap 4.000.000 dua periode, lembur Rp80.925 lalu Rp809.250 | tidak ada tanda gaji berubah (lembur tidak dibanding) | O2 versi 5 |
+| K48 (L6) | Desember 2027 saja di sistem; isian awal tahun Jan–Nov: bulan kerja 11, bruto 110.000.000, iuran 0, PPh 2.200.000; gaji Desember 10.000.000 TK/0 tanpa BPJS | tidak tertahan; PPh Desember 3.000.000 − 2.200.000 = **800.000** (sama dengan K31) | L2, L3, L6 |
+| K49 (L2 v5) | Sama dengan K48, orang lain tanpa isian | PPh 0, tanda tertahan; periode tidak bisa diajukan | L2 |
+| K50 (L6) | Isian sampai bulan 10 (bulan kerja 10, bruto 100.000.000, PPh 2.000.000), periode sistem bayar November dan Desember 10.000.000 | November TER 200.000; Desember 800.000 | L3, L6 |
+| K51 (F13b) | Karyawan baru, hari kerja pertama sakit (perintah HRD), 2 hari kerja berikutnya tanpa tap | 2 hari alpha; pemberitahuan belum terdaftar di mesin | permintaan perubahan 02 |
 
 Catatan K9/K10: aturan "yang lebih besar" yang disetujui untuk tanggal sesudah 28 Okt 2026 selalu memberi angka yang sama dengan aturan 75% lama (aturan lama memilih 75% justru bila nilainya lebih besar). Bedanya hanya tanda konfirmasi.
 

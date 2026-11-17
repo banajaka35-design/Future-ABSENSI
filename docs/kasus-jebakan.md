@@ -1,6 +1,6 @@
 # Kasus Jebakan — Tahap 0
 
-Versi 1.2 · dikunci 12 November 2026, ditambah 16 November 2026 lewat permintaan perubahan 01 (C02b, D11b; kasus lain tidak berubah) · acuan: PRD v3.1, UU 27/2026
+Versi 1.3 · dikunci 12 November 2026, ditambah 16 November 2026 lewat permintaan perubahan 01 (C02b, D11b) dan 17 November 2026 lewat permintaan perubahan 02 (F13b); kasus lain tidak berubah · acuan: PRD v3.1, UU 27/2026
 
 Daftar ini ditulis **sebelum** pembaca tap dan mesin hitung dibuat. Setiap kasus menyebut kejadian dan hasil yang diharapkan. Kode dinyatakan benar hanya kalau semua kasus di sini lulus (uji U1, U2, U4, U6, U10, U12, U14). Kasus tidak boleh diubah agar kode lulus; perubahan hanya lewat permintaan perubahan (PRD v3 bagian 3).
 
@@ -133,6 +133,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | F11 | Jadwal Pagi, tetapi tap 5 hari berturut-turut cocok shift Siang | Usulan tukar shift di rekap harian; sebelum disetujui hasil tetap mengikuti jadwal; setelah disetujui dihitung ulang sebagai Siang | PRD P1 |
 | F12 | Pengaturan "wajib perintah"; 3 orang Produksi lembur tanggal 5; HRD mengirim "setujui lembur Produksi tgl 5" | Ketiganya dibayar setelah hitung ulang | PRD P2 |
 | F13 | Karyawan baru mulai 1 Mar, tanpa tap 3 hari kerja pertama | Pemberitahuan segera "belum didaftar di mesin?"; tetap alpha sampai dikoreksi | PRD P3 |
+| F13b | Karyawan baru, hari kerja pertamanya sakit (perintah HRD), lalu 2 hari masuk tetapi belum didaftar di mesin | 2 hari itu alpha, dan ada pemberitahuan "belum didaftar di mesin?" | Permintaan perubahan 02 (temuan U5 Pabrik B) |
 | F14 | Sopir dengan pengaturan "tidak wajib tap", tanpa tap sebulan | Tidak alpha | PRD P4 |
 | F15 | Karyawan di kelompok gaji rahasia; akun HRD meminta rinciannya | Ditolak di gudang data; akun bos bisa melihat | PRD O4, K17 |
 | F16 | HRD mengirim "tambah libur tgl 27 Nov" setelah semua orang terbaca alpha | Hari itu menjadi libur; alpha batal setelah hitung ulang | PRD O5 |
