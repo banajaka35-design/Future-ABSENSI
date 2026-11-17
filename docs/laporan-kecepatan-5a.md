@@ -44,3 +44,33 @@ Target: satu periode Pabrik A selesai dihitung **dan masuk Sheets** paling lama 
 ## Kesimpulan
 
 Hitungan sekarang **sudah muat** untuk jalur bot lewat Edge Function, tetapi sisa waktunya tipis. Dua bagian hitung gaji (63% waktunya) bisa dipercepat tanpa mengubah aturan. Keputusan langkah 1 ada di pemilik proyek.
+
+---
+
+# Langkah 1: hitung gaji dipercepat (migrasi 0014) — keputusan pemilik: pilihan A
+
+17 November 2026. Aturan tidak berubah; hanya cara membaca pengaturan (sekali per divisi per tanggal) dan cara menjumlah bruto dan iuran untuk PPh (sekali per orang).
+
+## Bukti hasil tidak berubah [Pasti]
+
+Sidik hasil (gabungan seluruh rincian dan ringkasan gaji semua orang) versi 5 **sama persis** dengan versi 4, di komputer kerja dan di Supabase:
+
+| Periode | Sidik versi 4 | Sidik versi 5 |
+| --- | --- | --- |
+| 1 | 2cfe4e216766 | 2cfe4e216766 |
+| 2 | e7e24ab3a2ff | e7e24ab3a2ff |
+| 3 | 071ae0629d51 | 071ae0629d51 |
+| 4 | db9bf21fa79b | db9bf21fa79b |
+
+Selain itu: uji database 343 lulus; uji simulasi 25 lulus; pembanding Pabrik A (4.037) dan B (750) orang-periode selisih 0; pemeriksaan pemasangan 31 lulus; angka halaman demo = gudang (terbit ulang otomatis).
+
+## Kecepatan hitung gaji per periode [Pasti, diukur]
+
+| Tempat | Versi 4 | Versi 5 |
+| --- | --- | --- |
+| Komputer kerja | 7,1–8,1 detik | 2,4–2,8 detik |
+| Supabase (dicatat di database) | 11,7–18,8 detik | 5,0–6,2 detik |
+
+Satu periode di Supabase sekarang sekitar 13 detik (baca tap) + 5–6 detik (gaji) ≈ 19 detik, dari target 60 detik termasuk Sheets.
+
+Baca tap tidak diubah (waktunya tersebar, tidak ada bagian yang dominan).
