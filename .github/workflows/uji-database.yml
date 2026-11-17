@@ -39,5 +39,9 @@ jobs:
         env:
           ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: sistem/uji/jalankan_simulasi.sh
+      - name: Uji pintu Telegram (pesan tiruan, kasus T1-T8)
+        env:
+          ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: sistem/uji/uji_pintu.sh
       - name: Pemeriksaan kewajaran data simulasi (isi data harus identik dengan yang tersimpan)
         run: cd generator && python3 buat_data.py > /dev/null && python3 periksa_kewajaran.py && git diff --exit-code -- ../data/simulasi/sidik_isi.txt

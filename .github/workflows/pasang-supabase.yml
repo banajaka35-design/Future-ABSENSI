@@ -72,3 +72,10 @@ jobs:
 
       - name: Migrasi, data awal, pemeriksaan
         run: db/pasang_supabase.sh pasang
+
+      - name: Pintu Telegram (dilewati bila secret belum diisi)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          HRD_TELEGRAM_ID: ${{ secrets.HRD_TELEGRAM_ID }}
+        run: db/pasang_pintu.sh

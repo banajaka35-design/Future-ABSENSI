@@ -103,6 +103,6 @@ select uji.harus_ditolak('isian pajak awal tahun: sampai bulan harus 1-11',
   $$insert into induk.pajak_awal_tahun (id_karyawan, tahun, sampai_bulan, bulan_kerja, bruto, iuran, pph)
                       values ('TANPA', 2027, 12, 12, 1, 0, 0)$$);
 select uji.sama('versi kode gaji terbaru', hitung.versi_kode_gaji(), 'hitung_gaji 5 (paket 5a)');
-select uji.sama('versi kode baca tap 2', hitung.versi_kode_baca(), 'baca_tap 2 (paket 4b-5)');
+select uji.sama('versi kode baca tap terbaru', hitung.versi_kode_baca(), 'baca_tap 3 (paket 5b)');
 
 rollback;

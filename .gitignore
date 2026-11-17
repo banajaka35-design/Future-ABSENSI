@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 web/demo/*.json
+supabase/functions/pintu-telegram/urai.ts
+supabase/functions/pintu-telegram/inti.ts

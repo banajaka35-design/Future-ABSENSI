@@ -42,6 +42,14 @@
 
 T1–T7 dan T9–T10 diuji otomatis di GitHub (pesan Telegram tiruan, Postgres sementara, data simulasi Pabrik A). T8 diuji di kode Edge Function. Uji nyata di Supabase: T2, T4 (dan T6 bila ada akun Telegram kedua); T1 tidak bisa diuji nyata di demo tanpa reset karena semua file simulasi sudah ada di sana.
 
+## Pemasangan
+
+Dipasang oleh workflow **"Pasang ke Supabase"** (langkah tambahan `db/pasang_pintu.sh`), bukan workflow baru: aturan 8 di CLAUDE.md hanya mengizinkan perubahan Supabase lewat workflow itu. Langkah ini dilewati (bukan gagal) selama secret `SUPABASE_ACCESS_TOKEN`, `TELEGRAM_BOT_TOKEN`, dan `HRD_TELEGRAM_ID` belum diisi. Kata sandi peran `pintu` dan kode rahasia Telegram dibuat acak setiap pemasangan.
+
+## Tambahan yang disetujui di tengah paket (17 Nov 2026)
+
+Uji T1 menemukan baca tap butuh 75 detik bila di periode itu baru ada file satu mesin (pemeriksaan cakupan file F02 memeriksa ulang seluruh tap untuk setiap orang-hari). Pemilik menyetujui perbaikan di paket ini: migrasi 0016, pembaca tap versi 3, aturan tidak berubah. Diukur: 75,6 detik menjadi 4,2 detik; sidik hasil sama persis dengan versi 2 (satu file saja, dan data lengkap 4 periode).
+
 ## Batasan yang disadari
 
 - Antrean dikerjakan oleh Edge Function yang sama, paling lama sekitar 120 detik per pesan (batas Edge Function gratis 150 detik). Sisa antrean dikerjakan saat pesan berikutnya datang. Penjadwal terpisah belum ada.
