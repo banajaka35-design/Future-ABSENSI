@@ -15,6 +15,11 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 ## Posisi sekarang: Tahap 5 selesai (5a–5e, 5d-2, 5e-2); berikutnya Tahap 6 (tulis daftar paket dulu)
 
+**Mulai 18 Nov 2026 dari sini:** draf daftar paket Tahap 6 ada di `docs/rencana-tahap-6.md` (belum di-"buat"). Langkah pertama: pemilik menempelkan teks PRD v3.1 yang diminta di bagian "Yang dibutuhkan dari PRD", lalu keputusan (a)/(b) dan cara menulis ke Sheets. Kalimat pembuka untuk chat baru:
+
+> Baca CLAUDE.md, docs/serah-terima.md, dan docs/rencana-tahap-6.md di repo banajaka35-design/Future-ABSENSI cabang main. Ini teks PRD yang diminta: [tempel]. Lanjutkan Tahap 6.
+
+
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
 ## Diskusi 16 Nov 2026 (keputusan pemilik proyek)
