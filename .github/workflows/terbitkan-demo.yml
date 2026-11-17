@@ -1,0 +1,72 @@
+name: Terbitkan demo
+
+# Halaman demo (docs/halaman-demo.md): membaca salinan hasil dari Supabase (hanya membaca), memeriksa
+# "angka demo sama dengan gudang", lalu mengunggah ke Cloudflare Pages. Pemeriksaan gagal -> tidak diunggah.
+# Berjalan sesudah "Pasang ke Supabase" lulus, atau lewat tombol.
+on:
+  workflow_run:
+    workflows: ["Pasang ke Supabase"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terbitkan-demo
+  cancel-in-progress: false
+
+jobs:
+  terbit:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROYEK: future-absensi-demo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Periksa secret
+        run: |
+          kurang=""
+          [ -n "$DB_URL" ] || kurang="$kurang SUPABASE_DB_URL"
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || kurang="$kurang CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || kurang="$kurang CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$kurang" ]; then
+            echo "GAGAL: secret belum diisi:$kurang" >&2
+            exit 1
+          fi
+
+      - name: Pasang klien Postgres 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Buat data halaman dari gudang
+        run: |
+          mulai=$(date +%s%N)
+          python3 web/buat_data.py web/demo
+          echo "Lama membuat data: $(( ($(date +%s%N) - mulai) / 1000000 )) ms"
+
+      - name: Periksa angka demo sama dengan gudang
+        run: python3 web/periksa_data.py web/demo
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Unggah ke Cloudflare Pages
+        run: |
+          if ! npx --yes wrangler@4 pages project list 2>/dev/null | grep -q "$PROYEK"; then
+            npx --yes wrangler@4 pages project create "$PROYEK" --production-branch=main
+          fi
+          mulai=$(date +%s%N)
+          npx --yes wrangler@4 pages deploy web/demo --project-name="$PROYEK" --branch=main --commit-dirty=true
+          echo "Lama unggah: $(( ($(date +%s%N) - mulai) / 1000000 )) ms"
+          echo "Ukuran: $(du -sh web/demo | cut -f1)"

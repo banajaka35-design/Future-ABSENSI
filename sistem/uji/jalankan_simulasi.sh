@@ -57,6 +57,11 @@ echo "$CEK_GAJI" | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | grep -E "LUL
 cek "pemeriksaan gaji dan tahap 3 sesudah hitung gaji tanpa GAGAL" "$(echo "$CEK_GAJI" | grep -c GAGAL || true)" 0
 echo "  Tanda anomali gaji Pabrik A per periode: $(nilai "select string_agg(p.id || ': ' || coalesce((select string_agg(jenis || ' ' || n, ', ' order by jenis)
   from (select jenis, count(*) n from hitung.anomali_gaji(p.id) group by jenis) x), 'tidak ada'), ' | ' order by p.tanggal_awal) from fakta.periode p")"
+DEMO="$(mktemp -d)"
+python3 web/buat_data.py "$DEMO" > /dev/null
+if python3 web/periksa_data.py "$DEMO"; then cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" lulus lulus;
+else cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" gagal lulus; fi
+rm -rf "$DEMO"
 P1G="$(nilai "select min(id) from fakta.periode")"
 nilai "select hitung.hitung_gaji($P1G)" > /dev/null
 cek "dua kali hitung gaji menghasilkan sidik yang sama" \

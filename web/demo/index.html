@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Future-ABSENSI · Demo (data simulasi)</title>
+<style>
+  :root { --tinta: #1d2430; --redup: #5b6576; --garis: #dde2ea; --latar: #f5f7fa; --kartu: #fff;
+          --aksen: #1f5fbf; --awas: #b4232a; --awas-latar: #fdecec; --hati: #8a5a00; --hati-latar: #fff4dc; --baik: #1d7a46; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--tinta); background: var(--latar); }
+  .simulasi { background: var(--hati-latar); border-bottom: 2px solid #e7b84a; padding: 10px 20px; font-weight: 600; color: var(--hati); }
+  .simulasi span { font-weight: 400; }
+  header, main { max-width: 1100px; margin: 0 auto; padding: 16px 20px; }
+  h1 { font-size: 22px; margin: 4px 0; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  .kecil { color: var(--redup); font-size: 13px; }
+  .tab { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 16px; }
+  .tab button { border: 1px solid var(--garis); background: var(--kartu); padding: 7px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+  .tab button[aria-pressed="true"] { background: var(--aksen); border-color: var(--aksen); color: #fff; }
+  section { background: var(--kartu); border: 1px solid var(--garis); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .angka { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .angka div { border-left: 3px solid var(--garis); padding-left: 10px; }
+  .angka b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .status { padding: 10px 12px; border-radius: 6px; margin-top: 12px; }
+  .status.tidak { background: var(--awas-latar); color: var(--awas); }
+  .status.bisa { background: #e8f5ee; color: var(--baik); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--garis); vertical-align: top; }
+  th { font-size: 13px; color: var(--redup); font-weight: 600; }
+  td.r, th.r { text-align: right; }
+  tbody tr.pilih { cursor: pointer; }
+  tbody tr.pilih:hover { background: #eef3fb; }
+  input[type=search] { width: 100%; max-width: 360px; padding: 8px 10px; border: 1px solid var(--garis); border-radius: 6px; font: inherit; }
+  .jenis { display: inline-block; font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--hati-latar); color: var(--hati); margin-right: 6px; }
+  details summary { cursor: pointer; }
+  .dua { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .dua { grid-template-columns: 1fr; } }
+  .kosong { color: var(--redup); font-style: italic; }
+  #rinci .bukti { color: var(--redup); font-size: 12px; }
+  .salah { color: var(--awas); }
+</style>
+</head>
+<body>
+<div class="simulasi" role="note">DATA SIMULASI · <span>Semua nama, angka, dan kejadian di halaman ini karangan, dibuat oleh generator data uji. Bukan data perusahaan atau orang sungguhan.</span></div>
+<header>
+  <h1>Future-ABSENSI · demo hitung gaji</h1>
+  <div class="kecil">Pabrik A (simulasi, sekitar 1.000 karyawan). Halaman ini hanya membaca salinan hasil dari gudang data; tidak ada tombol aksi. Salinan dibuat <span id="dibuat">…</span>.</div>
+</header>
+<main>
+  <div class="tab" id="tab" role="group" aria-label="Pilih periode"></div>
+
+  <section>
+    <h2>Ringkasan periode</h2>
+    <div class="kecil" id="info"></div>
+    <div class="angka" id="angka" style="margin-top:12px"></div>
+    <div id="status"></div>
+  </section>
+
+  <div class="dua">
+    <section>
+      <h2>Pecahan uang tunai</h2>
+      <div class="kecil" style="margin-bottom:8px">Lembar yang perlu disiapkan untuk semua yang dibayar tunai.</div>
+      <table><thead><tr><th>Pecahan</th><th class="r">Lembar</th><th class="r">Jumlah</th></tr></thead><tbody id="pecahan"></tbody></table>
+    </section>
+    <section>
+      <h2>Tanda anomali sebelum rilis</h2>
+      <div class="kecil" style="margin-bottom:8px">Tidak mengubah angka; HRD memeriksanya sebelum rilis.</div>
+      <div id="anomali"></div>
+    </section>
+  </div>
+
+  <section>
+    <h2>Karyawan</h2>
+    <input type="search" id="cari" placeholder="Cari ID atau nama" aria-label="Cari ID atau nama karyawan">
+    <div class="kecil" id="jumlah" style="margin:6px 0"></div>
+    <table>
+      <thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th class="r">Gaji bersih</th></tr></thead>
+      <tbody id="daftar"></tbody>
+    </table>
+  </section>
+
+  <section id="rinci" hidden></section>
+</main>
+
+<script>
+"use strict";
+const NAMA_KOMPONEN = {
+  gaji_pokok: "Gaji pokok", tunjangan_tetap: "Tunjangan tetap", potongan_tidak_dibayar: "Potongan hari tidak dibayar",
+  uang_makan: "Uang makan", tunjangan_shift_malam: "Tunjangan shift malam", premi_hadir: "Premi hadir", lembur: "Lembur",
+  thr: "THR", pengembalian_pph21: "Pengembalian PPh 21", pph21: "PPh 21", denda: "Denda", kasbon: "Kasbon",
+  bpjs_kesehatan_karyawan: "BPJS Kesehatan (karyawan)", bpjs_jht_karyawan: "BPJS JHT (karyawan)", bpjs_jp_karyawan: "BPJS JP (karyawan)",
+  bpjs_kesehatan_perusahaan: "BPJS Kesehatan (perusahaan)", bpjs_jht_perusahaan: "BPJS JHT (perusahaan)",
+  bpjs_jp_perusahaan: "BPJS JP (perusahaan)", bpjs_jkk_perusahaan: "BPJS JKK (perusahaan)", bpjs_jkm_perusahaan: "BPJS JKM (perusahaan)"
+};
+const NAMA_ANOMALI = { gaji_berubah: "Gaji berubah lebih dari 15%", lembur_divisi_naik: "Lembur divisi naik lebih dari 30%",
+                       aktif_tanpa_tap: "Digaji tanpa satu pun tap mesin" };
+const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const rp = n => n == null ? "—" : (n < 0 ? "−Rp" : "Rp") + Math.abs(Number(n)).toLocaleString("id-ID");
+const tgl = s => { const [y, m, d] = s.split("-"); return `${+d} ${BULAN[m - 1]} ${y}`; };
+const el = (tag, isi, kelas) => { const e = document.createElement(tag); if (isi != null) e.textContent = isi; if (kelas) e.className = kelas; return e; };
+const $ = id => document.getElementById(id);
+let DATA, aktif, rincianCache = {};
+
+function pilihPeriode(p) {
+  aktif = p;
+  for (const b of $("tab").children) b.setAttribute("aria-pressed", String(+b.dataset.id === p.id));
+  $("info").textContent = `Periode ${tgl(p.awal)} s.d. ${tgl(p.akhir)}, dibayar ${tgl(p.bayar)} · ${p.kode_baca} · ${p.kode_gaji}`;
+  const angka = [["Orang", p.orang.toLocaleString("id-ID")], ["Total pendapatan", rp(p.pendapatan)], ["Total potongan", rp(p.potongan)],
+                 ["Gaji bersih", rp(p.bersih)], ["Dibayar", rp(p.dibayar)], ["Lewat transfer", rp(p.transfer)],
+                 ["Tunai", rp(p.tunai)], ["Sisa pembulatan dibawa", rp(p.sisa)]];
+  $("angka").replaceChildren(...angka.map(([j, n]) => { const d = el("div"); d.append(el("span", j, "kecil"), el("b", n)); return d; }));
+  const st = el("div", null, "status " + (p.bisa_diajukan ? "bisa" : "tidak"));
+  if (p.bisa_diajukan) st.textContent = "Periode ini bisa diajukan untuk rilis.";
+  else {
+    st.append(el("b", "Periode ini belum bisa diajukan. "),
+      document.createTextNode(`PPh 21 masa terakhir ${p.tertahan.toLocaleString("id-ID")} orang tertahan (dihitung 0 dan diberi tanda). ` +
+        "PPh masa terakhir (Desember, atau bulan karyawan berhenti) dihitung ulang untuk setahun dan butuh data gaji semua bulan sebelumnya di tahun itu. " +
+        "Data simulasi hanya punya 4 periode gajian (Februari, Maret, April, Desember), jadi bulan lain kosong. " +
+        "Di perusahaan sungguhan, bulan sebelum sistem dipakai diisi HRD dari sistem lama (isian pajak awal tahun)."));
+  }
+  $("status").replaceChildren(st);
+  let total = 0;
+  $("pecahan").replaceChildren(...p.pecahan.map(([n, l]) => { total += n * l; const tr = el("tr");
+    tr.append(el("td", rp(n)), el("td", l.toLocaleString("id-ID"), "r"), el("td", rp(n * l), "r")); return tr; }));
+  const tf = el("tr"); tf.append(el("th", "Jumlah"), el("th", "", "r"), el("th", rp(total), "r")); $("pecahan").append(tf);
+  const kel = {};
+  for (const a of p.anomali) (kel[a.jenis] ||= []).push(a);
+  const blok = Object.keys(kel).sort().map(j => { const d = el("details"); const s = el("summary");
+    s.append(el("span", kel[j].length.toLocaleString("id-ID"), "jenis"), document.createTextNode(NAMA_ANOMALI[j] || j));
+    const ul = el("ul"); for (const a of kel[j]) ul.append(el("li", a.ket)); d.append(s, ul); return d; });
+  $("anomali").replaceChildren(...(blok.length ? blok : [el("div", "Tidak ada tanda.", "kosong")]));
+  tampilDaftar();
+  $("rinci").hidden = true;
+}
+
+function tampilDaftar() {
+  const kata = $("cari").value.trim().toLowerCase();
+  const ada = DATA.karyawan.filter(k => k.p[aktif.id] && (!kata || k.id.includes(kata) || k.nama.toLowerCase().includes(kata)));
+  const tampil = ada.slice(0, 200);
+  $("jumlah").textContent = `${ada.length.toLocaleString("id-ID")} karyawan di periode ini` + (ada.length > 200 ? " (ditampilkan 200 pertama; persempit pencarian)" : "");
+  $("daftar").replaceChildren(...tampil.map(k => { const [div, b] = k.p[aktif.id]; const tr = el("tr", null, "pilih");
+    tr.tabIndex = 0; tr.append(el("td", k.id), el("td", k.nama), el("td", div || "—"), el("td", k.rahasia ? "rahasia" : rp(b), "r"));
+    tr.onclick = () => tampilRinci(k); tr.onkeydown = e => { if (e.key === "Enter") tampilRinci(k); }; return tr; }));
+}
+
+async function tampilRinci(k) {
+  const kotak = $("rinci"); kotak.hidden = false;
+  kotak.replaceChildren(el("h2", `${k.nama} (${k.id})`), el("div", `Periode ${tgl(aktif.awal)} s.d. ${tgl(aktif.akhir)}`, "kecil"));
+  if (k.rahasia) { kotak.append(el("p", "Gaji karyawan ini ditandai rahasia; angkanya tidak ditampilkan di demo.", "kosong")); kotak.scrollIntoView({ behavior: "smooth" }); return; }
+  try {
+    rincianCache[aktif.id] ||= await (await fetch(`rincian_${aktif.id}.json`)).json();
+  } catch (e) { kotak.append(el("p", "Rincian gagal dimuat.", "salah")); return; }
+  const r = rincianCache[aktif.id][k.id];
+  if (!r) { kotak.append(el("p", "Tidak ada rincian.", "kosong")); return; }
+  const t = el("table"); const th = el("thead"); const h = el("tr");
+  h.append(el("th", "Komponen"), el("th", "Bukti hitung"), el("th", "Nominal", "r")); th.append(h); t.append(th);
+  const tb = el("tbody");
+  const urut = { pendapatan: 0, potongan: 1, perusahaan: 2 };
+  for (const [komp, kel, nom, bukti] of [...r.rincian].sort((a, b) => urut[a[1]] - urut[b[1]])) {
+    const tr = el("tr"); const n = el("td", NAMA_KOMPONEN[komp] || komp);
+    if (kel === "perusahaan") n.append(el("div", "dibayar perusahaan, bukan bagian gaji bersih", "bukti"));
+    tr.append(n, el("td", bukti || "", "bukti"), el("td", rp(nom), "r")); tb.append(tr);
+  }
+  for (const [j, n] of [["Gaji bersih", r.bersih], ["Sisa periode lalu", r.sisa_lalu], [`Dibayar (${r.cara})`, r.dibayar], ["Sisa dibawa", r.sisa]]) {
+    const tr = el("tr"); tr.append(el("th", j), el("th", ""), el("th", rp(n), "r")); tb.append(tr);
+  }
+  t.append(tb); kotak.append(t);
+  kotak.append(el("p", `Cuti terpakai periode ini: ${r.cuti} hari · saldo cuti: ${r.saldo_cuti == null ? "belum ada saldo awal" : r.saldo_cuti + " hari"}`, "kecil"));
+  if (r.peringatan.length) kotak.append(el("p", "Peringatan: " + r.peringatan.join(", "), "kecil"));
+  kotak.scrollIntoView({ behavior: "smooth" });
+}
+
+fetch("data.json").then(r => r.json()).then(d => {
+  DATA = d; $("dibuat").textContent = d.dibuat;
+  for (const p of d.periode) { const b = el("button", `${tgl(p.awal)} – ${tgl(p.akhir)}`); b.dataset.id = p.id; b.onclick = () => pilihPeriode(p); $("tab").append(b); }
+  $("cari").oninput = tampilDaftar;
+  pilihPeriode(d.periode[0]);
+}).catch(() => { $("info").replaceChildren(el("span", "Data gagal dimuat.", "salah")); });
+</script>
+</body>
+</html>

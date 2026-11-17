@@ -1,0 +1,37 @@
+# Halaman demo (Tahap 4, paket 4c)
+
+17 November 2026 · ditulis sebelum kode · acuan: PRD v3.1 bagian 14 ("halaman demo sederhana di Tahap 4, hanya membaca hasil yang lulus uji, bertanda data simulasi") dan gerbang Tahap 4 ("angka demo sama dengan gudang").
+
+## Keputusan pemilik (17 Nov 2026)
+
+| Hal | Keputusan |
+| --- | --- |
+| Cara membaca data | **Salinan tetap.** GitHub Actions membaca gudang (Supabase) dan menulis file data ke halaman. Halaman tidak pernah menyentuh Supabase; tidak ada bagian database yang dibuka ke internet (PRD K6, K11) |
+| Tempat | Cloudflare Pages, proyek `future-absensi-demo` |
+| Unggah cadangan lewat web | **Dipindah ke Tahap 5** (butuh login HRD dan pembaca file di Edge Function, yang dibangun bersama pintu Telegram). Syarat gerbang Tahap 4 di PRD berubah karena keputusan ini |
+
+## Isi halaman
+
+1. Tanda **DATA SIMULASI** di bagian atas setiap tampilan, dengan penjelasan: nama dan angka karangan, dibuat oleh generator.
+2. **Ringkasan per periode** (hanya versi gaji terakhir): tanggal periode dan bayar, jumlah orang, total pendapatan, total potongan, total gaji bersih, total dibayar, dibayar lewat transfer, dibayar tunai, sisa pembulatan dibawa, pecahan uang tunai (lembar per pecahan), versi kode baca tap dan gaji.
+3. **Status pengajuan** per periode dari `hitung.periode_bisa_diajukan`. Bila tidak bisa: jumlah orang yang PPh masa terakhirnya tertahan, dan penjelasan bahwa data simulasi hanya punya 4 periode gajian (bulan lain kosong), jadi PPh masa terakhir tidak bisa dihitung.
+4. **Tanda anomali** per periode dari `hitung.anomali_gaji`: jumlah per jenis dan daftar isinya.
+5. **Daftar karyawan** dengan pencarian ID atau nama: divisi dan gaji bersih per periode. Klik satu orang: rincian per komponen, dibayar, sisa, peringatan, saldo cuti. Karyawan dengan `gaji_rahasia` di riwayat terakhirnya: angka tidak ditampilkan ("rahasia").
+6. Tidak ada tombol aksi, tidak ada formulir yang mengirim data.
+
+## Pemeriksaan "angka demo sama dengan gudang"
+
+Skrip pemeriksa membaca file data halaman dan menghitung ulang langsung dari gudang dengan perintah SQL sendiri (bukan dari skrip pembuat data). Harus sama persis per periode:
+
+| Angka | Dari gudang |
+| --- | --- |
+| Jumlah orang | baris `hitung.ringkasan_gaji` versi gaji terakhir |
+| Total pendapatan, potongan, gaji bersih, dibayar, sisa pembulatan | jumlah kolom ringkasan |
+| Dibayar transfer dan tunai | dibayar menurut cara bayar riwayat karyawan pada tanggal akhir periode |
+| Pecahan tunai | `hitung.pecahan_tunai(versi)` |
+| Bisa diajukan, jumlah tertahan | `hitung.periode_bisa_diajukan`, peringatan `pph_masa_terakhir_tertahan` |
+| Tanda anomali per jenis | `hitung.anomali_gaji` |
+| Per orang (bukan rahasia) | gaji bersih dan setiap komponen rincian |
+| Orang rahasia | tidak ada angka di file data |
+
+Pemeriksaan dijalankan (1) di uji GitHub dengan data simulasi Pabrik A, dan (2) di workflow terbit, terhadap Supabase, sebelum mengunggah. Gagal → tidak diunggah.
