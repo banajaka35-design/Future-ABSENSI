@@ -34,6 +34,6 @@ Jumlah uji otomatis: database 444 lulus; bot 33 lulus; penyambung 19 lulus.
 
 ## Batasan
 
-- Email kode dari alamat Gmail lewat Brevo bisa masuk folder Spam [Kemungkinan Besar]; untuk perusahaan sungguhan perlu domain sendiri.
+- Email kode uji nyata 17 Nov 2026 masuk **Inbox** Gmail pemilik [Pasti, laporan pemilik]. Ke alamat lain (bukan Gmail yang sama dengan pengirim) belum diuji; bisa masuk Spam [Menebak]. Untuk perusahaan sungguhan tetap disarankan domain sendiri.
 - Kunci Brevo mati sesudah 90 hari tanpa pemakaian; tidak ada pemeriksa otomatis untuk ini.
 - Pemberitahuan segera dan ringkasan hitungan tetap lewat Telegram.
