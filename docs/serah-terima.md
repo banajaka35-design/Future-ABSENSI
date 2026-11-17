@@ -13,7 +13,7 @@ Terakhir diperbarui: 17 November 2026, cabang `main` (paket 4b-2 THR, kasbon, tu
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 4 berjalan, paket 4a sampai 4b-5 selesai; 4c (halaman demo) menunggu secret Cloudflare
+## Posisi sekarang: Tahap 4 selesai (4a sampai 4c); berikutnya Tahap 5
 
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
@@ -254,14 +254,16 @@ Laporan lengkap: `docs/laporan-tahap-4b-5.md`. Aturan versi 5, permintaan peruba
 
 Juga masih perlu: cek naskah resmi Permenaker 6/2016 dan PP 36/2021.
 
-## Paket 4c (17 Nov 2026): halaman demo — berjalan
+## Paket 4c (17 Nov 2026): halaman demo — selesai
 
 Keputusan pemilik: salinan tetap (halaman tidak menyentuh Supabase), Cloudflare Pages proyek `future-absensi-demo`, unggah cadangan lewat web **dipindah ke Tahap 5** (syarat gerbang Tahap 4 berubah). Syarat: `docs/halaman-demo.md`.
 
 | Hal | Isi |
 | --- | --- |
 | Selesai (commit 0cd1c9b) | `web/demo/index.html`, `web/buat_data.py`, `web/periksa_data.py`, workflow "Terbitkan demo"; uji simulasi 25 lulus (angka demo = gudang); GitHub lulus |
-| Menunggu pemilik | Secret GitHub `CLOUDFLARE_API_TOKEN` (izin Cloudflare Pages: Edit) dan `CLOUDFLARE_ACCOUNT_ID`, lalu tombol "Terbitkan demo" |
+| Terbit | https://future-absensi-demo.pages.dev/ ; secret `CLOUDFLARE_API_TOKEN` (Pages: Edit) dan `CLOUDFLARE_ACCOUNT_ID` diisi pemilik; terbit otomatis sesudah Pasang lulus |
+| Dicek | Halaman terbit dibandingkan langsung dengan Supabase: 4 periode sama persis; rincian per orang termuat. Laporan: `docs/laporan-tahap-4c.md` |
+| Untuk pemilik | Sesuaikan syarat gerbang Tahap 4 di PRD (unggah cadangan lewat web pindah ke Tahap 5) |
 
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 
@@ -270,8 +272,8 @@ Keputusan pemilik: salinan tetap (halaman tidak menyentuh Supabase), Cloudflare 
 | Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
 | --- | --- | --- | --- |
 | 3 | ~~Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file~~ **Selesai 13 Nov 2026** | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
-| 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 ✓ THR, kasbon, tunai · 4b-3 ✓ PPh Desember, saldo cuti, U12 · 4b-4 ✓ Pabrik B, U10 · 4b-5 ✓ perbaikan temuan · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
-| 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
+| 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 ✓ THR, kasbon, tunai · 4b-3 ✓ PPh Desember, saldo cuti, U12 · 4b-4 ✓ Pabrik B, U10 · 4b-5 ✓ perbaikan temuan · 4c ✓ halaman demo (unggah cadangan lewat web pindah ke Tahap 5) | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
+| 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera, unggah cadangan lewat web (dari Tahap 4), hitung di bawah batas 8 detik API | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
 | 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
 | 8 | Pendaftaran karyawan, pesan gaji, keberatan, rilis dengan PIN | Rincian gaji sampai ke Telegram | — |
