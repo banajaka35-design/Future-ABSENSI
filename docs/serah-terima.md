@@ -13,7 +13,7 @@ Terakhir diperbarui: 17 November 2026, cabang `main` (paket 4b-2 THR, kasbon, tu
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 5 berjalan; 5a selesai (hitung gaji lebih cepat); berikutnya 5b (pintu Telegram)
+## Posisi sekarang: Tahap 5 berjalan; 5a selesai; 5b kode terpasang, menunggu secret bot dari pemilik
 
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
@@ -270,6 +270,8 @@ Keputusan pemilik: salinan tetap (halaman tidak menyentuh Supabase), Cloudflare 
 Dipecah: **5a** ukur dan percepat hitung · **5b** pintu Telegram, antrean, kirim ulang tidak dobel, file rusak ditolak, unggah cadangan lewat web (butuh bot dari @BotFather dan token akses Supabase untuk memasang Edge Function lewat workflow) · **5c** pemberitahuan tingkat segera (U14), pengingat kirim file.
 
 **5a selesai** (`docs/laporan-kecepatan-5a.md`): migrasi 0014 (hitung gaji versi 5), sidik hasil sama persis dengan versi 4 di keempat periode Supabase; hitung gaji di Supabase 11,7–18,8 detik menjadi 5,0–6,2 detik. Batas waktu: jalur API umum 8 detik, Edge Function dengan sambungan langsung 2 menit per perintah dan 150 detik per fungsi (dokumen resmi Supabase); laporan 4b yang menyebut 8 detik sebagai penghalang diralat.
+
+**5b berjalan** (`docs/pintu-telegram.md`): migrasi 0015 (pintu Telegram) dan 0016 (baca tap versi 3, tambahan disetujui pemilik: 75,6 detik menjadi 4,2 detik bila baru ada file satu mesin) terpasang di Supabase; sidik hasil baca tap versi 3 sama persis dengan versi 2 di keempat periode. Uji: db/uji/110, sistem/pintu/uji_pintu.ts (T1-T8). Cadangan malam sempat gagal karena peran `pintu` tidak ikut cadangan; diperbaiki dengan `db/peran_proyek.sql` (commit 3e45e95). **Menunggu pemilik:** secret GitHub `TELEGRAM_BOT_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `HRD_TELEGRAM_ID`; lalu pemasangan ulang memasang Edge Function dan uji nyata.
 
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 
