@@ -101,3 +101,16 @@ Keterbatasan [Pasti]: baris bertanggal hanya boleh ditutup, tidak boleh diubah n
 | Pembulatan PPh 21 TER | Tidak ditemukan aturan pembulatan nominal PPh | — | Menebak | Pengaturan baru `pembulatan_pph21`, bawaan `bawah` (ke bawah ke rupiah) |
 | Contoh resmi TER | Tuan A, K/0: gaji 20 jt + tunjangan 10 jt + JKK 100 rb + JKM 60 rb = bruto 30.160.000 × TER A 13% = **Rp3.920.800** (masa Januari) | Ilustrasi Lampiran PMK 168/2023, dikutip DDTCNews | Kemungkinan Besar (kutipan, bukan naskah lampiran) | Kasus uji K1 di `docs/kunci-gaji.md` |
 | Batas bawah iuran BPJS Kesehatan | Batas paling rendah upah dasar iuran = UMK (bila tidak ada, UMP); batas atas Rp12 juta | Perpres 64/2020 Pasal 32 ayat 1–3 | Pasti (kutipan naskah di jdih.kemenkeu dan peraturan.go.id) | Dasar iuran Kesehatan dijepit antara UMK dan 12 juta |
+
+## 8. Cek tambahan untuk paket 4b-2 (17 Nov 2026)
+
+| Hal | Isi | Dasar | Label | Dipakai di |
+| --- | --- | --- | --- | --- |
+| Aturan THR yang berlaku | Masih Permenaker 6/2016; untuk Idul Fitri 2026 Kemnaker menerbitkan surat edaran yang mengulang aturan itu (dibayar paling lambat 7 hari sebelum hari raya). Belum ditemukan aturan THR baru sesudah UU 27/2026; UU menyerahkan THR ke PP (Pasal 134 ayat 4) | Permenaker 6/2016, SE Menaker 2026, UU 27/2026 Pasal 134 + 310 | Kemungkinan Besar (berita Bisnis.com Mar 2026, Hukumonline; naskah Permenaker belum dibaca) | THR |
+| Besar THR | Masa kerja 12 bulan atau lebih: 1 bulan upah. Masa kerja 1 bulan sampai kurang dari 12 bulan: masa kerja ÷ 12 × 1 bulan upah. Kurang dari 1 bulan: tidak berhak | Permenaker 6/2016 Pasal 2–3 | Kemungkinan Besar | THR = bulat(upah × bulan penuh ÷ 12), paling banyak 1 bulan upah |
+| Arti "1 bulan upah" THR | Upah tanpa tunjangan, atau upah pokok + tunjangan tetap | Permenaker 6/2016 Pasal 3 ayat 2 (dikutip detik, Bisnis) | Kemungkinan Besar | Upah = gaji pokok + tunjangan tetap pada tanggal bayar THR |
+| THR dan pajak | THR pekerja swasta kena PPh 21 di masa pembayarannya | berita Bisnis.com 5 Mar 2026 | Kemungkinan Besar | THR masuk bruto pajak periode yang memuat tanggal bayar THR |
+| Potongan upah yang boleh | Denda, ganti rugi, uang muka upah (harus diatur di perjanjian kerja/peraturan perusahaan/PKB); juga sewa, utang/cicilan utang, kelebihan bayar upah | PP 36/2021 Pasal 63 ayat 1–3 | Kemungkinan Besar (Hukumonline, prosiding Unisba; naskah PP belum dibaca) | Kasbon = uang muka upah/utang; denda hanya bila `aturan.tingkat_denda` punya dasar pasal |
+| Batas potongan | Jumlah keseluruhan potongan (Pasal 63) paling banyak 50% dari setiap pembayaran upah yang diterima | PP 36/2021 Pasal 65 | Kemungkinan Besar | Batas dihitung dari upah periode itu (tanpa THR, karena THR "pendapatan non upah"); BPJS dan PPh tidak termasuk (kewajiban negara, bukan Pasal 63) [Menebak untuk bagian terakhir] |
+| Masih berlaku sesudah UU 27/2026? | UU 27/2026 tidak mengatur ulang angka 50%; PP lama tetap berlaku sepanjang tidak bertentangan | UU 27/2026 Pasal 134 ayat 5, Pasal 310 | Pasti (naskah resmi UU) | — |
+

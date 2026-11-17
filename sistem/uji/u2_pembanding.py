@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Kalkulator pembanding gaji (U2 versi mesin), ditulis dari docs/aturan-hitung-gaji.md.
+"""Kalkulator pembanding gaji (U2 versi mesin), ditulis dari docs/aturan-hitung-gaji.md (versi 2).
 
 Tidak memakai kode SQL hitung gaji: hanya membaca masukan (hasil harian versi baca tap terakhir, data induk,
 aturan) lalu menghitung sendiri, kemudian membandingkan dengan hitung.rincian_gaji dan hitung.ringkasan_gaji
@@ -62,6 +62,13 @@ class Data:
         self.ptkp = q("select * from aturan.ptkp")
         self.ter = q("select * from aturan.tarif_ter")
         self.kode = {r["kode"]: r for r in q("select * from induk.kode_jadwal")}
+        self.thr = q("select * from aturan.thr")
+        self.denda = q("select * from aturan.tingkat_denda where cakupan = 'perusahaan'")
+        self.batas_potongan = q("select * from aturan.batas_potongan")
+        self.kasbon = defaultdict(list)
+        for r in q("select id_karyawan, jenis, jumlah, (dibuat at time zone 'Asia/Jakarta')::date as tanggal, id "
+                   "from fakta.buku_kasbon order by id"):
+            self.kasbon[r["id_karyawan"]].append(r)
         self.divisi = {r["kode"]: r for r in q("select * from induk.divisi")}
         self.jadwal = q("select * from induk.jadwal_hari")
         perintah = q("select * from fakta.perintah_hrd")
@@ -132,7 +139,8 @@ def satuan(data, jenis, menit, tanggal):
     return total, lewat
 
 
-def hitung_periode(data, periode):
+def hitung_periode(data, periode, sejarah):
+    """sejarah: {orang: {'kasbon': total dipotong di periode sebelumnya, 'sisa': sisa pembulatan periode sebelumnya}}"""
     awal, akhir, bayar = tgl(periode["tanggal_awal"]), tgl(periode["tanggal_akhir"]), tgl(periode["tanggal_bayar"])
     versi = q(f"select id from hitung.versi_terakhir where periode_id = {periode['id']} and jenis = 'baca_tap'")[0]["id"]
     hasil = defaultdict(list)
@@ -225,6 +233,51 @@ def hitung_periode(data, periode):
             s, _ = satuan(data, jenis, menit, h["tanggal"])
             lembur += bulat(s * dasar, 173 * 60 * 10)
         r["lembur"] = lembur
+        # H. THR
+        thr = 0
+        for t in data.thr:
+            tb = tgl(t["tanggal_bayar"])
+            if not (awal <= tb <= akhir) or not any(h["tanggal"] == tb for h in hari):
+                continue
+            mulai = data.mulai.get(orang)
+            hr = tgl(t["hari_raya"])
+            w = data.rw(orang, tb)
+            upah = int(w["gaji_pokok"]) + int(w["tunjangan_tetap"])
+            if t["cara_prorata"] == "hari":
+                hari_kerja = (hr - mulai).days
+                thr += bulat(upah * min(hari_kerja, 365), 365) if hari_kerja >= 30 else 0
+            else:
+                bulan = (hr.year - mulai.year) * 12 + hr.month - mulai.month - (1 if hr.day < mulai.day else 0)
+                thr += bulat(upah * min(bulan, 12), 12) if bulan >= 1 else 0
+        r["thr"] = thr
+        # I. denda dan kasbon
+        denda_minta = 0
+        for h in hari:
+            for d in berlaku(data.denda, h["tanggal"]):
+                lo, hi = int(d["dari_menit"]), (int(d["sampai_menit"]) if d["sampai_menit"] else None)
+                cocok = False
+                if d["jenis"] == "telat":
+                    m = int(h["menit_telat"]); cocok = m > 0 and m >= lo and (hi is None or m < hi)
+                elif d["jenis"] == "pulang_cepat":
+                    m = int(h["menit_pulang_cepat"]); cocok = m > 0 and m >= lo and (hi is None or m < hi)
+                elif d["jenis"] == "lupa_tap":
+                    cocok = bool(h["lupa_tap"])
+                elif d["jenis"] == "alpha":
+                    cocok = h["status"] == "alpha"
+                if cocok:
+                    denda_minta += int(d["nominal"])
+        dasar_batas = max(0, sum(r[k] for k in ("gaji_pokok", "tunjangan_tetap", "potongan_tidak_dibayar", "uang_makan",
+                                                 "tunjangan_shift_malam", "premi_hadir", "lembur")))
+        bp = berlaku(data.batas_potongan, akhir)
+        batas = dasar_batas * int(bp[0]["persen"]) // 10000 if bp else dasar_batas
+        r["denda"] = -min(denda_minta, batas)
+        catatan = [k for k in data.kasbon.get(orang, []) if k["tanggal"] <= akhir]
+        saldo = (sum(int(k["jumlah"]) for k in catatan if k["jenis"] == "pinjam")
+                 - sum(int(k["jumlah"]) for k in catatan if k["jenis"] == "pelunasan")
+                 - sejarah.get(orang, {}).get("kasbon", 0))
+        cicilan = [int(k["jumlah"]) for k in catatan if k["jenis"] == "cicilan"]
+        minta = min(cicilan[-1], saldo) if cicilan else saldo
+        r["kasbon"] = -max(0, min(minta, batas + r["denda"]))
         # E. BPJS
         perusahaan_pajak = 0
         for b in berlaku(data.bpjs, bayar):
@@ -244,7 +297,7 @@ def hitung_periode(data, periode):
                     perusahaan_pajak += nilai
         # F. PPh 21
         pendapatan = sum(r[k] for k in ("gaji_pokok", "tunjangan_tetap", "potongan_tidak_dibayar", "uang_makan",
-                                        "tunjangan_shift_malam", "premi_hadir", "lembur"))
+                                        "tunjangan_shift_malam", "premi_hadir", "lembur", "thr"))
         bruto = pendapatan + perusahaan_pajak
         pph = 0
         if bayar.month != 12 and bruto > 0:
@@ -259,21 +312,38 @@ def hitung_periode(data, periode):
             else:
                 pph = bruto * persen // 10000
         r["pph21"] = -pph
-        bersih = pendapatan + sum(v for k, v in r.items() if k.endswith("_karyawan")) - pph
-        keluar[orang] = (r, bruto, bersih)
+        bersih = pendapatan + sum(v for k, v in r.items() if k.endswith("_karyawan")) - pph + r["denda"] + r["kasbon"]
+        # J. tunai dan sisa
+        lalu = sejarah.get(orang, {}).get("sisa", 0)
+        total = bersih + lalu
+        if total < 0:
+            dibayar, sisa = 0, total
+        elif w_akhir["cara_bayar"] == "tunai":
+            kel = int(data.atur("pembulatan_tunai", "perusahaan", akhir))
+            dibayar = total // kel * kel
+            sisa = total - dibayar
+        else:
+            dibayar, sisa = total, 0
+        keluar[orang] = (r, bruto, bersih, dibayar, sisa)
     return keluar
 
 
 def main():
     data = Data()
-    semua = q("select * from fakta.periode order by id")
+    semua = q("select * from fakta.periode order by tanggal_awal")
     pilih = set(sys.argv[1:])
     selisih = 0
     orang_total = 0
+    kasbon_lalu = defaultdict(int)   # total kasbon dipotong di periode-periode sebelumnya (hitungan pembanding sendiri)
+    sisa_lalu = {}                    # sisa pembulatan periode sebelumnya
     for periode in semua:
+        sejarah = {o: {"kasbon": kasbon_lalu[o], "sisa": sisa_lalu.get(o, 0)} for o in set(kasbon_lalu) | set(sisa_lalu)}
+        harap = hitung_periode(data, periode, sejarah)
+        sisa_lalu = {o: v[4] for o, v in harap.items()}
+        for o, v in harap.items():
+            kasbon_lalu[o] += -v[0]["kasbon"]
         if pilih and periode["id"] not in pilih:
             continue
-        harap = hitung_periode(data, periode)
         v = q(f"select id from hitung.versi_terakhir where periode_id = {periode['id']} and jenis = 'hitung_gaji'")
         if not v:
             print(f"periode {periode['id']}: belum ada hasil hitung gaji")
@@ -285,7 +355,7 @@ def main():
             sistem[r["id_karyawan"]][r["komponen"]] = int(r["nominal"])
         ringkas = {r["id_karyawan"]: r for r in q(f"select * from hitung.ringkasan_gaji where versi_id = {versi}")}
         beda_periode = 0
-        for orang, (r, bruto, bersih) in sorted(harap.items()):
+        for orang, (r, bruto, bersih, dibayar, sisa) in sorted(harap.items()):
             s = sistem.get(orang, {})
             for k in set(r) | set(s):
                 if r.get(k, 0) != s.get(k, 0):
@@ -293,11 +363,12 @@ def main():
                     if beda_periode <= 15:
                         print(f"  periode {periode['id']} {orang} {k}: pembanding {r.get(k, 0)}, sistem {s.get(k, 0)}")
             g = ringkas.get(orang)
-            if not g or int(g["bruto_pajak"]) != bruto or int(g["gaji_bersih"]) != bersih:
+            if not g or (int(g["bruto_pajak"]), int(g["gaji_bersih"]), int(g["dibayar"]), int(g["sisa_pembulatan"])) \
+                    != (bruto, bersih, dibayar, sisa):
                 beda_periode += 1
                 if beda_periode <= 15:
-                    print(f"  periode {periode['id']} {orang} ringkasan: pembanding bruto {bruto} bersih {bersih}, "
-                          f"sistem {g and g['bruto_pajak']} {g and g['gaji_bersih']}")
+                    print(f"  periode {periode['id']} {orang} ringkasan: pembanding {bruto} {bersih} {dibayar} {sisa}, "
+                          f"sistem {g and (g['bruto_pajak'], g['gaji_bersih'], g['dibayar'], g['sisa_pembulatan'])}")
         extra = set(sistem) - set(harap)
         beda_periode += len(extra)
         orang_total += len(harap)
