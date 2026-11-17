@@ -1,6 +1,6 @@
 # Aturan hitung gaji
 
-Versi 3 · 17 November 2026 (versi 1: 16 Nov, paket 4b-1; versi 2: bagian H–K, paket 4b-2; versi 3: bagian L–N, paket 4b-3) · setiap versi ditulis **sebelum** kodenya. Kode SQL (`hitung.hitung_gaji`) dan kalkulator pembanding (`sistem/uji/u2_pembanding.py`) sama-sama ditulis dari dokumen ini, terpisah satu sama lain, dan tidak berbagi kode. Kalau keduanya berbeda, yang diperiksa dulu dokumen ini.
+Versi 4 · 17 November 2026 (versi 1: 16 Nov, paket 4b-1; versi 2: bagian H–K, paket 4b-2; versi 3: bagian L–N, paket 4b-3; versi 4: bagian O, paket 4b-4) · setiap versi ditulis **sebelum** kodenya. Kode SQL (`hitung.hitung_gaji`) dan kalkulator pembanding (`sistem/uji/u2_pembanding.py`) sama-sama ditulis dari dokumen ini, terpisah satu sama lain, dan tidak berbagi kode. Kalau keduanya berbeda, yang diperiksa dulu dokumen ini.
 
 Dasar hukum dan labelnya: `docs/cek-aturan-hukum.md`. Kasus uji dengan angka harapan: bagian "Kunci" di bawah dan kasus jebakan v1.2.
 
@@ -107,6 +107,15 @@ Nominal dari `aturan.komponen_lain` yang berlaku pada tanggalnya; hidup/mati dar
 
 - **N1** Untuk setiap orang dibayar tunai: dibayar dipecah rakus ke pecahan 100.000, 50.000, 20.000, 10.000, 5.000, 2.000, 1.000 (hanya pecahan yang ≥ pembulatan tunai). Fungsi `hitung.pecahan_tunai(versi)` mengembalikan lembar per pecahan untuk satu versi gaji; jumlahnya harus sama dengan total dibayar tunai (U12).
 
+## O. Tanda anomali sebelum rilis (versi 4, U10)
+
+Dasar: PRD v3.1 bagian H1 ("gaji berubah >15%, lembur divisi naik >30%") dan U10. Tanda tidak mengubah angka gaji dan tidak menahan pengajuan; HRD memeriksanya sebelum rilis. Fungsi `hitung.anomali_gaji(periode)` menghitungnya dari versi gaji terakhir, tidak disimpan.
+
+- **O1 Periode lalu** = periode dengan tanggal awal terbesar sebelum tanggal awal P yang punya versi gaji. Tidak ada → O2 dan O3 tidak diperiksa.
+- **O2 Gaji berubah** (`gaji_berubah`): untuk orang yang punya ringkasan gaji di P dan di periode lalu, nilai banding = jumlah rincian kelompok pendapatan **tanpa** `thr` dan `pengembalian_pph21`. Tanda bila nilai lalu > 0 dan |nilai P − nilai lalu| × 100 > 15 × nilai lalu (lebih dari 15%, naik atau turun). Isi tanda: nilai lalu, nilai P.
+- **O3 Lembur divisi naik** (`lembur_divisi_naik`): divisi orang = divisi di hari terakhirnya di hasil harian periode itu. Jumlah komponen `lembur` per divisi di P dibanding periode lalu. Tanda bila jumlah P × 100 > 130 × jumlah lalu (lebih dari 30%), termasuk bila jumlah lalu 0 dan jumlah P > 0.
+- **O4 Aktif tanpa tap** (`aktif_tanpa_tap`): orang dengan gaji bersih > 0 di P yang tidak punya satu pun hari dengan asal `mesin` di hasil harian P (termasuk yang tidak wajib tap dan yang seluruh harinya dari perintah HRD; isi tanda menyebut asal harinya). Diperiksa juga di periode pertama.
+
 ## Kunci (angka harapan, ditulis sebelum kode)
 
 Upah contoh kasus jebakan: gaji pokok 3.500.000 + tunjangan tetap 500.000 = 4.000.000; upah sejam = 4.000.000 ÷ 173.
@@ -150,6 +159,15 @@ Upah contoh kasus jebakan: gaji pokok 3.500.000 + tunjangan tetap 500.000 = 4.00
 | K35 (C02b) | Cuti bersama 24 Des 2026, pengaturan potong cuti | cuti terpakai 0, tanda potong cuti tidak berlaku | M1 |
 | K36 | Saldo awal 5 hari pada awal periode, 2 hari cuti, ulang tahun kerja di periode itu | saldo akhir 5 + 12 − 2 = 15 | M3 |
 | K37 (U12) | Dibayar tunai 3.847.000 | 38 × 100.000, 2 × 20.000, 1 × 5.000, 1 × 2.000 | N1 |
+| K38 (O2) | Pendapatan 4.000.000 periode lalu, naik gaji jadi 4.700.000 | tanda gaji berubah (17,5%) | O2 |
+| K39 (O2) | 4.000.000 → 4.600.000 | tidak ada tanda (tepat 15%, bukan lebih) | O2 |
+| K40 (O2) | 4.000.000 → 4.000.000 + THR 4.000.000 | tidak ada tanda (THR tidak dibanding) | O2 |
+| K41 (O2) | 4.000.000 → 3.000.000 | tanda gaji berubah (turun 25%) | O2 |
+| K42 (O3) | Divisi satu orang upah 4.000.000: lembur 120 menit (Rp80.925) → 2 × 120 menit (Rp161.850) | tanda lembur divisi naik | O3, K3 |
+| K43 (O3) | Lembur divisi Rp80.925 → Rp80.925 | tidak ada tanda | O3 |
+| K44 (O4) | Seluruh hari periode berstatus sakit dari perintah HRD, tanpa tap mesin, gaji dibayar | tanda aktif tanpa tap | O4 |
+| K45 (O4) | Sama, tetapi satu hari ada tap mesin | tidak ada tanda | O4 |
+| K46 (O1) | Periode pertama | hanya O4 yang diperiksa | O1 |
 
 Catatan K9/K10: aturan "yang lebih besar" yang disetujui untuk tanggal sesudah 28 Okt 2026 selalu memberi angka yang sama dengan aturan 75% lama (aturan lama memilih 75% justru bila nilainya lebih besar). Bedanya hanya tanda konfirmasi.
 
