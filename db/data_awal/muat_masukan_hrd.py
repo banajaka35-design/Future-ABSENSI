@@ -1,4 +1,4 @@
-"""Mengubah masukan HRD simulasi (sakit, izin, cuti, tukar shift, absen manual) menjadi perintah HRD.
+"""Mengubah masukan HRD simulasi (sakit, izin, cuti, tukar shift, absen manual, perintah lembur) menjadi perintah HRD.
 
 Keputusan pemilik 13 Nov 2026 (paket Tahap 3, pilihan 1a): perintah dari file masukan simulasi ikut
 diproses, dengan asal 'file' (PRD bagian 9: perubahan banyak orang sekaligus memakai file). Tahap 7
@@ -18,7 +18,11 @@ import os
 import sys
 
 AKAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "simulasi")
-DIMUAT = {"sakit", "izin", "cuti", "tukar_shift", "absen_manual"}
+DIMUAT = {"sakit", "izin", "cuti", "tukar_shift", "absen_manual", "perintah_lembur"}
+# Nama jenis di file simulasi yang berbeda dengan nama perintah di sistem. Perintah lembur Pabrik B
+# (pengaturan "wajib perintah") menjadi persetujuan lembur untuk satu orang satu tanggal; nilai menit
+# disimpan, tetapi aturan hitung belum memakainya (seluruh lembur hari itu dibayar).
+GANTI_JENIS = {"perintah_lembur": "setujui_lembur"}
 
 
 def nilai(v):
@@ -42,7 +46,7 @@ def main(pabrik):
                 if m["jenis"] == "absen_manual":
                     # Absen manual satu divisi: nilai berisi kode divisi.
                     divisi, isi = m["nilai"], None
-                baris.append((f"{m['tanggal_kirim']} 13:00:00+07", "file", m["jenis"], m["id_karyawan"] or None, divisi,
+                baris.append((f"{m['tanggal_kirim']} 13:00:00+07", "file", GANTI_JENIS.get(m["jenis"], m["jenis"]), m["id_karyawan"] or None, divisi,
                               m["tanggal_mulai"], m["tanggal_selesai"] or None, isi, m["catatan"] or None))
     out = ["begin;", "set local app.pengguna = 'masukan-hrd-simulasi';",
            "copy fakta.perintah_hrd (dibuat, asal, jenis, id_karyawan, divisi, tanggal_mulai, tanggal_selesai, nilai, alasan) from stdin;"]

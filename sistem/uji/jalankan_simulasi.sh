@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Uji Tahap 3 dengan data simulasi lengkap Pabrik A (4 periode), di database Postgres sementara.
+# Uji dengan data simulasi lengkap Pabrik A dan Pabrik B (4 periode masing-masing), di database Postgres sementara.
 #   U1  hasil per orang per hari vs kunci jawaban (dengan koreksi jam mesin dan tanpa koreksi)
 #   U4  file sama dikirim dua kali tidak dobel; kiriman salah dibatalkan tanpa sisa
 #   U6  file ekspor aplikasi dan attlog.dat dengan tap yang sama memberi hasil yang sama persis
 #   Sidik: dua kali hitung dengan masukan sama menghasilkan sidik yang sama
+#   U5  Pabrik B dengan kode yang sama: U1, U2 (pembanding), U3
+#   U10 anomali gaji yang ditanam di salinan data uji tertangkap
 # Setiap uji memakai database baru. Pemakaian:
 #   ADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres sistem/uji/jalankan_simulasi.sh
 set -euo pipefail
@@ -106,7 +108,54 @@ siapkan uji_sim_attlog attlog ya
 ATTLOG="$(nilai "$SIDIK_HASIL")"
 cek "hasil per orang per hari sama persis" "$ATTLOG" "$EKSPOR"
 
-for db in uji_sim_a uji_sim_tanpa_koreksi uji_sim_ekspor uji_sim_attlog; do
+echo "== U5: Pabrik B dengan kode yang sama (180 karyawan, 4 periode bulan kalender)"
+psql "$ADMIN_URL" -X -q -c "drop database if exists uji_sim_b" -c "create database uji_sim_b" 2> /dev/null
+export DB_URL="$DASAR/uji_sim_b"
+psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -f db/uji/persiapan_peran.sql
+db/pasang.sh > /dev/null
+psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -f db/data_awal/pabrik_b_struktur.sql
+python3 db/data_awal/muat_karyawan.py B | psql "$DB_URL" -X -q -o /dev/null -v ON_ERROR_STOP=1
+python3 db/data_awal/muat_masukan_hrd.py B | psql "$DB_URL" -X -q -o /dev/null -v ON_ERROR_STOP=1
+db/data_awal/muat_tap_simulasi.sh ekspor B > /dev/null
+nilai "select count(hitung.baca_tap(id)) from fakta.periode" > /dev/null
+echo "  Jumlah: $(nilai "select count(*) from fakta.tap_mentah") tap mentah, \
+$(nilai "select count(*) from hitung.hasil_harian h join hitung.versi_terakhir v on v.id = h.versi_id") hari-orang, \
+$(nilai "select count(*) from fakta.perintah_hrd where jenis = 'setujui_lembur'") persetujuan lembur"
+if python3 sistem/uji/u1_banding.py B; then cek "U5/U1 Pabrik B: hasil per orang per hari vs kunci jawaban" lulus lulus;
+else cek "U5/U1 Pabrik B: hasil per orang per hari vs kunci jawaban" gagal lulus; fi
+nilai "select count(hitung.hitung_gaji(id)) from fakta.periode" > /dev/null
+if python3 sistem/uji/u2_pembanding.py; then cek "U5/U2 Pabrik B: kalkulator pembanding sama dengan sistem sampai rupiah" lulus lulus;
+else cek "U5/U2 Pabrik B: kalkulator pembanding sama dengan sistem sampai rupiah" gagal lulus; fi
+CEK_B="$({ echo "begin;"; cat db/uji/alat.sql db/data_awal/cek_gaji.sql; echo "rollback;"; } | psql "$DB_URL" -X -q -t -o /dev/null 2>&1 || true)"
+echo "$CEK_B" | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | grep -E "LULUS|GAGAL|hasil:" || true
+cek "U5/U3 Pabrik B: pemeriksaan gaji tanpa GAGAL" "$(echo "$CEK_B" | grep -c GAGAL || true)" 0
+cek "U5 Pabrik B: lembur tanpa perintah tidak dibayar dan diberi tanda (pengaturan wajib perintah)" \
+  "$(nilai "select count(*) > 0 from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id
+            where v.jenis = 'hitung_gaji' and 'lembur_tidak_dibayar_tanpa_izin' = any(g.peringatan)")" t
+cek "U5 Pabrik B: cuti bersama 24 Des 2026 tidak memotong cuti (cuti terpakai Desember = hari cuti saja)" \
+  "$(nilai "select (select sum(g.cuti_terpakai) from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id
+                    join fakta.periode p on p.id = v.periode_id where v.jenis = 'hitung_gaji' and p.tanggal_awal = '2026-12-01')
+                 = (select count(*) from hitung.hasil_harian h join hitung.versi_terakhir v on v.id = h.versi_id
+                    join fakta.periode p on p.id = v.periode_id where p.tanggal_awal = '2026-12-01' and h.status = 'cuti')")" t
+
+echo "== U10: anomali gaji (Pabrik B, periode April; tanda bawaan tanpa ditanam dicatat sebagai pembanding)"
+for p in 2026-03-01 2026-04-01 2026-12-01; do
+  echo "  Tanda sebelum ditanam, periode $p: $(nilai "select coalesce(string_agg(jenis || ' ' || n, ', ' order by jenis), 'tidak ada')
+    from (select jenis, count(*) n from hitung.anomali_gaji((select id from fakta.periode where tanggal_awal = '$p')) group by jenis) x")"
+done
+psql "$DB_URL" -X -q -o /dev/null -v ON_ERROR_STOP=1 -f sistem/uji/tanam_anomali.sql
+for j in gaji_berubah lembur_divisi_naik aktif_tanpa_tap; do
+  K="$(nilai "select kunci from public.tanam_anomali where jenis = '$j'")"
+  cek "U10 $j ($K) belum bertanda sebelum ditanam" "$(nilai "select sebelum from public.tanam_anomali where jenis = '$j'")" f
+  cek "U10 $j ($K) tertangkap sesudah ditanam" "$(nilai "select exists (select 1 from hitung.anomali_gaji((select id from fakta.periode
+      where tanggal_awal = '2026-04-01')) a where a.jenis = '$j' and (a.id_karyawan = '$K' or a.divisi = '$K'))")" t
+done
+echo "  Isi tanda: $(nilai "select string_agg(a.keterangan, ' | ') from hitung.anomali_gaji((select id from fakta.periode
+  where tanggal_awal = '2026-04-01')) a join public.tanam_anomali t on t.jenis = a.jenis and (a.id_karyawan = t.kunci or a.divisi = t.kunci)")"
+if python3 sistem/uji/u2_pembanding.py > /dev/null; then cek "U10: sesudah ditanam, pembanding tetap sama dengan sistem" lulus lulus;
+else cek "U10: sesudah ditanam, pembanding tetap sama dengan sistem" gagal lulus; fi
+
+for db in uji_sim_a uji_sim_tanpa_koreksi uji_sim_ekspor uji_sim_attlog uji_sim_b; do
   psql "$ADMIN_URL" -X -q -c "drop database if exists $db"
 done
 echo

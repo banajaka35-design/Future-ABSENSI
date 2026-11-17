@@ -119,6 +119,7 @@ select uji.sama('K46: periode pertama tetap memeriksa aktif tanpa tap (sopir)', 
 select uji.sama('orang biasa tanpa tanda apa pun', 
   (select count(*) from hitung.anomali_gaji((select id from fakta.periode where tanggal_awal = '2026-04-21')) a
    where a.id_karyawan in ('LE1', 'GTHR', 'G46'))::int, 0);
-select uji.sama('anomali tidak mengubah angka: gaji bersih G47 = 4.700.000', (pg_temp.g('G47', '2026-04-21')).gaji_bersih, 4700000::bigint);
+select uji.sama('anomali tidak mengubah angka: gaji bersih G47 tetap = jumlah rinciannya (THR ikut PPh)',
+  (pg_temp.g('G47', '2026-04-21')).gaji_bersih, 4200000 + 500000 + 4700000 + pg_temp.r('G47', 'pph21', '2026-04-21'));
 
 rollback;

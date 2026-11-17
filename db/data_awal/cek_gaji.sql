@@ -25,3 +25,8 @@ select uji.sama('gaji: versi gaji terakhir setiap periode memakai versi kode ter
 select uji.sama('gaji: dibayar + sisa = gaji bersih + sisa lalu',
   (select count(*) from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id
    where g.dibayar + g.sisa_pembulatan <> g.gaji_bersih + g.sisa_lalu)::int, 0);
+select uji.sama('anomali gaji (U10): daftar tanda bisa dibuat untuk setiap periode',
+  (select count(*) from fakta.periode p cross join lateral (select count(*) from hitung.anomali_gaji(p.id)) x)::int,
+  (select count(*) from fakta.periode)::int);
+select uji.sama('anomali gaji (U10): setiap tanda berisi keterangan',
+  (select count(*) from fakta.periode p cross join lateral hitung.anomali_gaji(p.id) a where a.keterangan is null)::int, 0);
