@@ -104,14 +104,15 @@ pasang() {
 $(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p order by nomor desc limit 1") ms di database"
   done
 
-  echo "== Hitung gaji (hanya periode yang belum punya hasil gaji dari baca tap terakhir)"
+  echo "== Hitung gaji (periode tanpa hasil gaji dari baca tap terakhir dan versi kode terbaru; urut tanggal)"
   # Daftar diambil dulu ke variabel: galat di dalam "for ... in $(...)" tidak menghentikan skrip.
   local daftar_gaji
   daftar_gaji="$(nilai "select p.id from fakta.periode p
                         join hitung.versi_terakhir b on b.periode_id = p.id and b.jenis = 'baca_tap'
                         where not exists (select 1 from hitung.versi_terakhir g
-                                          where g.periode_id = p.id and g.jenis = 'hitung_gaji' and g.versi_sumber = b.id)
-                        order by p.id")"
+                                          where g.periode_id = p.id and g.jenis = 'hitung_gaji' and g.versi_sumber = b.id
+                                            and g.versi_kode = hitung.versi_kode_gaji())
+                        order by p.tanggal_awal")"
   for p in $daftar_gaji; do
     mulai=$(date +%s%N)
     "${PSQL[@]}" -t -A -o /dev/null -c "select hitung.hitung_gaji($p)"

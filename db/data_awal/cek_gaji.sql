@@ -20,3 +20,8 @@ select uji.sama('gaji U3: total gaji bersih = total rincian per periode, selisih
          <> (select sum(nominal) from hitung.rincian_gaji where versi_id = v.id and kelompok <> 'perusahaan'))::int, 0);
 select uji.sama('gaji: tidak ada gaji bersih negatif',
   (select count(*) from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id where g.gaji_bersih < 0)::int, 0);
+select uji.sama('gaji: versi gaji terakhir setiap periode memakai versi kode terbaru',
+  (select count(*) from hitung.versi_terakhir v where v.jenis = 'hitung_gaji' and v.versi_kode <> hitung.versi_kode_gaji())::int, 0);
+select uji.sama('gaji: dibayar + sisa = gaji bersih + sisa lalu',
+  (select count(*) from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id
+   where g.dibayar + g.sisa_pembulatan <> g.gaji_bersih + g.sisa_lalu)::int, 0);
