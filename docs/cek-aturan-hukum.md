@@ -114,3 +114,17 @@ Keterbatasan [Pasti]: baris bertanggal hanya boleh ditutup, tidak boleh diubah n
 | Batas potongan | Jumlah keseluruhan potongan (Pasal 63) paling banyak 50% dari setiap pembayaran upah yang diterima | PP 36/2021 Pasal 65 | Kemungkinan Besar | Batas dihitung dari upah periode itu (tanpa THR, karena THR "pendapatan non upah"); BPJS dan PPh tidak termasuk (kewajiban negara, bukan Pasal 63) [Menebak untuk bagian terakhir] |
 | Masih berlaku sesudah UU 27/2026? | UU 27/2026 tidak mengatur ulang angka 50%; PP lama tetap berlaku sepanjang tidak bertentangan | UU 27/2026 Pasal 134 ayat 5, Pasal 310 | Pasti (naskah resmi UU) | — |
 
+## 9. Cek tambahan untuk paket 4b-3 (17 Nov 2026)
+
+| Hal | Isi | Dasar | Label | Dipakai di |
+| --- | --- | --- | --- | --- |
+| Hitung ulang masa terakhir | Di masa pajak terakhir (Desember, atau bulan pegawai berhenti) PPh setahun dihitung dengan tarif Pasal 17 atas penghasilan kena pajak setahun, dikurangi PPh yang sudah dipotong dengan TER di masa sebelumnya | PMK 168/2023 | Kemungkinan Besar (DDTCNews, kutipan ilustrasi lampiran) | PPh masa terakhir |
+| Uji contoh resmi | Ilustrasi Tuan A (K/0, gaji 20 jt + tunjangan 10 jt + JKK 100 rb + JKM 60 rb per bulan, THR 20 jt Maret, bonus 20 jt Desember, iuran pensiun pegawai 100 rb/bulan, zakat lewat pemberi kerja 200 rb/bulan): **PPh Desember Rp4.218.200** | Ilustrasi Lampiran PMK 168/2023, dikutip DDTCNews | Kemungkinan Besar | Hitungan Claude dari unsur di bawah menghasilkan angka **sama persis** (bruto setahun 401.920.000; biaya jabatan 6.000.000; pengurang 3.600.000; PTKP K/0 58.500.000; PKP 333.820.000; PPh setahun 52.455.000; TER Jan–Nov 48.236.800). Ini menguji pemahaman Claude atas semua unsur sekaligus |
+| Biaya jabatan | 5% dari penghasilan bruto, paling banyak Rp500.000 sebulan atau Rp6.000.000 setahun | PMK 168/2023 (sama dengan PMK 250/2008 lama) | Kemungkinan Besar | Batas = 500.000 × banyak bulan pegawai menerima gaji di tahun itu |
+| Pengurang lain | Iuran pensiun/JHT/JP yang dibayar pegawai; zakat lewat pemberi kerja | UU PPh Pasal 21 ayat 3, PMK 168 | Kemungkinan Besar | Iuran JHT + JP karyawan; zakat belum ada tempat datanya (0) |
+| Tarif Pasal 17 | 5% s.d. 60 jt; 15% 60–250 jt; 25% 250–500 jt; 30% 500 jt–5 M; 35% di atas 5 M | UU HPP (UU 7/2021) Pasal 17 ayat 1a | Pasti (diketahui luas; dicocokkan lewat contoh di atas) | Tabel baru `aturan.tarif_pasal17` |
+| Pembulatan PKP | Ke bawah hingga ribuan rupiah penuh | PMK 168/2023 Pasal 8 ayat 4 | Kemungkinan Besar | PKP |
+| Pegawai masuk atau berhenti di tengah tahun | Penghasilan tidak disetahunkan; PTKP penuh setahun; masa terakhir = bulan berhenti | PMK 168/2023 (praktik umum; naskah belum dibaca) | Menebak | PPh masa terakhir pegawai berhenti |
+| Kelebihan potong | Bila PPh setahun lebih kecil dari yang sudah dipotong, kelebihannya dikembalikan ke pegawai di masa terakhir | PMK 168/2023 | Kemungkinan Besar | Komponen `pengembalian_pph21` (pendapatan, tidak ikut bruto pajak) |
+| Cuti tahunan dan cuti bersama | 12 hari kerja setelah 12 bulan terus-menerus (Pasal 118 ayat 5); cuti bersama dari pemerintah tidak mengurangi cuti tahunan (ayat 6), berlaku sejak 28 Okt 2026 | UU 27/2026 | Pasti (naskah resmi) | Saldo cuti |
+

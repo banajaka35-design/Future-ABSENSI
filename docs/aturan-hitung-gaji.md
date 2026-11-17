@@ -1,6 +1,6 @@
 # Aturan hitung gaji
 
-Versi 2 · 17 November 2026 (versi 1: 16 Nov, paket 4b-1; versi 2 menambah bagian H–K untuk paket 4b-2) · setiap versi ditulis **sebelum** kodenya. Kode SQL (`hitung.hitung_gaji`) dan kalkulator pembanding (`sistem/uji/u2_pembanding.py`) sama-sama ditulis dari dokumen ini, terpisah satu sama lain, dan tidak berbagi kode. Kalau keduanya berbeda, yang diperiksa dulu dokumen ini.
+Versi 3 · 17 November 2026 (versi 1: 16 Nov, paket 4b-1; versi 2: bagian H–K, paket 4b-2; versi 3: bagian L–N, paket 4b-3) · setiap versi ditulis **sebelum** kodenya. Kode SQL (`hitung.hitung_gaji`) dan kalkulator pembanding (`sistem/uji/u2_pembanding.py`) sama-sama ditulis dari dokumen ini, terpisah satu sama lain, dan tidak berbagi kode. Kalau keduanya berbeda, yang diperiksa dulu dokumen ini.
 
 Dasar hukum dan labelnya: `docs/cek-aturan-hukum.md`. Kasus uji dengan angka harapan: bagian "Kunci" di bawah dan kasus jebakan v1.2.
 
@@ -51,7 +51,7 @@ Nominal dari `aturan.komponen_lain` yang berlaku pada tanggalnya; hidup/mati dar
 ## F. PPh 21 (Januari–November)
 
 - **F1 Bruto pajak** = jumlah semua pendapatan (B, C, D, termasuk potongan hari tidak dibayar) + iuran perusahaan JKK, JKM, dan Kesehatan. JHT dan JP perusahaan tidak masuk.
-- **F2 Masa pajak** = bulan tanggal bayar. Masa Desember → PPh tidak dihitung di paket ini; diberi tanda "PPh Desember (hitung ulang setahun) belum dihitung", nilai 0.
+- **F2 Masa pajak** = bulan tanggal bayar. Masa terakhir (Desember, atau periode tempat pegawai berhenti) dihitung menurut bagian L (versi 3); masa lain memakai TER.
 - **F3 Kategori TER** dari status PTKP yang berlaku pada 1 Januari tahun tanggal bayar, atau pada tanggal mulai kerja bila lebih akhir. Tarif dari `aturan.tarif_ter` pada tanggal bayar.
 - **F4 PPh** = bruto × persen ÷ 10000, dibulatkan menurut pengaturan `pembulatan_pph21` (`bawah` bawaan, atau `terdekat`). Bruto 0 atau kurang → 0.
 
@@ -88,6 +88,25 @@ Nominal dari `aturan.komponen_lain` yang berlaku pada tanggalnya; hidup/mati dar
 
 - G1 berubah: dibayar mengikuti J2; gaji bersih tetap = jumlah rincian pendapatan dan potongan.
 
+## L. PPh masa terakhir (versi 3)
+
+- **L1 Masa terakhir** = periode yang tanggal bayarnya di bulan Desember, atau periode yang memuat tanggal berhenti pegawai (status kerja `berhenti` di antara tanggal awal dan akhir).
+- **L2 Data setahun lengkap** bila untuk setiap bulan 1 sampai (bulan bayar − 1) tahun itu ada periode perusahaan yang tanggal bayarnya di bulan tersebut dan punya hasil hitung gaji. Tidak lengkap → PPh masa itu **tidak dihitung** (nilai 0), tanda `pph_masa_terakhir_tertahan`; periode itu tidak boleh diajukan (fungsi `hitung.periode_bisa_diajukan`).
+- **L3 Unsur setahun** (semua periode yang dibayar di tahun itu sebelum periode ini, versi gaji terakhirnya, ditambah periode ini): bruto = jumlah bruto pajak; iuran = jumlah iuran JHT + JP bagian karyawan; bulan = banyak periode itu yang memuat orang ini; PPh sudah dipotong = jumlah PPh 21 periode sebelumnya (dikurangi pengembaliannya bila ada).
+- **L4** Biaya jabatan = min(5% × bruto dibulatkan ke bawah, 500.000 × bulan). Neto = bruto − biaya jabatan − iuran. PTKP = nilai setahun status PTKP (acuan sama dengan F3). PKP = ke bawah ribuan dari (neto − PTKP), paling kecil 0.
+- **L5** PPh setahun = tarif Pasal 17 berlapis (`aturan.tarif_pasal17`, berlaku tanggal bayar) atas PKP, dibulatkan ke bawah ke rupiah. PPh masa terakhir = PPh setahun − PPh sudah dipotong. Positif → komponen `pph21` (potongan). Negatif → `pph21` 0 dan komponen `pengembalian_pph21` (pendapatan, tidak ikut bruto pajak, tidak ikut dasar lembur dan batas potongan).
+
+## M. Saldo cuti (versi 3)
+
+- **M1 Cuti terpakai** periode ini = banyak hari berstatus `cuti`, ditambah hari jenis `cuti_bersama` berstatus `libur` bila pengaturan `cuti_bersama` divisi pada tanggal itu = `potong_cuti` **dan** tanggalnya sebelum 28 Okt 2026. Sejak 28 Okt 2026 hari itu tidak memotong; bila pengaturannya masih `potong_cuti` diberi tanda `potong_cuti_tidak_berlaku_uu27` (C02b).
+- **M2 Saldo awal** dari tabel baru `induk.saldo_cuti_awal` (diisi HRD, tanggal = tanggal awal sebuah periode). Saldo dihitung hanya bila periode-periode dari tanggal saldo awal sampai periode ini bersambung tanpa celah; selain itu saldo kosong (belum pasti), tanpa tanda.
+- **M3 Saldo akhir** = saldo awal + jatah (`aturan.cuti`, 12 hari) untuk setiap ulang tahun kerja (mulai + 12, 24, … bulan) yang jatuh setelah tanggal saldo awal sampai tanggal akhir periode − cuti terpakai semua periode itu. Cuti hangus belum dihitung.
+- **M4** Ringkasan menyimpan cuti terpakai dan saldo cuti.
+
+## N. Pecahan uang tunai (versi 3)
+
+- **N1** Untuk setiap orang dibayar tunai: dibayar dipecah rakus ke pecahan 100.000, 50.000, 20.000, 10.000, 5.000, 2.000, 1.000 (hanya pecahan yang ≥ pembulatan tunai). Fungsi `hitung.pecahan_tunai(versi)` mengembalikan lembar per pecahan untuk satu versi gaji; jumlahnya harus sama dengan total dibayar tunai (U12).
+
 ## Kunci (angka harapan, ditulis sebelum kode)
 
 Upah contoh kasus jebakan: gaji pokok 3.500.000 + tunjangan tetap 500.000 = 4.000.000; upah sejam = 4.000.000 ÷ 173.
@@ -121,9 +140,19 @@ Upah contoh kasus jebakan: gaji pokok 3.500.000 + tunjangan tetap 500.000 = 4.00
 | K25 | Berhenti tengah periode, pendapatan prorata 1.500.000, sisa kasbon 300.000 | batas 750.000 → kasbon 300.000 terpotong penuh, saldo 0 | E12 (bagian kasbon) |
 | K26 | Shift 7 jam di hari libur nasional; lembur hari kerja 250 menit | yang pertama tanpa peringatan; yang kedua "lewat batas 4 jam" | D10 versi 2 |
 | K27 | Gaji transfer | tidak dibulatkan, sisa 0 | J2 |
+| K28 | PPh setahun: bruto 401.920.000, pengurang 3.600.000, K/0, 12 bulan | PPh setahun Rp52.455.000 | Ilustrasi PMK 168 (Tuan A) |
+| K29 | PPh Desember Tuan A: 52.455.000 − (10 × 3.920.800 + 9.028.800) | Rp4.218.200 | Ilustrasi PMK 168 (DDTCNews) |
+| K30 (E11) | 12 periode lengkap, gaji tetap 4.000.000 TK/0, BPJS tidak ikut | Desember = PPh setahun (bruto 48.000.000 − biaya jabatan 2.400.000 = 45.600.000 < PTKP 54.000.000 → 0) − TER Jan–Nov (0) = 0 | hitungan Claude |
+| K31 (E11) | 12 periode lengkap, gaji 10.000.000 TK/0, tanpa BPJS | TER Jan–Nov 2% × 10 jt = 200.000 × 11 = 2.200.000; setahun: bruto 120 jt − BJ 6 jt = 114 jt − PTKP 54 jt = PKP 60 jt → 3.000.000; Desember = 800.000 | hitungan Claude |
+| K32 (E12) | Berhenti di periode Juni, data Jan–Mei lengkap, gaji 10.000.000 TK/0 | 6 bulan: bruto 60 jt − BJ 3 jt = 57 jt − PTKP 54 jt = PKP 3 jt → 150.000; sudah dipotong 5 × 200.000 = 1.000.000 → pengembalian 850.000 | hitungan Claude |
+| K33 | Data setahun tidak lengkap (Desember tanpa periode Januari) | PPh 0, tanda tertahan, periode tidak bisa diajukan | L2 |
+| K34 (C02) | Cuti bersama 16 Feb 2026, pengaturan potong cuti, tidak masuk | cuti terpakai 1 | M1 |
+| K35 (C02b) | Cuti bersama 24 Des 2026, pengaturan potong cuti | cuti terpakai 0, tanda potong cuti tidak berlaku | M1 |
+| K36 | Saldo awal 5 hari pada awal periode, 2 hari cuti, ulang tahun kerja di periode itu | saldo akhir 5 + 12 − 2 = 15 | M3 |
+| K37 (U12) | Dibayar tunai 3.847.000 | 38 × 100.000, 2 × 20.000, 1 × 5.000, 1 × 2.000 | N1 |
 
 Catatan K9/K10: aturan "yang lebih besar" yang disetujui untuk tanggal sesudah 28 Okt 2026 selalu memberi angka yang sama dengan aturan 75% lama (aturan lama memilih 75% justru bila nilainya lebih besar). Bedanya hanya tanda konfirmasi.
 
 ## Batasan
 
-Belum dihitung (paket 4b-3 atau sesudahnya): saldo cuti, PPh Desember, sakit lebih dari 4 bulan, ganti rugi (belum ada tempat datanya), bonus dan penyesuaian manual, THR untuk pekerja yang berhenti dalam 30 hari sebelum hari raya.
+Belum dihitung: cuti hangus, zakat, sakit lebih dari 4 bulan, ganti rugi (belum ada tempat datanya), bonus dan penyesuaian manual, THR untuk pekerja yang berhenti dalam 30 hari sebelum hari raya.
