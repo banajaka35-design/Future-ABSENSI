@@ -13,7 +13,7 @@ Terakhir diperbarui: 17 November 2026, cabang `main` (paket 4b-2 THR, kasbon, tu
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 4 berjalan, paket 4a sampai 4b-4 selesai; berikutnya keputusan temuan 4b-4, lalu 4c
+## Posisi sekarang: Tahap 4 berjalan, paket 4a sampai 4b-5 selesai; berikutnya 4c (halaman demo)
 
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
@@ -236,11 +236,21 @@ Laporan lengkap: `docs/laporan-tahap-4b-4.md`. Aturan: `docs/aturan-hitung-gaji.
 | Hasil | Uji database 327 lulus; simulasi 24 lulus; pembanding B 750 orang-periode selisih 0; GitHub lulus; Pasang lulus |
 | Dicek di Supabase | 0012 sidik `781aa7127a34`; gaji A tidak berubah; tanda anomali A: periode 3 gaji berubah 430, periode 4 504 (terlalu ramai) |
 
-**Menunggu keputusan pemilik:**
-1. Kelemahan "belum terdaftar di mesin" bila hari pertama sakit/izin/cuti: paket terpisah (sudah diputuskan), butuh permintaan perubahan 02.
-2. Tanda "gaji berubah" terlalu ramai (lembur hari raya). Usul: banding upah tetap dan potongan saja.
-3. Usul sebelumnya: isian data pajak awal tahun (perusahaan yang mulai di tengah tahun).
-4. Nilai menit di perintah lembur belum dipakai; pembagi upah Gudang Pabrik B (pola perusahaan 5 hari).
+**Keputusan pemilik 17 Nov 2026:** temuan 1–3 dikerjakan di paket 4b-5 (selesai). Temuan 4 (nilai menit perintah lembur, pembagi upah Gudang Pabrik B) masuk daftar pertanyaan HRD.
+
+## Paket 4b-5 (17 Nov 2026): perbaikan temuan 4b-3 dan 4b-4
+
+Laporan lengkap: `docs/laporan-tahap-4b-5.md`. Aturan versi 5, permintaan perubahan 02 (F13b, disetujui), kasus jebakan v1.3 (commit 2e5ca40 sebelum kode; uji GitHub commit itu gagal di F13b dengan kode lama, tidak dipasang).
+
+| Hal | Isi |
+| --- | --- |
+| Kode | Migrasi 0013: pembaca tap versi 2 (F13b), tanda gaji berubah versi 5, `induk.pajak_awal_tahun`, hitung gaji versi 4; pemasangan membaca ulang bila versi pembaca tap berubah |
+| Hasil | Uji database 343 lulus; simulasi 24 lulus; pembanding A dan B selisih 0; GitHub lulus; Pasang lulus |
+| Dicek di Supabase | 0013 sidik `c1c60afc5221`; baca tap versi 2 dan gaji versi 4 di 4 periode; hasil harian 0 baris berbeda dari versi 1; gaji bersih tidak berubah; tanda gaji berubah 20/25/17 (sebelumnya 54/430/504) |
+
+**Pertanyaan untuk HRD (kuesioner pemasangan / wawancara):** apakah lembur dibayar sampai menit yang disetujui di perintah lembur; untuk divisi 6 hari di perusahaan berpola 5 hari, apakah Sabtu ikut pembagi upah.
+
+**Untuk 4c:** PPh Desember demo tertahan karena data simulasi hanya 4 periode; tulis terus terang di halaman demo.
 
 Juga masih perlu: cek naskah resmi Permenaker 6/2016 dan PP 36/2021.
 
@@ -251,7 +261,7 @@ Juga masih perlu: cek naskah resmi Permenaker 6/2016 dan PP 36/2021.
 | Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
 | --- | --- | --- | --- |
 | 3 | ~~Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file~~ **Selesai 13 Nov 2026** | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
-| 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 ✓ THR, kasbon, tunai · 4b-3 ✓ PPh Desember, saldo cuti, U12 · 4b-4 ✓ Pabrik B, U10 · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
+| 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 ✓ THR, kasbon, tunai · 4b-3 ✓ PPh Desember, saldo cuti, U12 · 4b-4 ✓ Pabrik B, U10 · 4b-5 ✓ perbaikan temuan · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
 | 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
 | 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
