@@ -2,7 +2,8 @@
 // dengan postgres.js sungguhan, sistem/pintu/uji_sambung.ts). Tidak memakai API khusus Deno.
 // index.ts hanya membuat sambungan database, membaca rahasia, dan memanggil `layani`.
 import {
-  apiBoleh, BATAS_UKURAN_WEB, tanganiPengingat, tanganiPermintaan, webPeriksa, webStatus, webUnggah,
+  apiBoleh, BATAS_UKURAN_WEB, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa, webStatus, webTukarKode,
+  webUnggah,
   type Alat, type HasilUraiRingkas, type JawabanWeb,
 } from "./inti.ts";
 
@@ -32,6 +33,7 @@ export function buatAlat(
   ambil: typeof fetch = fetch,
   alamatUnggah = "",
   jedaCobaUlang: number[] = [1000, 2000], // tiga percobaan: langsung, sesudah 1 detik, sesudah 2 detik lagi
+  brevo: { kunci: string; pengirim: string } | null = null, // pengirim email (paket 5e); null = belum disiapkan
 ): Alat {
   const jalankan = async (kueri: string, parameter?: unknown[]) => {
     for (let ke = 0; ; ke++) {
@@ -48,8 +50,25 @@ export function buatAlat(
       }
     }
   };
+  // Brevo, dokumen resmi: POST https://api.brevo.com/v3/smtp/email, kepala api-key, isi sender/to/subject/textContent.
+  const email = brevo && brevo.kunci && brevo.pengirim
+    ? async (ke: string, judul: string, isi: string) => {
+      const r = await ambil("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": brevo.kunci, "content-type": "application/json", "accept": "application/json" },
+        body: JSON.stringify({
+          sender: { name: "Future-ABSENSI", email: brevo.pengirim },
+          to: [{ email: ke }],
+          subject: judul,
+          textContent: isi,
+        }),
+      });
+      if (!r.ok) throw new Error(`Brevo ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    }
+    : undefined;
   return {
     alamatUnggah,
+    email,
     async api(nama, isi) {
       if (!apiBoleh(nama)) throw new Error(`fungsi ${nama} tidak boleh dipanggil`);
       const baris = isi === undefined
@@ -188,6 +207,8 @@ async function layaniWeb(
       return json({ status: 400, isi: { alasan: "Isi permintaan tidak terbaca." }, latar: null });
     }
     if (jalur === "periksa") return json(await webPeriksa(alat, String(badan.kode ?? "")));
+    if (jalur === "minta_kode") return json(await webMintaKode(alat, String(badan.email ?? "")));
+    if (jalur === "tukar_kode") return json(await webTukarKode(alat, String(badan.email ?? ""), String(badan.kode ?? "")));
     if (jalur === "status") return json(await webStatus(alat, String(badan.kode ?? ""), Number(badan.kiriman_id)));
     return json({ status: 404, isi: { alasan: "Jalur tidak dikenal." }, latar: null });
   } catch (e) {

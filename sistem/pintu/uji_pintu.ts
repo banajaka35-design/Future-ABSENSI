@@ -1,5 +1,6 @@
 // Uji pintu Telegram (paket 5b, kasus T1-T8 di docs/pintu-telegram.md; paket 5c, kasus N1-N9 dan P1-P7 di
-// docs/pemberitahuan-segera.md; paket 5d, kasus W1-W11 di docs/unggah-web.md) dengan pesan Telegram tiruan,
+// docs/pemberitahuan-segera.md; paket 5d, kasus W1-W11 di docs/unggah-web.md; paket 5e, kasus E di
+// docs/login-email.md) dengan pesan Telegram tiruan,
 // file simulasi Pabrik A, dan Postgres sementara. Database dipanggil sebagai peran `pintu`, seperti Edge Function.
 // Pemakaian: DB_URL=... node --test sistem/pintu/uji_pintu.ts  (database sudah berisi struktur dan karyawan Pabrik A,
 // periode, tanpa tap; disiapkan oleh sistem/uji/uji_pintu.sh)
@@ -11,8 +12,8 @@ import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
-  apiBoleh, BATAS_PESAN, JENIS_SEGERA, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webPeriksa, webStatus,
-  webUnggah, type Alat,
+  apiBoleh, BATAS_PESAN, JENIS_SEGERA, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
 const DB = process.env.DB_URL!;
@@ -376,4 +377,84 @@ test("W4: tautan lewat 15 menit ditolak", async () => {
   const r = await webUnggah(alat, KODE, "telat.csv", fileSim("A_p3_MA1.csv"), "MA1");
   assert.equal(r.status, 401);
   assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'telat.csv'"), "0");
+});
+
+// ---------------------------------------------------------------------------
+// Paket 5e: masuk lewat kode email (kasus E1-E8, E11 di docs/login-email.md); pengirim email tiruan
+// ---------------------------------------------------------------------------
+
+const surat: { ke: string; judul: string; isi: string }[] = [];
+const alatEmail: Alat = { ...alat, async email(ke, judul, isi) { surat.push({ ke, judul, isi }); } };
+const kodeSurat = () => /\b(\d{6})\b/.exec(surat.at(-1)?.isi ?? "")?.[1] ?? "";
+
+test("E (persiapan): email untuk HRD 111 dan akun HRD tanpa Telegram", () => {
+  psql(`update induk.pengguna set email = 'hrd111@contoh.id' where telegram_id = ${HRD};
+        insert into induk.pengguna (peran, email) values ('hrd', 'tanpa.tg@contoh.id');`);
+});
+
+test("jalur email belum disiapkan (tanpa pengirim) -> 503", async () => {
+  assert.equal((await webMintaKode(alat, "hrd111@contoh.id")).status, 503);
+});
+
+test("E1, E2: jawaban halaman sama untuk email terdaftar dan tidak; hanya yang terdaftar dikirimi kode", async () => {
+  const a = await webMintaKode(alatEmail, "HRD111@contoh.id");
+  const b = await webMintaKode(alatEmail, "orang.luar@contoh.id");
+  assert.equal(a.status, 200);
+  assert.deepEqual(b, a);
+  assert.equal(surat.length, 1);
+  assert.equal(surat[0].ke, "hrd111@contoh.id");
+  assert.match(kodeSurat(), /^\d{6}$/);
+  assert.ok(surat[0].judul.includes(kodeSurat()));
+  assert.equal(nilai(`select count(*) from fakta.kode_email where sidik = '${sha256(`hrd111@contoh.id:${kodeSurat()}`)}'`), "1");
+});
+
+test("E3: kode benar -> kode tautan; tautan itu dipakai untuk unggah seperti 5d", async () => {
+  const salah = await webTukarKode(alatEmail, "hrd111@contoh.id", kodeSurat() === "000000" ? "111111" : "000000");
+  assert.equal(salah.status, 401);
+  assert.match(salah.isi.alasan, /Sisa 4/);
+  const r = await webTukarKode(alatEmail, "hrd111@contoh.id", kodeSurat());
+  assert.equal(r.status, 200);
+  assert.match(r.isi.kode, /^[0-9a-f]{64}$/);
+  assert.equal((await webPeriksa(alat, r.isi.kode)).status, 200);
+  const u = await unggah("excel_email.csv", BERKAS.F_EXCEL, "MA2", r.isi.kode);
+  assert.equal(u.isi.hasil, "ditolak");
+  assert.match(u.isi.alasan, /Excel/);
+  // E6: kode email dipakai lagi
+  assert.equal((await webTukarKode(alatEmail, "hrd111@contoh.id", kodeSurat())).status, 401);
+});
+
+test("E4: salah 5 kali -> terkunci, kode benar ditolak", async () => {
+  await webMintaKode(alatEmail, "hrd111@contoh.id");
+  const benar = kodeSurat();
+  const keliru = benar === "000000" ? "111111" : "000000";
+  for (let i = 0; i < 4; i++) assert.match((await webTukarKode(alatEmail, "hrd111@contoh.id", keliru)).isi.alasan, /Kode salah/);
+  assert.match((await webTukarKode(alatEmail, "hrd111@contoh.id", keliru)).isi.alasan, /tidak berlaku/);
+  assert.equal((await webTukarKode(alatEmail, "hrd111@contoh.id", benar)).status, 401);
+});
+
+test("E8: permintaan ke-4 dalam 15 menit tidak mengirim email; jawaban halaman tetap sama", async () => {
+  const sebelum = surat.length; // sudah 2 kode untuk email ini
+  const r3 = await webMintaKode(alatEmail, "hrd111@contoh.id");
+  const r4 = await webMintaKode(alatEmail, "hrd111@contoh.id");
+  assert.equal(surat.length, sebelum + 1);
+  assert.deepEqual(r4, r3);
+});
+
+test("E11: akun tanpa ID Telegram masuk lewat email dan mengunggah file sah; tidak ada pesan Telegram ke akun itu", async () => {
+  await webMintaKode(alatEmail, "tanpa.tg@contoh.id");
+  const t = await webTukarKode(alatEmail, "tanpa.tg@contoh.id", kodeSurat());
+  assert.equal(t.status, 200);
+  const u = await unggah("A_p3_MA2.csv", fileSim("A_p3_MA2.csv"), "MA2", t.isi.kode);
+  assert.equal(u.isi.hasil, "diterima", JSON.stringify(u.isi));
+  assert.equal(nilai(`select asal || '/' || (select email from induk.pengguna where id = pengirim)
+                      from fakta.kiriman_file where id = ${u.isi.kiriman_id}`), "web/tanpa.tg@contoh.id");
+  const s = await webStatus(alat, t.isi.kode, u.isi.kiriman_id);
+  assert.equal(s.isi.selesai, true);
+  assert.ok(!u.pesan.some((p) => p.chat_id === null || p.chat_id === 0 || Number.isNaN(p.chat_id)));
+  assert.ok(!u.pesan.some((p) => /diunggah lewat web/.test(p.text)), "ringkasan tidak dikirim ke akun tanpa Telegram");
+});
+
+test("masukan rusak: kode bukan 6 angka, email tidak sah -> 400", async () => {
+  assert.equal((await webTukarKode(alatEmail, "hrd111@contoh.id", "12ab56")).status, 400);
+  assert.equal((await webMintaKode(alatEmail, "bukan-email")).status, 400);
 });

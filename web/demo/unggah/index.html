@@ -36,11 +36,26 @@
 <div class="simulasi" role="note">DEMO · <span>Pemasangan demo berisi data simulasi. File yang diunggah di sini masuk ke gudang data demo.</span></div>
 <header>
   <h1>Unggah file mesin</h1>
-  <div class="kecil">Jalur cadangan selain bot Telegram. Tautan halaman ini didapat dengan mengetik <b>/unggah</b> di bot; berlaku 15 menit.</div>
+  <div class="kecil">Jalur cadangan selain bot Telegram. Masuk dengan tautan dari bot (ketik <b>/unggah</b>) atau dengan kode yang dikirim ke email akun HRD. Masuk berlaku 15 menit.</div>
 </header>
 <main>
   <section id="bagian-tautan">
     <div id="tautan" class="pesan tunggu">Memeriksa tautan…</div>
+  </section>
+
+  <section id="bagian-email" hidden>
+    <h2>Masuk dengan email</h2>
+    <form id="form-email">
+      <label for="email">Email akun HRD</label>
+      <input type="email" id="email" required autocomplete="email" style="font:inherit;padding:6px;border:1px solid var(--garis);border-radius:6px;width:100%;max-width:420px">
+      <button type="submit" id="minta">Kirim kode</button>
+    </form>
+    <form id="form-kode" hidden>
+      <label for="kode-email">Kode 6 angka dari email</label>
+      <input type="text" id="kode-email" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" required autocomplete="one-time-code" style="font:inherit;padding:6px;border:1px solid var(--garis);border-radius:6px;width:160px">
+      <button type="submit" id="tukar">Masuk</button>
+    </form>
+    <div id="pesan-email"></div>
   </section>
 
   <section id="bagian-form" hidden>
@@ -64,7 +79,7 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const kode = new URLSearchParams(location.hash.slice(1)).get("kode") || "";
+  let kode = new URLSearchParams(location.hash.slice(1)).get("kode") || "";
   let fungsi = "";
   const teks = (t) => document.createTextNode(t == null ? "" : String(t));
   const rp = (n) => "Rp" + Number(n).toLocaleString("id-ID");
@@ -141,7 +156,8 @@
       return;
     }
     if (!kode) {
-      pesan($("tautan"), "salah", "Tautan tidak lengkap. Ketik /unggah di bot Telegram untuk mendapatkan tautan.");
+      pesan($("tautan"), "tunggu", "Belum masuk. Masuk dengan email di bawah, atau ketik /unggah di bot Telegram.");
+      $("bagian-email").hidden = false;
       return;
     }
     let r;
@@ -150,9 +166,11 @@
       return;
     }
     if (r.status !== 200 || !r.isi.sah) {
-      pesan($("tautan"), "salah", r.isi.alasan || "Tautan tidak berlaku.");
+      pesan($("tautan"), "salah", (r.isi.alasan || "Tautan tidak berlaku.") + " Atau masuk dengan email di bawah.");
+      $("bagian-email").hidden = false;
       return;
     }
+    $("bagian-email").hidden = true;
     const sampai = new Date(r.isi.berlaku_sampai).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
     pesan($("tautan"), "baik", "Tautan berlaku sampai pukul " + sampai + ". Boleh untuk beberapa file.");
     const pilih = $("mesin");
@@ -200,6 +218,49 @@
     } finally {
       tombol.disabled = false;
       $("file").value = "";
+    }
+  });
+
+  $("form-email").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const tombol = $("minta");
+    tombol.disabled = true;
+    try {
+      const r = await panggil("minta_kode", { email: $("email").value });
+      if (r.status === 200) {
+        pesan($("pesan-email"), "baik", r.isi.pesan);
+        $("form-kode").hidden = false;
+        $("kode-email").focus();
+      } else {
+        pesan($("pesan-email"), "salah", r.isi.alasan || "Kode tidak bisa diminta.");
+      }
+    } catch {
+      pesan($("pesan-email"), "salah", "Server tidak bisa dihubungi. Coba lagi sebentar.");
+    } finally {
+      tombol.disabled = false;
+    }
+  });
+
+  $("form-kode").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const tombol = $("tukar");
+    tombol.disabled = true;
+    try {
+      const r = await panggil("tukar_kode", { email: $("email").value, kode: $("kode-email").value });
+      if (r.status === 200 && r.isi.kode) {
+        kode = r.isi.kode;
+        history.replaceState(null, "", "#kode=" + kode);
+        $("pesan-email").replaceChildren();
+        $("form-kode").hidden = true;
+        $("kode-email").value = "";
+        await mulai();
+      } else {
+        pesan($("pesan-email"), "salah", r.isi.alasan || "Kode tidak berlaku.");
+      }
+    } catch {
+      pesan($("pesan-email"), "salah", "Server tidak bisa dihubungi. Coba lagi sebentar.");
+    } finally {
+      tombol.disabled = false;
     }
   });
 

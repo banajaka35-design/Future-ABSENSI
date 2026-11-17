@@ -11,6 +11,8 @@
 #      dan jadwal harian 01.00 UTC (08.00 WIB) dipasang. Skema `jadwal` di luar skema proyek: tidak ikut cadangan
 #      dan tidak terhapus oleh Reset Supabase.
 # Butuh: DB_URL, SUPABASE_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN, PEMBANGUN_TELEGRAM_ID.
+# Pilihan (paket 5e, masuk lewat kode email): PEMBANGUN_EMAIL (email akun pembangun, juga alamat pengirim bila
+# EMAIL_PENGIRIM kosong), BREVO_API_KEY. Kosong -> jalur email menjawab "belum disiapkan"; pemasangan tidak gagal.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${DB_URL:?DB_URL belum diisi}"
@@ -86,6 +88,17 @@ select :'tg'::bigint, 'pembangun' where not exists (select 1 from induk.pengguna
 select 'Akun pengirim file terdaftar: ' || count(*) from induk.pengguna where peran in ('hrd', 'pembangun') and aktif;
 commit;
 EOF
+if [ -n "${PEMBANGUN_EMAIL:-}" ]; then
+  echo "== Email akun pembangun (paket 5e)"
+  psql "$DB_URL" -X -q -t -v ON_ERROR_STOP=1 -v tg="$PEMBANGUN_TELEGRAM_ID" -v email="$PEMBANGUN_EMAIL" <<'EOF'
+begin;
+set local app.pengguna = 'pasang-pintu';
+update induk.pengguna set email = :'email'
+where telegram_id = :'tg'::bigint and email is distinct from :'email';
+select 'Akun dengan email: ' || count(*) from induk.pengguna where email is not null and aktif;
+commit;
+EOF
+fi
 
 echo "== Edge Function pintu-telegram"
 FUNGSI=supabase/functions/pintu-telegram
@@ -102,6 +115,14 @@ trap 'rm -f "$BERKAS" "$RUNNER_TEMP_PINTU"' EXIT
 ASAL_WEB="${ASAL_WEB:-https://future-absensi-demo.pages.dev}"
 printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_RAHASIA=%s\nPINTU_DB_URL=%s\nPENGINGAT_RAHASIA=%s\nASAL_WEB=%s\n' \
   "$TELEGRAM_BOT_TOKEN" "$RAHASIA" "$PINTU_DB_URL" "$RAHASIA_PENGINGAT" "$ASAL_WEB" > "$BERKAS"
+# Pengirim email (paket 5e): hanya diisi bila secret ada; bila belum, Edge Function menjawab "belum disiapkan".
+EMAIL_PENGIRIM="${EMAIL_PENGIRIM:-${PEMBANGUN_EMAIL:-}}"
+if [ -n "${BREVO_API_KEY:-}" ] && [ -n "$EMAIL_PENGIRIM" ]; then
+  printf 'BREVO_API_KEY=%s\nEMAIL_PENGIRIM=%s\n' "$BREVO_API_KEY" "$EMAIL_PENGIRIM" >> "$BERKAS"
+  echo "Pengirim email kode: diisi"
+else
+  echo "Pengirim email kode: dilewati (secret BREVO_API_KEY atau PEMBANGUN_EMAIL belum diisi)"
+fi
 npx --yes supabase@2 secrets set --project-ref "$REF" --env-file "$BERKAS"
 
 echo "== Alamat bot di Telegram"

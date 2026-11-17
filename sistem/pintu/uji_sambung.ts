@@ -254,3 +254,53 @@ test("5d-2: kode rahasia salah tetap 401 tanpa menyentuh database", async () => 
   assert.equal(respon.status, 401);
   assert.equal(s.percobaan, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Paket 5e: kode email lewat penyambung (E10, E12)
+// ---------------------------------------------------------------------------
+
+test("E12: minta kode memanggil Brevo sesuai dokumen; tukar kode memberi tautan yang bisa dipakai", async () => {
+  nilai("update induk.pengguna set email = 'sambung@contoh.id' where telegram_id = 111");
+  const keBrevo: { alamat: string; kepala: Headers; isi: any }[] = [];
+  const ambil = (async (alamat: string | URL, pilihan?: RequestInit) => {
+    if (String(alamat).startsWith("https://api.brevo.com/")) {
+      keBrevo.push({ alamat: String(alamat), kepala: new Headers(pilihan?.headers), isi: JSON.parse(String(pilihan?.body)) });
+      return Response.json({ messageId: "<uji@brevo>" }, { status: 201 });
+    }
+    return fetchPalsu(alamat, pilihan);
+  }) as typeof fetch;
+  const a = buatAlat(sql, "TOKEN-UJI", urai, ambil, `${ASAL_WEB}/unggah/`, [0, 0],
+                     { kunci: "xkeysib-uji", pengirim: "pengirim@contoh.id" });
+  const panggil = async (jalur: string, badan: unknown, asal = ASAL_WEB) => {
+    const { respon } = await layani(new Request(`http://lokal/x?jalur=${jalur}`, {
+      method: "POST", headers: { origin: asal, "content-type": "text/plain" }, body: JSON.stringify(badan) }),
+      a, RAHASIA, RAHASIA_PENGINGAT, ASAL_WEB);
+    return { status: respon.status, isi: await respon.json().catch(() => null) };
+  };
+  // E10: alamat lain ditolak sebelum apa pun
+  assert.equal((await panggil("minta_kode", { email: "sambung@contoh.id" }, "https://jahat.contoh")).status, 403);
+  assert.equal(keBrevo.length, 0);
+  const r = await panggil("minta_kode", { email: "sambung@contoh.id" });
+  assert.equal(r.status, 200);
+  assert.equal(keBrevo.length, 1);
+  const k = keBrevo[0];
+  assert.equal(k.alamat, "https://api.brevo.com/v3/smtp/email");
+  assert.equal(k.kepala.get("api-key"), "xkeysib-uji");
+  assert.equal(k.kepala.get("content-type"), "application/json");
+  assert.deepEqual(k.isi.sender, { name: "Future-ABSENSI", email: "pengirim@contoh.id" });
+  assert.deepEqual(k.isi.to, [{ email: "sambung@contoh.id" }]);
+  const kode = /\b(\d{6})\b/.exec(k.isi.textContent)?.[1] ?? "";
+  assert.match(kode, /^\d{6}$/);
+  const t = await panggil("tukar_kode", { email: "sambung@contoh.id", kode });
+  assert.equal(t.status, 200);
+  assert.equal((await panggil("periksa", { kode: t.isi.kode })).status, 200);
+});
+
+test("Brevo menolak -> halaman diberi tahu gangguan (502)", async () => {
+  const ambil = (async () => new Response("unauthorized", { status: 401 })) as typeof fetch;
+  const a = buatAlat(sql, "TOKEN-UJI", urai, ambil, "", [0, 0], { kunci: "salah", pengirim: "pengirim@contoh.id" });
+  const { respon } = await layani(new Request("http://lokal/x?jalur=minta_kode", {
+    method: "POST", headers: { origin: ASAL_WEB }, body: JSON.stringify({ email: "sambung@contoh.id" }) }),
+    a, RAHASIA, RAHASIA_PENGINGAT, ASAL_WEB);
+  assert.equal(respon.status, 502);
+});

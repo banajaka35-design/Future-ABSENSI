@@ -1,5 +1,5 @@
 // Inti pintu Telegram (paket 5b, docs/pintu-telegram.md; pemberitahuan segera dan pengingat paket 5c,
-// docs/pemberitahuan-segera.md; unggah lewat web paket 5d, docs/unggah-web.md).
+// docs/pemberitahuan-segera.md; unggah lewat web paket 5d, docs/unggah-web.md; kode email paket 5e, docs/login-email.md).
 // Tidak memakai API khusus Node atau Deno (hanya fetch, crypto.subtle, TextDecoder, Intl), dan semua akses keluar
 // lewat `alat`, supaya modul yang sama diuji di Node (sistem/pintu/uji_pintu.ts) dan dipakai di Edge Function.
 // Database hanya disentuh lewat fungsi skema api (peran `pintu`); pembaca file adalah sistem/urai (diberikan lewat alat).
@@ -21,6 +21,7 @@ export interface Alat {
   sekarang(): number; // milidetik
   tidur(ms: number): Promise<void>;
   alamatUnggah?: string; // alamat halaman unggah (paket 5d), misalnya https://.../unggah/
+  email?(ke: string, judul: string, isi: string): Promise<void>; // pengirim email (paket 5e); tidak ada = belum disiapkan
 }
 
 export const BATAS_UKURAN = 20 * 1024 * 1024; // batas unduh file lewat bot Telegram
@@ -31,6 +32,7 @@ const API_BOLEH = new Set([
   "pintu_pesan", "pintu_tunda", "pintu_ambil_tunda", "pintu_terima_file", "pintu_kerjakan",
   "pintu_pemberitahuan_ambil", "pintu_pengingat", "pintu_pemberitahuan_hasil",
   "pintu_buat_tautan", "pintu_periksa_tautan", "pintu_terima_web", "pintu_status_kiriman",
+  "pintu_minta_kode_email", "pintu_tukar_kode_email",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -465,7 +467,8 @@ export async function webUnggah(
     alasan: h.alasan,
   });
   if (r.tautan === false) return { status: 401, isi: { hasil: "ditolak", alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
-  const chat: number = Number(r.telegram_id);
+  // Akun yang masuk lewat email bisa tanpa ID Telegram: hasil hanya terlihat di halaman.
+  const chat: number | null = r.telegram_id === null || r.telegram_id === undefined ? null : Number(r.telegram_id);
   const jawab = {
     hasil: r.hasil,
     alasan: r.alasan ?? null,
@@ -494,4 +497,58 @@ export async function webStatus(alat: Alat, kode: string, kirimanId: number): Pr
   if (r.tautan === false) return { status: 401, isi: { alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
   if (!r.kiriman) return { status: 404, isi: { alasan: "Kiriman tidak ditemukan." }, latar: null };
   return { status: 200, isi: r, latar: null };
+}
+
+// ---------------------------------------------------------------------------
+// Masuk lewat kode email (paket 5e, docs/login-email.md)
+// ---------------------------------------------------------------------------
+
+export const PESAN_KODE_DIKIRIM =
+  "Bila email ini terdaftar sebagai akun HRD, kode 6 angka sudah dikirim (berlaku 10 menit). Periksa juga folder spam.";
+
+function kodeEnamAngka(): string {
+  // Penolakan nilai di ujung supaya setiap angka 000000-999999 sama peluangnya.
+  const b = new Uint32Array(1);
+  do crypto.getRandomValues(b); while (b[0] >= 4_294_000_000);
+  return String(b[0] % 1_000_000).padStart(6, "0");
+}
+
+const emailSah = (e: string) => /^[^@\s]+@[^@\s]+$/.test(e) && e.length <= 254;
+
+export async function webMintaKode(alat: Alat, emailMasuk: string): Promise<JawabanWeb> {
+  if (!alat.email) return { status: 503, isi: { alasan: "Masuk lewat email belum disiapkan." }, latar: null };
+  const email = String(emailMasuk ?? "").trim().toLowerCase();
+  if (!emailSah(email)) return { status: 400, isi: { alasan: "Tulis alamat email yang benar." }, latar: null };
+  const kode = kodeEnamAngka();
+  const r = await alat.api("pintu_minta_kode_email", { email, sidik: await sidikTeks(`${email}:${kode}`) });
+  if (r.kirim) {
+    try {
+      await alat.email(email, `Kode masuk unggah file: ${kode}`,
+        `Kode masuk halaman unggah file mesin: ${kode}\n\nBerlaku 10 menit. Jangan berikan kode ini kepada siapa pun.\n` +
+          `Bila Anda tidak meminta kode ini, abaikan email ini.`);
+    } catch (e) {
+      console.error(e);
+      return { status: 502, isi: { alasan: "Pengiriman email sedang gangguan; coba lagi sebentar." }, latar: null };
+    }
+  }
+  return { status: 200, isi: { pesan: PESAN_KODE_DIKIRIM }, latar: null };
+}
+
+export async function webTukarKode(alat: Alat, emailMasuk: string, kodeMasuk: string): Promise<JawabanWeb> {
+  const email = String(emailMasuk ?? "").trim().toLowerCase();
+  const kodeEmail = String(kodeMasuk ?? "").replace(/\s+/g, "");
+  if (!emailSah(email) || !/^\d{6}$/.test(kodeEmail)) {
+    return { status: 400, isi: { alasan: "Kode terdiri dari 6 angka." }, latar: null };
+  }
+  const kodeTautan = kodeAcak();
+  const r = await alat.api("pintu_tukar_kode_email", {
+    email,
+    sidik_kode: await sidikTeks(`${email}:${kodeEmail}`),
+    sidik_tautan: await sidikTeks(kodeTautan),
+  });
+  if (r.hasil === "masuk") return { status: 200, isi: { kode: kodeTautan, berlaku_sampai: r.berlaku_sampai }, latar: null };
+  if (r.hasil === "salah") {
+    return { status: 401, isi: { alasan: `Kode salah. Sisa ${r.sisa} kali percobaan.` }, latar: null };
+  }
+  return { status: 401, isi: { alasan: "Kode tidak berlaku (salah 5 kali, lewat 10 menit, atau sudah dipakai). Minta kode baru." }, latar: null };
 }

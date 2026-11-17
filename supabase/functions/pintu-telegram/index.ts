@@ -1,5 +1,5 @@
 // Edge Function pintu-telegram (paket 5b, docs/pintu-telegram.md; paket 5c, docs/pemberitahuan-segera.md;
-// paket 5d, docs/unggah-web.md).
+// paket 5d, docs/unggah-web.md; paket 5e, docs/login-email.md).
 // Hanya pembuka: penyambung ada di sambung.ts (sistem/pintu/sambung.ts, diuji di Node dengan postgres.js sungguhan),
 // logika di inti.ts (sistem/pintu/inti.ts), pembaca file di urai.ts (sistem/urai/urai.ts).
 // Ketiganya disalin ke folder ini oleh workflow pemasangan sebelum dipasang; salinan tidak masuk repo.
@@ -10,7 +10,11 @@ import { buatAlat, layani } from "./sambung.ts";
 
 const sql = postgres(Deno.env.get("PINTU_DB_URL") ?? "", { prepare: false, max: 1, idle_timeout: 20 });
 const ASAL_WEB = Deno.env.get("ASAL_WEB") ?? ""; // alamat halaman unggah (paket 5d), mis. https://future-absensi-demo.pages.dev
-const alat = buatAlat(sql, Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "", urai, fetch, ASAL_WEB ? `${ASAL_WEB}/unggah/` : "");
+// Pengirim email kode masuk (paket 5e, docs/login-email.md). Kosong = jalur email menjawab "belum disiapkan".
+const BREVO_KUNCI = Deno.env.get("BREVO_API_KEY") ?? "";
+const EMAIL_PENGIRIM = Deno.env.get("EMAIL_PENGIRIM") ?? "";
+const alat = buatAlat(sql, Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "", urai, fetch, ASAL_WEB ? `${ASAL_WEB}/unggah/` : "",
+  undefined, BREVO_KUNCI && EMAIL_PENGIRIM ? { kunci: BREVO_KUNCI, pengirim: EMAIL_PENGIRIM } : null);
 const RAHASIA = Deno.env.get("TELEGRAM_RAHASIA") ?? "";
 const RAHASIA_PENGINGAT = Deno.env.get("PENGINGAT_RAHASIA") ?? "";
 

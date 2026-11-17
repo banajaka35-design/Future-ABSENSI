@@ -78,4 +78,6 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           PEMBANGUN_TELEGRAM_ID: ${{ secrets.PEMBANGUN_TELEGRAM_ID }}
+          PEMBANGUN_EMAIL: ${{ secrets.PEMBANGUN_EMAIL }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
         run: db/pasang_pintu.sh
