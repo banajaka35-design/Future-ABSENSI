@@ -24,7 +24,7 @@ insert into induk.penugasan_regu (id_karyawan, regu, berlaku_dari) values ('K1',
 insert into induk.pemetaan_id_mesin (mesin, id_mesin, id_karyawan, berlaku_dari) values ('MA1', '1', 'K1', '2025-01-01');
 insert into fakta.periode (tanggal_awal, tanggal_akhir, tanggal_bayar) values
   ('2026-03-21', '2026-04-20', '2026-04-25'), ('2026-04-21', '2026-05-20', '2026-05-25');
-insert into induk.pengguna (telegram_id, peran) values (111, 'hrd'), (222, 'karyawan'), (333, 'hrd');
+insert into induk.pengguna (telegram_id, peran) values (111, 'hrd'), (222, 'karyawan'), (333, 'hrd'), (444, 'pembangun');
 update induk.pengguna set aktif = false where telegram_id = 333;
 
 create temp table hasil_uji (nama text primary key, isi jsonb);
@@ -34,6 +34,7 @@ set local role pintu;
 insert into hasil_uji values ('pesan1', api.pintu_pesan('{"update_id": 9001, "telegram_id": 111, "jenis": "dokumen"}'));
 insert into hasil_uji values ('pesan1_ulang', api.pintu_pesan('{"update_id": 9001, "telegram_id": 111, "jenis": "dokumen"}'));
 insert into hasil_uji values ('pesan_bukan_hrd', api.pintu_pesan('{"update_id": 9002, "telegram_id": 222, "jenis": "dokumen"}'));
+insert into hasil_uji values ('pesan_pembangun', api.pintu_pesan('{"update_id": 9010, "telegram_id": 444, "jenis": "dokumen"}'));
 insert into hasil_uji values ('pesan_nonaktif', api.pintu_pesan('{"update_id": 9003, "telegram_id": 333, "jenis": "dokumen"}'));
 insert into hasil_uji values ('terima', api.pintu_terima_file(jsonb_build_object(
   'update_id', 9001, 'telegram_id', 111, 'nama_file', 'uji.csv', 'sidik', repeat('a', 64), 'mesin', 'MA1',
@@ -63,6 +64,7 @@ select uji.sama('T3: pesan pertama baru, dari HRD', (pg_temp.h('pesan1') ->> 'ba
 select uji.sama('T3: update_id sama dikenali sebagai ulangan', pg_temp.h('pesan1_ulang') ->> 'baru', 'false');
 select uji.sama('pesan: daftar mesin dikirim', pg_temp.h('pesan1') -> 'mesin', '["MA1", "MA2"]'::jsonb);
 select uji.sama('T6: pengirim bukan HRD dikenali', pg_temp.h('pesan_bukan_hrd') ->> 'hrd', 'false');
+select uji.sama('akun pembangun boleh mengirim file seperti HRD', pg_temp.h('pesan_pembangun') ->> 'hrd', 'true');
 select uji.sama('T6: akun HRD nonaktif tidak dianggap HRD', pg_temp.h('pesan_nonaktif') ->> 'hrd', 'false');
 select uji.sama('T1: file diterima dengan pengirim dan nomor pesan',
   (select hasil || '/' || (pengirim = (select id from induk.pengguna where telegram_id = 111)) || '/' || nomor_pesan

@@ -77,7 +77,7 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     const info = await alat.api("pintu_pesan", { update_id: updateId, telegram_id: tg, jenis: "dokumen" });
     if (!info.baru) return null; // Telegram mengirim ulang (A10)
     if (!info.hrd) {
-      await kirim(alat, chat, "Akun Anda belum terdaftar sebagai HRD. File tidak disimpan.");
+      await kirim(alat, chat, "Akun Anda belum terdaftar untuk mengirim file. File tidak disimpan.");
       return null;
     }
     const dok = pesan.document;
@@ -110,7 +110,7 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     const [jenis, asal, mesin] = String(tombol.data ?? "").split("|");
     if (jenis !== "m" || !asal || !mesin) return null;
     if (!info.hrd) {
-      await kirim(alat, chat, "Akun Anda belum terdaftar sebagai HRD.");
+      await kirim(alat, chat, "Akun Anda belum terdaftar untuk mengirim file.");
       return null;
     }
     const tunda = await alat.api("pintu_ambil_tunda", { update_id: Number(asal), telegram_id: tg });
@@ -131,7 +131,7 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       pesan.chat.id,
       info.hrd
         ? "Kirim file ekspor dari aplikasi mesin finger sebagai dokumen. Tulis kode mesin di keterangan bila perlu."
-        : "Akun Anda belum terdaftar sebagai HRD.",
+        : "Akun Anda belum terdaftar untuk mengirim file.",
     );
   }
   return null;

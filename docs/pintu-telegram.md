@@ -7,7 +7,7 @@
 1. HRD mengirim file mesin (dokumen) ke bot. Telegram meneruskan pesan ke Edge Function `pintu-telegram`.
 2. Edge Function memeriksa kode rahasia dari Telegram (`X-Telegram-Bot-Api-Secret-Token`). Salah → ditolak, tidak ada yang tersimpan.
 3. Nomor pesan Telegram (`update_id`) dicatat. Sudah pernah tercatat → pesan diabaikan diam-diam (Telegram mengirim ulang, kasus A10).
-4. Pengirim harus akun HRD terdaftar dan aktif (`induk.pengguna`, peran `hrd`). Bukan → bot membalas "Akun Anda belum terdaftar sebagai HRD"; file **tidak diunduh dan tidak disimpan**.
+4. Pengirim harus akun terdaftar dan aktif dengan hak akses `hrd` atau `pembangun` (`induk.pengguna`; `pembangun` ditambah 17 Nov 2026 atas keputusan pemilik, migrasi 0017). Bukan → bot membalas "Akun Anda belum terdaftar sebagai HRD"; file **tidak diunduh dan tidak disimpan**.
 5. Mesin asal file:
    - keterangan (caption) pesan berisi kode mesin yang dikenal → mesin itu;
    - perusahaan hanya punya satu mesin → mesin itu;
@@ -44,7 +44,7 @@ T1–T7 dan T9–T10 diuji otomatis di GitHub (pesan Telegram tiruan, Postgres s
 
 ## Pemasangan
 
-Dipasang oleh workflow **"Pasang ke Supabase"** (langkah tambahan `db/pasang_pintu.sh`), bukan workflow baru: aturan 8 di CLAUDE.md hanya mengizinkan perubahan Supabase lewat workflow itu. Langkah ini dilewati (bukan gagal) selama secret `SUPABASE_ACCESS_TOKEN`, `TELEGRAM_BOT_TOKEN`, dan `HRD_TELEGRAM_ID` belum diisi. Kata sandi peran `pintu` dan kode rahasia Telegram dibuat acak setiap pemasangan.
+Dipasang oleh workflow **"Pasang ke Supabase"** (langkah tambahan `db/pasang_pintu.sh`), bukan workflow baru: aturan 8 di CLAUDE.md hanya mengizinkan perubahan Supabase lewat workflow itu. Langkah ini dilewati (bukan gagal) selama secret `SUPABASE_ACCESS_TOKEN`, `TELEGRAM_BOT_TOKEN`, dan `PEMBANGUN_TELEGRAM_ID` belum diisi. Kata sandi peran `pintu` dan kode rahasia Telegram dibuat acak setiap pemasangan.
 
 ## Tambahan yang disetujui di tengah paket (17 Nov 2026)
 

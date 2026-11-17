@@ -3,10 +3,10 @@
 # Dilewati (bukan gagal) bila secret pintu belum diisi pemilik, supaya pemasangan lain tetap jalan.
 # Yang dilakukan:
 #   1. Kata sandi peran `pintu` dibuat acak di sini, dipasang ke database dan ke rahasia Edge Function. Tidak ditulis ke log.
-#   2. Akun Telegram HRD (secret HRD_TELEGRAM_ID) didaftarkan bila belum ada.
+#   2. Akun Telegram pemilik proyek (secret PEMBANGUN_TELEGRAM_ID) didaftarkan dengan hak akses `pembangun` bila belum ada.
 #   3. Edge Function pintu-telegram dipasang (inti.ts dan urai.ts disalin dari sistem/ lebih dulu).
 #   4. Rahasia Edge Function diisi, lalu alamat bot didaftarkan ke Telegram dengan kode rahasia baru.
-# Butuh: DB_URL, SUPABASE_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN, HRD_TELEGRAM_ID.
+# Butuh: DB_URL, SUPABASE_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN, PEMBANGUN_TELEGRAM_ID.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${DB_URL:?DB_URL belum diisi}"
@@ -14,13 +14,13 @@ cd "$(dirname "$0")/.."
 kurang=""
 [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || kurang="$kurang SUPABASE_ACCESS_TOKEN"
 [ -n "${TELEGRAM_BOT_TOKEN:-}" ] || kurang="$kurang TELEGRAM_BOT_TOKEN"
-[ -n "${HRD_TELEGRAM_ID:-}" ] || kurang="$kurang HRD_TELEGRAM_ID"
+[ -n "${PEMBANGUN_TELEGRAM_ID:-}" ] || kurang="$kurang PEMBANGUN_TELEGRAM_ID"
 if [ -n "$kurang" ]; then
   echo "Pintu Telegram dilewati: secret belum diisi:$kurang"
   exit 0
 fi
-if ! [[ "$HRD_TELEGRAM_ID" =~ ^[0-9]+$ ]]; then
-  echo "GAGAL: HRD_TELEGRAM_ID harus angka." >&2
+if ! [[ "$PEMBANGUN_TELEGRAM_ID" =~ ^[0-9]+$ ]]; then
+  echo "GAGAL: PEMBANGUN_TELEGRAM_ID harus angka." >&2
   exit 1
 fi
 
@@ -51,13 +51,13 @@ alter role pintu password :'sandi';
 alter role pintu set statement_timeout = '120s';
 EOF
 
-echo "== Akun HRD"
-psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -v tg="$HRD_TELEGRAM_ID" <<'EOF'
+echo "== Akun pembangun"
+psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -v tg="$PEMBANGUN_TELEGRAM_ID" <<'EOF'
 begin;
 set local app.pengguna = 'pasang-pintu';
 insert into induk.pengguna (telegram_id, peran)
-select :'tg'::bigint, 'hrd' where not exists (select 1 from induk.pengguna where telegram_id = :'tg'::bigint);
-select 'HRD terdaftar: ' || count(*) from induk.pengguna where peran = 'hrd' and aktif;
+select :'tg'::bigint, 'pembangun' where not exists (select 1 from induk.pengguna where telegram_id = :'tg'::bigint);
+select 'Akun pengirim file terdaftar: ' || count(*) from induk.pengguna where peran in ('hrd', 'pembangun') and aktif;
 commit;
 EOF
 

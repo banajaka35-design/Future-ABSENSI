@@ -135,7 +135,7 @@ test("T5: file bukan file mesin ditolak", async () => {
 test("T6: pengirim bukan HRD ditolak; file tidak diunduh dan tidak dicatat", async () => {
   const unduhSebelum = diunduh.length;
   const r = await kirimUpdate(dokumen(5, BUKAN, "F_MA2", "dari_orang_lain.csv", "MA2"));
-  assert.match(r.pesan[0].text, /belum terdaftar sebagai HRD/);
+  assert.match(r.pesan[0].text, /belum terdaftar untuk mengirim file/);
   assert.equal(diunduh.length, unduhSebelum);
   assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'dari_orang_lain.csv'"), "0");
 });
@@ -154,6 +154,13 @@ test("T7: tanpa kode mesin -> tombol pilihan; tombol ditekan -> diproses; tekan 
   const r3 = await kirimUpdate(tekan(8));
   assert.match(r3.pesan[0].text, /sudah diproses sebelumnya/);
   assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'A_p1_MA2.csv'"), "1");
+});
+
+test("akun pembangun boleh mengirim file seperti HRD (keputusan pemilik)", async () => {
+  psql(`insert into induk.pengguna (telegram_id, peran) values (333, 'pembangun');`);
+  const r = await kirimUpdate(dokumen(10, 333, "F_TEKS", "dari_pembangun.txt", "MA1"));
+  assert.match(r.pesan[0].text, /diterima \(mesin MA1\), sedang diproses/);
+  assert.equal(nilai("select hasil from fakta.kiriman_file where nama_file = 'dari_pembangun.txt'"), "ditolak");
 });
 
 test("pesan teks dari HRD dijawab petunjuk", async () => {
