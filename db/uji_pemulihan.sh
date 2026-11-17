@@ -18,6 +18,7 @@ fi
 echo "== Siapkan database kosong seperti Supabase"
 # Peran Supabase dan ekstensi btree_gist di skema extensions tidak ikut dicadangkan (lihat docs/serah-terima.md).
 psql "$TUJUAN_URL" -X -q -v ON_ERROR_STOP=1 -f db/uji/persiapan_peran.sql
+psql "$TUJUAN_URL" -X -q -v ON_ERROR_STOP=1 -f db/peran_proyek.sql
 psql "$TUJUAN_URL" -X -q -v ON_ERROR_STOP=1 \
   -c "create schema if not exists extensions" \
   -c "create extension if not exists btree_gist with schema extensions"
