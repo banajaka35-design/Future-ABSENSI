@@ -3,3 +3,5 @@ __pycache__/
 web/demo/*.json
 supabase/functions/pintu-telegram/urai.ts
 supabase/functions/pintu-telegram/inti.ts
+supabase/functions/pintu-telegram/sambung.ts
+node_modules/

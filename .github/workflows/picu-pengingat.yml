@@ -1,0 +1,44 @@
+name: Picu pengingat
+
+# Memicu pengingat kirim file sekali secara manual (paket 5c, docs/pemberitahuan-segera.md), lewat fungsi
+# jadwal.picu_pengingat yang sama dengan yang dipakai pg_cron setiap hari 08.00 WIB.
+# Tanggal pura-pura (YYYY-MM-DD) dipakai untuk uji, misalnya 2026-11-21 = hari ke-1 sesudah tutup buku 20 Nov.
+# Tidak mengubah susunan database; hanya mencatat pengingat di fakta.pemberitahuan dan mengirim pesan Telegram.
+on:
+  workflow_dispatch:
+    inputs:
+      tanggal:
+        description: "Tanggal pura-pura YYYY-MM-DD (kosong = hari ini WIB)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  picu:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      TANGGAL: ${{ inputs.tanggal }}
+    steps:
+      - name: Pasang klien psql
+        run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
+      - name: Picu dan tunggu jawaban Edge Function
+        run: |
+          if [ -n "$TANGGAL" ] && ! [[ "$TANGGAL" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "GAGAL: tanggal harus YYYY-MM-DD." >&2
+            exit 1
+          fi
+          ID="$(echo "select jadwal.picu_pengingat(nullif(:'t', '')::date)" | psql "$DB_URL" -X -t -A -v ON_ERROR_STOP=1 -v t="$TANGGAL")"
+          echo "Permintaan pg_net nomor $ID"
+          for i in $(seq 1 30); do
+            sleep 2
+            H="$(psql "$DB_URL" -X -t -A -c "select coalesce(status_code::text, 'galat') || ' ' || coalesce(content, error_msg, '') from net._http_response where id = $ID")"
+            if [ -n "$H" ]; then
+              echo "Jawaban: $H"
+              case "$H" in 200\ *) exit 0 ;; *) exit 1 ;; esac
+            fi
+          done
+          echo "GAGAL: tidak ada jawaban dalam 60 detik." >&2
+          exit 1

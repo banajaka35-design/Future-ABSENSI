@@ -39,7 +39,9 @@ jobs:
         env:
           ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: sistem/uji/jalankan_simulasi.sh
-      - name: Uji pintu Telegram (pesan tiruan, kasus T1-T8)
+      - name: Pasang postgres.js (versi sama dengan Edge Function) untuk uji penyambung
+        run: npm install --no-save --no-package-lock postgres@3.4.5
+      - name: Uji pintu Telegram (pesan tiruan, kasus T1-T8, N1-N9, P1-P7, S1)
         env:
           ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: sistem/uji/uji_pintu.sh

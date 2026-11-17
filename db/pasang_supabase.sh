@@ -124,6 +124,11 @@ $(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p and jenis
 $(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p and jenis = 'hitung_gaji' order by nomor desc limit 1") ms di database"
   done
 
+  # Kejadian segera yang muncul dari hitungan pemasangan (bukan dari file HRD) tidak dikirim (paket 5c).
+  if [ "$(nilai "select to_regproc('fakta.tandai_kejadian_lama') is not null")" = "t" ]; then
+    echo "== Kejadian segera dari pemasangan dicatat sebagai lama: $(nilai "select fakta.tandai_kejadian_lama()")"
+  fi
+
   echo "== Pemeriksaan data awal"
   # Alat uji tidak boleh tertinggal di database utama: dipasang dan dijalankan dalam satu transaksi
   # yang dibatalkan di akhir.

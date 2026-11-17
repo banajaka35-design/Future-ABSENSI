@@ -1,4 +1,5 @@
-// Inti pintu Telegram (paket 5b, docs/pintu-telegram.md).
+// Inti pintu Telegram (paket 5b, docs/pintu-telegram.md; pemberitahuan segera dan pengingat paket 5c,
+// docs/pemberitahuan-segera.md).
 // Tidak memakai API khusus Node atau Deno (hanya fetch, crypto.subtle, TextDecoder, Intl), dan semua akses keluar
 // lewat `alat`, supaya modul yang sama diuji di Node (sistem/pintu/uji_pintu.ts) dan dipakai di Edge Function.
 // Database hanya disentuh lewat fungsi skema api (peran `pintu`); pembaca file adalah sistem/urai (diberikan lewat alat).
@@ -24,7 +25,10 @@ export interface Alat {
 export const BATAS_UKURAN = 20 * 1024 * 1024; // batas unduh file lewat bot Telegram
 export const BATAS_KERJA_MS = 110_000; // Edge Function gratis hidup paling lama 150 detik
 
-const API_BOLEH = new Set(["pintu_pesan", "pintu_tunda", "pintu_ambil_tunda", "pintu_terima_file", "pintu_kerjakan"]);
+const API_BOLEH = new Set([
+  "pintu_pesan", "pintu_tunda", "pintu_ambil_tunda", "pintu_terima_file", "pintu_kerjakan",
+  "pintu_pemberitahuan_ambil", "pintu_pengingat", "pintu_pemberitahuan_hasil",
+]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
 }
@@ -166,6 +170,7 @@ async function proses(
     });
     if (r.hasil !== "diterima") {
       await kirim(alat, chat, `File ${nama} ditolak: ${r.alasan}`);
+      await kirimPemberitahuan(alat, chat); // file rusak Excel atau format tidak dikenal: tingkat segera (U14)
       return;
     }
     const dibuang = h.baris_ditolak.length ? `, ${angka(h.baris_ditolak.length)} baris dibuang` : "";
@@ -202,7 +207,176 @@ export async function kerjakanAntrean(alat: Alat, chat: number, mulai: number): 
           (x.segera > 0 ? ` ${angka(x.segera)} pemberitahuan penting perlu diperiksa.` : ""),
       );
     }
+    await kirimPemberitahuan(alat, chat); // sesudah setiap periode, bukan menunggu seluruh antrean (U14)
     if (r.sisa === 0) return;
   }
   await kirim(alat, chat, "Sebagian periode masih di antrean; dihitung saat pesan berikutnya masuk.");
+}
+
+// ---------------------------------------------------------------------------
+// Pemberitahuan tingkat segera (paket 5c, U14)
+// ---------------------------------------------------------------------------
+
+export const BATAS_PESAN = 3800; // Telegram menerima paling banyak 4096 karakter per pesan
+
+// Judul dan langkah yang perlu dilakukan HRD, per jenis kejadian (PRD bagian 9).
+export const JENIS_SEGERA: Record<string, { judul: string; langkah: string }> = {
+  file_rusak_excel: {
+    judul: "File ditolak: pernah dibuka dan disimpan di Excel (No.ID rusak)",
+    langkah: "Ekspor ulang dari aplikasi mesin, lalu kirim tanpa membukanya di Excel.",
+  },
+  format_tidak_dikenal: {
+    judul: "File ditolak: format file tidak dikenal",
+    langkah: "Periksa apakah aplikasi mesin berubah; kirim file ekspor asli dari mesin.",
+  },
+  file_terpotong: {
+    judul: "File mesin kemungkinan terpotong",
+    langkah: "Ekspor ulang file lengkap dari mesin. Karyawan yang hilang dari file tidak dijadikan alpha.",
+  },
+  tap_terakhir_lama: {
+    judul: "Memori mesin penuh atau mesin mati?",
+    langkah: "Periksa mesin, lalu kirim file terbaru.",
+  },
+  jam_mesin_melenceng: {
+    judul: "Jam mesin kemungkinan melenceng",
+    langkah: "Cocokkan jam mesin dengan jam sebenarnya.",
+  },
+  tanpa_tap_massal: {
+    judul: "Hari tanpa tap massal (mungkin libur mendadak)",
+    langkah: "Tetapkan libur, absen manual, atau alpha. Periode tertahan sampai ditetapkan.",
+  },
+  belum_terdaftar_mesin: {
+    judul: "Karyawan baru belum terdaftar di mesin?",
+    langkah: "Daftarkan sidik jarinya di mesin. Sampai dikoreksi, hari tanpa tap tetap alpha.",
+  },
+};
+
+export interface Kejadian {
+  id: number;
+  jenis: string;
+  isi: Record<string, any>;
+}
+
+function barisKejadian(k: Kejadian): string {
+  if (k.jenis === "file_rusak_excel" || k.jenis === "format_tidak_dikenal") {
+    return `File ${k.isi.nama_file} (mesin ${k.isi.mesin ?? "-"}, kiriman no. ${k.isi.kiriman_id})`;
+  }
+  return String(k.isi.keterangan ?? k.jenis);
+}
+
+// Satu atau beberapa pesan (bila panjang) berisi semua kejadian, dikelompokkan per jenis.
+export function susunPesanSegera(kejadian: Kejadian[]): string[] {
+  const kelompok = new Map<string, Kejadian[]>();
+  for (const k of kejadian) kelompok.set(k.jenis, [...(kelompok.get(k.jenis) ?? []), k]);
+  const blok: string[] = [];
+  for (const [jenis, daftar] of kelompok) {
+    const j = JENIS_SEGERA[jenis] ?? { judul: jenis, langkah: "Periksa kejadian ini." };
+    blok.push(`${j.judul}\n${daftar.map((k) => `• ${barisKejadian(k)}`).join("\n")}\nLangkah: ${j.langkah}`);
+  }
+  const kepala = `PEMBERITAHUAN SEGERA (${angka(kejadian.length)} kejadian)`;
+  const pesan: string[] = [];
+  let kini = kepala;
+  const batasBlok = BATAS_PESAN - kepala.length - 20; // ruang untuk kepala "lanjutan"
+  for (const b of blok.flatMap((x) => (x.length > batasBlok ? pecah(x, batasBlok) : [x]))) {
+    if (kini.length + 2 + b.length > BATAS_PESAN) {
+      pesan.push(kini);
+      kini = `${kepala}, lanjutan`;
+    }
+    kini += "\n\n" + b;
+  }
+  pesan.push(kini);
+  return pesan;
+}
+
+function pecah(teks: string, batas: number): string[] {
+  const hasil: string[] = [];
+  let kini = "";
+  for (const baris of teks.split("\n")) {
+    if (kini && kini.length + 1 + baris.length > batas) {
+      hasil.push(kini);
+      kini = "";
+    }
+    kini = kini ? kini + "\n" + baris : baris.slice(0, batas);
+  }
+  if (kini) hasil.push(kini);
+  return hasil;
+}
+
+// Kirim pesan yang sama ke setiap penerima; kembalikan hasil per penerima ("ok" atau "galat: ...").
+async function kirimKeSemua(alat: Alat, penerima: number[], pesan: string[]): Promise<Record<string, string>> {
+  const hasil: Record<string, string> = {};
+  for (const tg of penerima) {
+    try {
+      for (const teks of pesan) await kirim(alat, tg, teks);
+      hasil[String(tg)] = "ok";
+    } catch (e) {
+      hasil[String(tg)] = `galat: ${(e as Error).message}`.slice(0, 300);
+    }
+  }
+  return hasil;
+}
+
+// Ambil kejadian segera yang baru (database mencatatnya lebih dulu), kirim ke semua penerima, catat hasilnya.
+export async function kirimPemberitahuan(alat: Alat, chat: number | null): Promise<number> {
+  try {
+    const r = await alat.api("pintu_pemberitahuan_ambil");
+    const kejadian: Kejadian[] = r?.kejadian ?? [];
+    if (kejadian.length === 0) return 0;
+    const hasil = await kirimKeSemua(alat, r.penerima ?? [], susunPesanSegera(kejadian));
+    await alat.api("pintu_pemberitahuan_hasil", { id: kejadian.map((k) => k.id), hasil });
+    return kejadian.length;
+  } catch (e) {
+    if (chat !== null) await kirim(alat, chat, `Pemberitahuan penting gagal dikirim: ${(e as Error).message}`);
+    return 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pengingat kirim file (paket 5c, celah A13): dipanggil penjadwal pg_cron atau dipicu manual
+// ---------------------------------------------------------------------------
+
+const tglId = (iso: string) => iso.split("-").reverse().join("-");
+
+export function susunPesanPengingat(r: any, kelompok: any): string {
+  const mesin = (kelompok.mesin as string[]).join(", ");
+  const kepala = kelompok.kepada === "bos"
+    ? `PENGINGAT UNTUK BOS: dua hari sesudah tutup buku ${tglId(r.tutup_buku)}, file mesin ${mesin} belum masuk.`
+    : `PENGINGAT (hari ke-${r.hari_ke} sesudah tutup buku ${tglId(r.tutup_buku)}): file mesin ${mesin} ` +
+      `untuk periode ${tglId(r.periode_awal)} s.d. ${tglId(r.tutup_buku)} belum masuk.`;
+  return kelompok.kepada === "bos"
+    ? `${kepala} Gaji periode ini belum bisa dihitung lengkap.`
+    : `${kepala} Kirim file ekspor dari mesin ke bot ini.` +
+      (r.hari_ke === 2 ? " Bila belum masuk hari ini, bos juga diberi tahu." : "");
+}
+
+export async function tanganiPengingat(
+  metode: string,
+  rahasiaMasuk: string | null,
+  badan: string,
+  rahasia: string,
+  alat: Alat,
+): Promise<{ status: number; hasil: any }> {
+  if (metode !== "POST") return { status: 405, hasil: null };
+  if (!rahasia || rahasiaMasuk !== rahasia) return { status: 401, hasil: null };
+  let isi: any = {};
+  try {
+    isi = badan.trim() ? JSON.parse(badan) : {};
+  } catch {
+    return { status: 400, hasil: null };
+  }
+  const tanggal = isi?.tanggal;
+  if (tanggal !== undefined && tanggal !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(tanggal))) {
+    return { status: 400, hasil: null };
+  }
+  const r = await alat.api("pintu_pengingat", tanggal ? { tanggal } : {});
+  const terkirim: any[] = [];
+  for (const k of r.kirim ?? []) {
+    const hasil = await kirimKeSemua(alat, k.penerima ?? [], [susunPesanPengingat(r, k)]);
+    await alat.api("pintu_pemberitahuan_hasil", { id: k.id, hasil });
+    terkirim.push({ kepada: k.kepada, mesin: k.mesin, hasil });
+  }
+  return {
+    status: 200,
+    hasil: { tanggal: r.tanggal, tutup_buku: r.tutup_buku, hari_ke: r.hari_ke, terkirim, dilewati: r.dilewati ?? [] },
+  };
 }
