@@ -30,3 +30,5 @@ select uji.sama('anomali gaji (U10): daftar tanda bisa dibuat untuk setiap perio
   (select count(*) from fakta.periode)::int);
 select uji.sama('anomali gaji (U10): setiap tanda berisi keterangan',
   (select count(*) from fakta.periode p cross join lateral hitung.anomali_gaji(p.id) a where a.keterangan is null)::int, 0);
+select uji.sama('baca tap: versi baca tap terakhir setiap periode memakai versi kode terbaru',
+  (select count(*) from hitung.versi_terakhir v where v.jenis = 'baca_tap' and v.versi_kode <> hitung.versi_kode_baca())::int, 0);

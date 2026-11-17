@@ -93,15 +93,19 @@ pasang() {
     'db/data_awal/muat_tap_simulasi.sh ekspor > /dev/null' \
     fakta.kiriman_file fakta.tap_mentah
 
-  echo "== Baca tap (hanya periode yang belum punya hasil)"
-  local p mulai
-  for p in $(nilai "select p.id from fakta.periode p
-                    where not exists (select 1 from hitung.versi_hitung v where v.periode_id = p.id and v.sidik_hasil is not null)
-                    order by p.id"); do
+  echo "== Baca tap (periode yang belum punya hasil, atau hasil terakhirnya dari versi kode pembaca tap lama)"
+  local p mulai daftar_baca
+  daftar_baca="$(nilai "select p.id from fakta.periode p
+                        where not exists (select 1 from hitung.versi_hitung v where v.periode_id = p.id and v.jenis = 'baca_tap'
+                                            and v.sidik_hasil is not null)
+                           or exists (select 1 from hitung.versi_terakhir v where v.periode_id = p.id and v.jenis = 'baca_tap'
+                                        and v.versi_kode <> hitung.versi_kode_baca())
+                        order by p.id")"
+  for p in $daftar_baca; do
     mulai=$(date +%s%N)
     "${PSQL[@]}" -t -A -o /dev/null -c "select hitung.baca_tap($p)"
     echo "  periode $p: $(( ($(date +%s%N) - mulai) / 1000000 )) ms dari server GitHub, \
-$(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p order by nomor desc limit 1") ms di database"
+$(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p and jenis = 'baca_tap' order by nomor desc limit 1") ms di database"
   done
 
   echo "== Hitung gaji (periode tanpa hasil gaji dari baca tap terakhir dan versi kode terbaru; urut tanggal)"

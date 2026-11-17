@@ -146,6 +146,6 @@ select uji.sama('K37 (U12): pecahan 38 x 100.000, 2 x 20.000, 1 x 5.000, 1 x 2.0
 select uji.sama('K37: jumlah pecahan = jumlah dibayar tunai',
   (select sum(t.jumlah) from hitung.pecahan_tunai((select v.id from hitung.versi_terakhir v join fakta.periode p on p.id = v.periode_id
                               where v.jenis = 'hitung_gaji' and p.tanggal_awal = '2025-12-21')) t), 3847000::numeric);
-select uji.sama('versi kode gaji 3', hitung.versi_kode_gaji(), 'hitung_gaji 3 (paket 4b-3)');
+-- Nomor versi kode gaji diuji di uji paket terbaru (100).
 
 rollback;

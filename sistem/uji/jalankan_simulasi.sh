@@ -55,6 +55,8 @@ CEK_GAJI="$({ echo "begin;"; cat db/uji/alat.sql db/data_awal/cek_gaji.sql db/da
   | psql "$DB_URL" -X -q -t -o /dev/null 2>&1 || true)"
 echo "$CEK_GAJI" | sed -E 's/^psql:[^ ]+ (NOTICE|WARNING):  /  /' | grep -E "LULUS|GAGAL|hasil:" || true
 cek "pemeriksaan gaji dan tahap 3 sesudah hitung gaji tanpa GAGAL" "$(echo "$CEK_GAJI" | grep -c GAGAL || true)" 0
+echo "  Tanda anomali gaji Pabrik A per periode: $(nilai "select string_agg(p.id || ': ' || coalesce((select string_agg(jenis || ' ' || n, ', ' order by jenis)
+  from (select jenis, count(*) n from hitung.anomali_gaji(p.id) group by jenis) x), 'tidak ada'), ' | ' order by p.tanggal_awal) from fakta.periode p")"
 P1G="$(nilai "select min(id) from fakta.periode")"
 nilai "select hitung.hitung_gaji($P1G)" > /dev/null
 cek "dua kali hitung gaji menghasilkan sidik yang sama" \
