@@ -11,22 +11,52 @@ export interface Sql {
   unsafe(kueri: string, parameter?: unknown[]): Promise<any[]>;
 }
 
+// Galat sambungan ke database (masuk ditolak atau sambungan gagal): perintahnya belum sempat berjalan di database,
+// jadi aman dicoba ulang. Paket 5d-2: sesudah "Pasang ke Supabase" mengganti kata sandi peran `pintu`, percobaan
+// masuk pertama lewat pooler ditolak ("password authentication failed"), percobaan berikutnya berhasil.
+const KODE_GANGGUAN = new Set([
+  "28P01", "28000", "08000", "08001", "08003", "08004", "08006", "57P01", "57P03",
+  "CONNECT_TIMEOUT", "CONNECTION_CLOSED", "CONNECTION_ENDED", "CONNECTION_DESTROYED", "ECONNREFUSED", "ECONNRESET",
+]);
+export function gangguanDatabase(e: unknown): boolean {
+  const x = e as { code?: string; message?: string; gangguanDatabase?: boolean } | null;
+  return !!x && (x.gangguanDatabase === true || (typeof x.code === "string" && KODE_GANGGUAN.has(x.code)) ||
+    // Kode dari pooler belum dipastikan; teks galat yang tercatat di log Supabase (17 Nov 2026) ikut dikenali.
+    /password authentication failed/i.test(String(x.message ?? "")));
+}
+
 export function buatAlat(
   sql: Sql,
   token: string,
   urai: (teks: string, pilihan: { tanggal_kirim?: string }) => HasilUraiRingkas,
   ambil: typeof fetch = fetch,
   alamatUnggah = "",
+  jedaCobaUlang: number[] = [1000, 2000], // tiga percobaan: langsung, sesudah 1 detik, sesudah 2 detik lagi
 ): Alat {
+  const jalankan = async (kueri: string, parameter?: unknown[]) => {
+    for (let ke = 0; ; ke++) {
+      try {
+        return await sql.unsafe(kueri, parameter);
+      } catch (e) {
+        if (!gangguanDatabase(e)) throw e;
+        if (ke >= jedaCobaUlang.length) {
+          console.error(`database tidak bisa dihubungi sesudah ${ke + 1} percobaan`, e);
+          throw Object.assign(new Error("database tidak bisa dihubungi"), { gangguanDatabase: true, sebab: e });
+        }
+        console.error(`percobaan ${ke + 1} ke database gagal (${(e as { code?: string }).code}); dicoba lagi`);
+        await new Promise((s) => setTimeout(s, jedaCobaUlang[ke]));
+      }
+    }
+  };
   return {
     alamatUnggah,
     async api(nama, isi) {
       if (!apiBoleh(nama)) throw new Error(`fungsi ${nama} tidak boleh dipanggil`);
       const baris = isi === undefined
-        ? await sql.unsafe(`select api.${nama}() as h`)
+        ? await jalankan(`select api.${nama}() as h`)
         // $1 sebagai teks lalu diubah ke jsonb oleh database. Dengan `$1::jsonb` saja, postgres.js mengubah teks JSON
         // menjadi JSON sekali lagi (string di dalam jsonb), sehingga semua isian terbaca kosong (ditemukan uji nyata 17 Nov).
-        : await sql.unsafe(`select api.${nama}($1::text::jsonb) as h`, [JSON.stringify(isi)]);
+        : await jalankan(`select api.${nama}($1::text::jsonb) as h`, [JSON.stringify(isi)]);
       return baris[0].h;
     },
     async telegram(metode, isi) {
@@ -63,10 +93,11 @@ export async function layani(
 ): Promise<{ respon: Response; latar: Promise<void> | null }> {
   const jalur = new URL(req.url).searchParams.get("jalur");
   if (jalur !== null) return layaniWeb(req, jalur, alat, asalWeb);
+  const badan = await req.text();
   try {
     const kodePengingat = req.headers.get("x-pengingat-rahasia");
     if (kodePengingat !== null) {
-      const { status, hasil } = await tanganiPengingat(req.method, kodePengingat, await req.text(), rahasiaPengingat, alat);
+      const { status, hasil } = await tanganiPengingat(req.method, kodePengingat, badan, rahasiaPengingat, alat);
       return {
         respon: new Response(status === 200 ? JSON.stringify(hasil) : "ditolak", {
           status,
@@ -78,15 +109,37 @@ export async function layani(
     const { status, latar } = await tanganiPermintaan(
       req.method,
       req.headers.get("x-telegram-bot-api-secret-token"),
-      await req.text(),
+      badan,
       rahasiaTelegram,
       alat,
     );
     return { respon: new Response(status === 200 ? "ok" : "ditolak", { status }), latar };
   } catch (e) {
-    // Tetap 200 supaya Telegram tidak mengirim ulang terus; nomor pesan sudah tercatat.
     console.error(e);
+    if (gangguanDatabase(e)) {
+      // Database tidak bisa dihubungi: pesan belum tercatat. Jawab 503 supaya Telegram mengirim ulang pesan ini nanti
+      // (Telegram mengulang permintaan yang tidak dijawab 2xx, lalu menyerah sesudah beberapa kali); pencatatan nomor
+      // pesan mencegah pesan yang sama diproses dua kali. Pengirim diberi tahu supaya tidak mengira bot mati.
+      // Kode rahasia sudah lolos di tanganiPermintaan sebelum database disentuh, jadi badan ini memang dari Telegram.
+      await balasGangguan(alat, badan);
+      return { respon: new Response("gangguan database", { status: 503 }), latar: null };
+    }
+    // Galat lain tetap 200 supaya Telegram tidak mengirim ulang terus.
     return { respon: new Response("ok", { status: 200 }), latar: null };
+  }
+}
+
+export const PESAN_GANGGUAN =
+  "Sedang ada gangguan sambungan ke database. Pesan Anda akan diproses otomatis begitu pulih; tidak perlu kirim ulang.";
+
+async function balasGangguan(alat: Alat, badan: string) {
+  try {
+    const u = JSON.parse(badan);
+    const chat = u?.message?.chat?.id ?? u?.callback_query?.message?.chat?.id;
+    if (chat === undefined || chat === null) return;
+    await alat.telegram("sendMessage", { chat_id: chat, text: PESAN_GANGGUAN });
+  } catch {
+    // pesan gangguan gagal dikirim: tidak apa-apa, Telegram tetap mengirim ulang pesan aslinya
   }
 }
 

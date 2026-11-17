@@ -43,6 +43,7 @@ if [ -z "$REF" ]; then
   exit 1
 fi
 
+RUNNER_TEMP_PINTU="$(mktemp)"
 SANDI="$(openssl rand -hex 24)"
 RAHASIA="$(openssl rand -hex 32)"
 RAHASIA_PENGINGAT="$(openssl rand -hex 32)"
@@ -56,6 +57,25 @@ psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -v sandi="$SANDI" <<'EOF'
 alter role pintu password :'sandi';
 alter role pintu set statement_timeout = '120s';
 EOF
+
+# Paket 5d-2: sesudah kata sandi diganti, percobaan masuk pertama lewat pooler Supabase ditolak (temuan 5c dan 5d).
+# Skrip ini masuk sebagai `pintu` lebih dulu sampai berhasil, supaya kegagalan itu tidak jatuh ke pesan HRD, dan
+# mencatat berapa percobaan yang dibutuhkan. Edge Function juga mencoba ulang sendiri (sistem/pintu/sambung.ts).
+echo "== Masuk sebagai pintu lewat pooler sampai berhasil"
+berhasil=""
+for ke in $(seq 1 10); do
+  if PGCONNECT_TIMEOUT=10 psql "$PINTU_DB_URL" -X -q -t -A -c "select 1" > /dev/null 2> "$RUNNER_TEMP_PINTU"; then
+    berhasil="$ke"
+    break
+  fi
+  echo "  percobaan $ke ditolak: $(head -c 200 "$RUNNER_TEMP_PINTU" | tr '\n' ' ' | sed -E 's/postgresql:[^ ]*/[alamat]/g')"
+  sleep 3
+done
+if [ -z "$berhasil" ]; then
+  echo "GAGAL: peran pintu tidak bisa masuk lewat pooler sesudah 10 percobaan." >&2
+  exit 1
+fi
+echo "  berhasil pada percobaan ke-$berhasil"
 
 echo "== Akun pembangun"
 psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -v tg="$PEMBANGUN_TELEGRAM_ID" <<'EOF'
@@ -77,7 +97,7 @@ npx --yes supabase@2 functions deploy pintu-telegram --project-ref "$REF" --no-v
 echo "Lama memasang: $(( ($(date +%s%N) - mulai) / 1000000 )) ms"
 
 BERKAS="$(mktemp)"
-trap 'rm -f "$BERKAS"' EXIT
+trap 'rm -f "$BERKAS" "$RUNNER_TEMP_PINTU"' EXIT
 # ASAL_WEB: alamat halaman unggah (paket 5d); Edge Function hanya menerima unggahan web dari alamat ini.
 ASAL_WEB="${ASAL_WEB:-https://future-absensi-demo.pages.dev}"
 printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_RAHASIA=%s\nPINTU_DB_URL=%s\nPENGINGAT_RAHASIA=%s\nASAL_WEB=%s\n' \

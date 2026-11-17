@@ -33,7 +33,7 @@ U14 [Pasti, sejauh yang diuji]: setiap kejadian segera yang ada tercatat `terkir
 
 ## Kejadian di uji nyata
 
-1. **Pemicu pengingat pertama gagal** [Pasti, dari log Edge Function]: "password authentication failed for user pintu", sekitar 1 menit sesudah pemasangan mengganti kata sandi. Diulang sekitar 2 menit kemudian dan berhasil tanpa perubahan apa pun. Penyebab [Kemungkinan Besar]: pooler Supabase belum memakai kata sandi baru. Akibatnya: setiap selesai "Pasang ke Supabase", bot bisa gagal sebentar. Tidak ada data yang tercatat saat gagal; tetapi pesan Telegram yang masuk pada jeda itu tidak dibalas.
+1. **Pemicu pengingat pertama gagal** [Pasti, dari log Edge Function]: "password authentication failed for user pintu", sekitar 1 menit sesudah pemasangan mengganti kata sandi. Diulang sekitar 2 menit kemudian dan berhasil tanpa perubahan apa pun. Penyebab [Kemungkinan Besar]: pooler Supabase belum memakai kata sandi baru. Akibatnya: setiap selesai "Pasang ke Supabase", bot bisa gagal sebentar. **Ralat (paket 5d-2):** bukan soal "1–2 menit"; yang terjadi adalah percobaan masuk pertama sesudah pemasangan selalu gagal, berapa pun jedanya (terulang di 5d, 5 menit sesudah pemasangan). Lihat `docs/laporan-tahap-5d.md` temuan 1. Tidak ada data yang tercatat saat gagal; tetapi pesan Telegram yang masuk pada jeda itu tidak dibalas.
 2. **Pemicu kedua (22-10-2026) tidak mengirim apa pun**, dan itu benar: data demo berisi file sampai Desember 2026, jadi semua mesin dianggap sudah mengirim.
 3. **Pemicu ketiga (22-12-2026)** mengirim pengingat MA2. Akibatnya pengingat sungguhan hari ke-2 tanggal 22-12-2026 untuk MA2 tidak dikirim lagi (sudah tercatat). Hari ke-1 (21-12-2026) tidak terpengaruh.
 

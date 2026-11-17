@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import postgres from "postgres";
 import { urai } from "../urai/urai.ts";
-import { buatAlat, layani } from "./sambung.ts";
+import { buatAlat, layani, PESAN_GANGGUAN, type Sql } from "./sambung.ts";
 
 const DB = process.env.DB_URL!;
 const sql = postgres(process.env.PINTU_URL!, { prepare: false, max: 1, idle_timeout: 20, onnotice: () => {} });
@@ -166,4 +166,91 @@ test("unggah tanpa file -> 400; kode palsu -> 401", async () => {
   g.append("mesin", "MA1");
   g.append("file", new File([FILE_EXCEL], "x.csv"));
   assert.equal((await kirim(g, { origin: ASAL_WEB }, "unggah")).respon.status, 401);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 5d-2: bot tidak diam bila database menolak masuk (temuan 5c dan 5d)
+// ---------------------------------------------------------------------------
+
+// Database tiruan di depan postgres.js sungguhan: menolak masuk `gagal` kali dulu (kode 28P01 seperti pooler Supabase).
+function sqlRewel(gagal: number, kode = "28P01"): Sql & { percobaan: number } {
+  const x = {
+    percobaan: 0,
+    async unsafe(kueri: string, parameter?: unknown[]) {
+      x.percobaan++;
+      if (gagal-- > 0) {
+        throw Object.assign(new Error('password authentication failed for user "pintu"'), { code: kode });
+      }
+      return sql.unsafe(kueri, parameter);
+    },
+  };
+  return x;
+}
+
+async function kirimDengan(s: Sql, badan: unknown) {
+  const a = buatAlat(s, "TOKEN-UJI", urai, fetchPalsu, `${ASAL_WEB}/unggah/`, [0, 0]);
+  const awal = panggilan.length;
+  const { respon, latar } = await layani(
+    new Request("http://lokal/pintu-telegram", { method: "POST", headers: dariTelegram, body: JSON.stringify(badan) }),
+    a, RAHASIA, RAHASIA_PENGINGAT, ASAL_WEB,
+  );
+  if (latar) await latar;
+  return { respon, pesan: panggilan.slice(awal).filter((p) => p.metode === "sendMessage").map((p) => p.isi) };
+}
+const teks = (u: number) => ({ update_id: u, message: { message_id: u, chat: { id: HRD }, from: { id: HRD }, text: "halo" } });
+
+test("5d-2: masuk ditolak sekali lalu berhasil -> pesan diproses biasa, satu balasan", async () => {
+  const s = sqlRewel(1);
+  const r = await kirimDengan(s, teks(7201));
+  assert.equal(r.respon.status, 200);
+  assert.equal(r.pesan.length, 1);
+  assert.match(r.pesan[0].text, /Kirim file ekspor/);
+  assert.equal(s.percobaan, 2);
+  assert.equal(nilai("select count(*) from fakta.pesan_telegram where update_id = 7201"), "1");
+});
+
+test("5d-2: database menolak terus -> 503, pengirim diberi tahu, tidak ada yang tercatat; kiriman ulang Telegram diproses sekali", async () => {
+  const s = sqlRewel(99);
+  const r = await kirimDengan(s, teks(7202));
+  assert.equal(r.respon.status, 503);
+  assert.deepEqual(r.pesan.map((p) => p.text), [PESAN_GANGGUAN]);
+  assert.equal(s.percobaan, 3);
+  assert.equal(nilai("select count(*) from fakta.pesan_telegram where update_id = 7202"), "0");
+  // Telegram mengirim ulang pesan yang sama sesudah database pulih
+  const ulang = await kirimDengan(sql, teks(7202));
+  assert.equal(ulang.respon.status, 200);
+  assert.match(ulang.pesan[0].text, /Kirim file ekspor/);
+  const lagi = await kirimDengan(sql, teks(7202));
+  assert.equal(lagi.respon.status, 200);
+  assert.deepEqual(lagi.pesan, []);
+  assert.equal(nilai("select count(*) from fakta.pesan_telegram where update_id = 7202"), "1");
+});
+
+test("5d-2: tombol saat database menolak terus -> pesan gangguan ke chat tombol, 503", async () => {
+  const r = await kirimDengan(sqlRewel(99), { update_id: 7203, callback_query: { id: "cb7203", data: "m|1|MA1",
+    from: { id: HRD }, message: { chat: { id: HRD } } } });
+  assert.equal(r.respon.status, 503);
+  assert.equal(r.pesan[0].chat_id, HRD);
+});
+
+test("5d-2: teks galat pooler dikenali walau kodenya lain", async () => {
+  const r = await kirimDengan(sqlRewel(1, "XX000"), teks(7206));
+  assert.equal(r.respon.status, 200);
+  assert.match(r.pesan[0].text, /Kirim file ekspor/);
+});
+
+test("5d-2: galat lain (bukan sambungan) tetap 200 tanpa pesan gangguan", async () => {
+  const s = { async unsafe() { throw Object.assign(new Error("function does not exist"), { code: "42883" }); } };
+  const r = await kirimDengan(s, teks(7204));
+  assert.equal(r.respon.status, 200);
+  assert.ok(!r.pesan.some((p) => p.text === PESAN_GANGGUAN));
+});
+
+test("5d-2: kode rahasia salah tetap 401 tanpa menyentuh database", async () => {
+  const s = sqlRewel(99);
+  const a = buatAlat(s, "TOKEN-UJI", urai, fetchPalsu, "", [0, 0]);
+  const { respon } = await layani(new Request("http://lokal/x", { method: "POST",
+    headers: { "x-telegram-bot-api-secret-token": "salah" }, body: JSON.stringify(teks(7205)) }), a, RAHASIA, RAHASIA_PENGINGAT);
+  assert.equal(respon.status, 401);
+  assert.equal(s.percobaan, 0);
 });
