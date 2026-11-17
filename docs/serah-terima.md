@@ -13,7 +13,7 @@ Terakhir diperbarui: 17 November 2026, cabang `main` (paket 4b-2 THR, kasbon, tu
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 4 berjalan, paket 4a, 4b-1, 4b-2 selesai; berikutnya 4b-3
+## Posisi sekarang: Tahap 4 berjalan, paket 4a, 4b-1, 4b-2, 4b-3 selesai; berikutnya 4b-4
 
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
@@ -212,7 +212,20 @@ Laporan lengkap: `docs/laporan-tahap-4b-2.md`. Aturan: `docs/aturan-hitung-gaji.
 | Hasil | Uji database 278 lulus; simulasi 12 lulus; pembanding 4.037 orang-periode selisih 0; GitHub lulus; Pasang lulus (pemeriksaan 28 lulus) |
 | Dicek di Supabase | 0010 sidik `257d665d9cf9` = repo; versi gaji 2 untuk 4 periode; THR periode 2 Rp3.247.308.342 (990 orang); dibayar + sisa = bersih + sisa lalu untuk semua; periode 1, 3, 4 gaji bersih sama dengan versi 1 |
 
-**Paket 4b-3 (belum ditulis daftarnya):** PPh Desember (hitung ulang setahun; data simulasi hanya 4 periode), saldo cuti (C02, C02b), Pabrik B (U5), U10 anomali, U12 pecahan tunai. Juga perlu: cek naskah resmi Permenaker 6/2016 dan PP 36/2021.
+## Paket 4b-3 (17 Nov 2026): PPh masa terakhir, saldo cuti, pecahan tunai
+
+Laporan lengkap: `docs/laporan-tahap-4b-3.md`. Aturan: `docs/aturan-hitung-gaji.md` versi 3 (commit 9629875 sebelum kode; uji GitHub commit itu gagal karena tabel baru belum ada, tidak dipasang).
+
+| Hal | Isi |
+| --- | --- |
+| Kode | Migrasi 0011 (`hitung_gaji` versi 3, tarif Pasal 17, saldo cuti awal, `pecahan_tunai`, `periode_bisa_diajukan`) |
+| Uji | `db/uji/080_gaji_masa_terakhir_cuti_tunai.sql` (33 uji, K28–K37); satu uji Desember di 060 disesuaikan ke aturan v3 |
+| Hasil | Uji database 311 lulus; simulasi 12 lulus; pembanding 4.037 orang-periode selisih 0; GitHub lulus (6aa63b8); Pasang lulus |
+| Dicek di Supabase | 0011 sidik `a87c245ed7d0` = lokal; versi gaji 3 untuk 4 periode; angka sama dengan lokal; semua periode tertahan karena data Januari tidak ada (sesuai aturan) |
+
+**Temuan penting:** perusahaan yang mulai di tengah tahun butuh isian "data pajak awal tahun", kalau tidak PPh Desember tahun pertama selalu tertahan. Belum dikerjakan; usul masuk paket berikutnya.
+
+**Paket 4b-4 (belum ditulis daftarnya):** Pabrik B (U5), U10 anomali; usul tambahan: isian data pajak awal tahun. Juga perlu: cek naskah resmi Permenaker 6/2016 dan PP 36/2021.
 
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 
@@ -221,7 +234,7 @@ Laporan lengkap: `docs/laporan-tahap-4b-2.md`. Aturan: `docs/aturan-hitung-gaji.
 | Tahap | Yang dibangun | Hasil yang bisa dilihat pemilik | Syarat ⏳ |
 | --- | --- | --- | --- |
 | 3 | ~~Pembaca tap: pemetaan ID mesin, koreksi jam mesin, cek cakupan file~~ **Selesai 13 Nov 2026** | Tabel hadir/telat/lupa tap/alpha per orang per hari (U1, U4, U6; kasus 20→21 Maret) | U9 dipindah ke berjalan berdampingan (keputusan di atas) |
-| 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 ✓ THR, kasbon, tunai · 4b-3 PPh Desember, saldo cuti, Pabrik B, U10, U12 · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
+| 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 ✓ THR, kasbon, tunai · 4b-3 ✓ PPh Desember, saldo cuti, U12 · 4b-4 Pabrik B, U10 · 4c halaman demo sederhana dan unggah cadangan lewat web | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
 | 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
 | 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
