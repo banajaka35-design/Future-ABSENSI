@@ -13,7 +13,7 @@ Terakhir diperbarui: 17 November 2026, cabang `main` (paket 4b-2 THR, kasbon, tu
 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
-## Posisi sekarang: Tahap 4 berjalan, paket 4a sampai 4b-5 selesai; berikutnya 4c (halaman demo)
+## Posisi sekarang: Tahap 4 berjalan, paket 4a sampai 4b-5 selesai; 4c (halaman demo) menunggu secret Cloudflare
 
 Tahap 3 (pembaca tap) lulus dan terpasang 13 Nov 2026 (bagian "Tahap 3" di bawah, lengkapnya di `docs/laporan-tahap-3.md`). Tahap 4 dipecah jadi paket kecil: **4a** (catatan, cek hukum, isian aturan; selesai 16 Nov 2026, lihat bagian "Paket 4a"), **4b** (hitung gaji), **4c** (halaman web). Permintaan perubahan 01 disetujui pemilik 16 Nov 2026 (usulan 1 dan 2; dikerjakan di 4b). Naskah resmi UU 27/2026 sudah dibaca 16 Nov 2026 (PDF JDIH BPK, diunduh pemilik ke folder Downloads komputernya); pasal 115, 116, 118, 125, 134, 135, 140, 150, 310, 312 cocok dengan catatan dan labelnya kini [Pasti]. Temuan baru: UMK hanya berlaku untuk masa kerja kurang dari 1 tahun (Pasal 140 ayat 1); batas potongan 50% dan THR tidak ada di UU, diserahkan ke PP (lama tetap berlaku lewat Pasal 310), isinya dicek di 4b. **Berikutnya: daftar paket 4b.**
 
@@ -253,6 +253,15 @@ Laporan lengkap: `docs/laporan-tahap-4b-5.md`. Aturan versi 5, permintaan peruba
 **Untuk 4c:** PPh Desember demo tertahan karena data simulasi hanya 4 periode; tulis terus terang di halaman demo.
 
 Juga masih perlu: cek naskah resmi Permenaker 6/2016 dan PP 36/2021.
+
+## Paket 4c (17 Nov 2026): halaman demo — berjalan
+
+Keputusan pemilik: salinan tetap (halaman tidak menyentuh Supabase), Cloudflare Pages proyek `future-absensi-demo`, unggah cadangan lewat web **dipindah ke Tahap 5** (syarat gerbang Tahap 4 berubah). Syarat: `docs/halaman-demo.md`.
+
+| Hal | Isi |
+| --- | --- |
+| Selesai (commit 0cd1c9b) | `web/demo/index.html`, `web/buat_data.py`, `web/periksa_data.py`, workflow "Terbitkan demo"; uji simulasi 25 lulus (angka demo = gudang); GitHub lulus |
+| Menunggu pemilik | Secret GitHub `CLOUDFLARE_API_TOKEN` (izin Cloudflare Pages: Edit) dan `CLOUDFLARE_ACCOUNT_ID`, lalu tombol "Terbitkan demo" |
 
 ## Rencana Tahap 3 sampai 9 (PRD bagian 17)
 
