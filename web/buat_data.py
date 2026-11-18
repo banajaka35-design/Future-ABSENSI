@@ -59,6 +59,38 @@ select json_build_object(
       'nilai_pecahan', (select json_agg(t.pecahan order by t.pecahan desc) from hitung.pecahan_tunai(v.versi_gaji) t),
       'dibayar_tunai', (select coalesce(json_agg(g.dibayar), '[]'::json) from terlihat g join cara c on c.versi_gaji = g.versi_id
                         and c.id_karyawan = g.id_karyawan where g.versi_id = v.versi_gaji and c.cara_bayar = 'tunai'),
+      -- Paket G1: grafik. Rupiah tanpa orang rahasia; potongan sebagai angka positif.
+      'divisi_biaya', (select coalesce(json_agg(json_build_object(
+            'divisi', x.divisi, 'orang', x.orang, 'rahasia', x.rahasia, 'pokok', x.pokok, 'lembur', x.lembur,
+            'pot_hari', x.pot_hari, 'pot_lain', x.pot_lain, 'bersih', x.bersih) order by x.divisi), '[]'::json)
+          from (select coalesce(d.divisi, '-') as divisi,
+                       count(*) filter (where not coalesce(s.gaji_rahasia, false)) as orang,
+                       count(*) filter (where coalesce(s.gaji_rahasia, false)) as rahasia,
+                       coalesce(sum(k.pokok) filter (where not coalesce(s.gaji_rahasia, false)), 0) as pokok,
+                       coalesce(sum(k.lembur) filter (where not coalesce(s.gaji_rahasia, false)), 0) as lembur,
+                       coalesce(sum(k.pot_hari) filter (where not coalesce(s.gaji_rahasia, false)), 0) as pot_hari,
+                       coalesce(sum(k.pot_lain) filter (where not coalesce(s.gaji_rahasia, false)), 0) as pot_lain,
+                       coalesce(sum(g.gaji_bersih) filter (where not coalesce(s.gaji_rahasia, false)), 0) as bersih
+                from hitung.ringkasan_gaji g
+                left join rahasia s on s.id_karyawan = g.id_karyawan
+                left join divisi d on d.versi_gaji = g.versi_id and d.id_karyawan = g.id_karyawan
+                left join lateral (
+                  select sum(r.nominal) filter (where r.komponen = 'gaji_pokok') as pokok,
+                         sum(r.nominal) filter (where r.komponen = 'lembur') as lembur,
+                         -sum(r.nominal) filter (where r.komponen = 'potongan_tidak_dibayar') as pot_hari,
+                         -sum(r.nominal) filter (where r.kelompok = 'potongan') as pot_lain
+                  from hitung.rincian_gaji r where r.versi_id = g.versi_id and r.id_karyawan = g.id_karyawan) k on true
+                where g.versi_id = v.versi_gaji
+                group by 1) x),
+      'telat', (select json_agg(json_build_array(h.tgl, h.n) order by h.tgl)
+          from (select gs::date as tgl,
+                       (select count(*) from hitung.hasil_harian h2 join hitung.versi_hitung x on x.id = v.versi_gaji
+                        where h2.versi_id = x.versi_sumber and h2.tanggal = gs::date
+                          and h2.status = 'hadir' and h2.menit_telat > 0) as n
+                from generate_series(v.tanggal_awal, v.tanggal_akhir, interval '1 day') gs) h),
+      'thr', (select coalesce(sum(r.nominal), 0) from terlihat g join hitung.rincian_gaji r
+              on r.versi_id = g.versi_id and r.id_karyawan = g.id_karyawan and r.komponen = 'thr'
+              where g.versi_id = v.versi_gaji),
       'bisa_diajukan', hitung.periode_bisa_diajukan(v.periode_id),
       'tertahan', (select count(*) from terlihat g where g.versi_id = v.versi_gaji
                    and 'pph_masa_terakhir_tertahan' = any(g.peringatan)),
@@ -78,10 +110,12 @@ select json_build_object(
     ) order by v.tanggal_awal) from ver v),
   'karyawan', (select json_agg(json_build_object(
       'id', k.id, 'nama', k.nama, 'rahasia', coalesce(s.gaji_rahasia, false),
+      -- p: {periode: [divisi, gaji bersih (null bila rahasia), cara bayar]} (cara bayar: paket G1)
       'p', (select json_object_agg(v.periode_id, json_build_array(d.divisi,
-                      case when coalesce(s.gaji_rahasia, false) then null else g.gaji_bersih end))
+                      case when coalesce(s.gaji_rahasia, false) then null else g.gaji_bersih end, c.cara_bayar))
             from ver v join hitung.ringkasan_gaji g on g.versi_id = v.versi_gaji and g.id_karyawan = k.id
-            left join divisi d on d.versi_gaji = v.versi_gaji and d.id_karyawan = k.id)) order by k.id)
+            left join divisi d on d.versi_gaji = v.versi_gaji and d.id_karyawan = k.id
+            left join cara c on c.versi_gaji = v.versi_gaji and c.id_karyawan = k.id)) order by k.id)
     from induk.karyawan k left join rahasia s on s.id_karyawan = k.id
     where exists (select 1 from ver v join hitung.ringkasan_gaji g on g.versi_id = v.versi_gaji and g.id_karyawan = k.id)),
   -- Rincian per periode (dipisah per file supaya halaman awal kecil); orang rahasia tidak ikut.
@@ -116,6 +150,14 @@ def main():
                 lembar[i] += s // n
                 s %= n
         p["pecahan"] = [[n, l] for n, l in zip(nilai, lembar)]
+        # Paket G1: isi amplop per orang tunai (bukan rahasia; orang rahasia tidak ada di rincian).
+        for r in (rincian.get(str(p["id"])) or {}).values():
+            if r.get("cara") == "tunai":
+                s, amp = max(r["dibayar"], 0), []
+                for n in nilai:
+                    amp.append(s // n)
+                    s %= n
+                r["amplop"] = [[n, x] for n, x in zip(nilai, amp)]
     os.makedirs(folder, exist_ok=True)
     tulis = [("data.json", data)] + [(f"rincian_{pid}.json", isi or {}) for pid, isi in rincian.items()]
     for nama, isi in tulis:

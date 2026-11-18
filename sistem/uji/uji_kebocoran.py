@@ -66,6 +66,20 @@ try:
     r = subprocess.run([sys.executable, "web/periksa_data.py", demo], cwd=AKAR, capture_output=True, text=True)
     cek("pemeriksa halaman demo lulus (termasuk uji kebocoran)", r.returncode == 0, (r.stdout + r.stderr)[-600:])
     print("    " + r.stdout.strip().splitlines()[-1])
+    # G1: total grafik divisi yang memuat orang rahasia dikembalikan termasuk rahasia -> pemeriksa GAGAL.
+    jalur_d = os.path.join(demo, "data.json")
+    asli = open(jalur_d, encoding="utf-8").read()
+    data_g = json.loads(asli)
+    ber_r = [(p, d) for p in data_g["periode"] for d in p["divisi_biaya"] if d["rahasia"] > 0]
+    cek(f"grafik divisi: {len(ber_r)} divisi-periode memuat orang rahasia, keterangan tersedia", len(ber_r) > 0)
+    if ber_r:
+        _, d = ber_r[0]
+        d["bersih"] += 1_000_000
+        json.dump(data_g, open(jalur_d, "w", encoding="utf-8"))
+        r = subprocess.run([sys.executable, "web/periksa_data.py", demo], cwd=AKAR, capture_output=True, text=True)
+        cek("total grafik divisi berahasia ditambah -> pemeriksa GAGAL (kebocoran)",
+            r.returncode == 1 and "kebocoran grafik divisi" in r.stdout, r.stdout[-300:])
+        open(jalur_d, "w", encoding="utf-8").write(asli)
     # 6a-4: tanda anomali divisi yang memuat orang rahasia tanpa angka; dikembalikan berangka -> pemeriksa GAGAL.
     jalur = os.path.join(demo, "data.json")
     data = json.load(open(jalur, encoding="utf-8"))

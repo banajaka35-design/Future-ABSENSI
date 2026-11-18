@@ -31,6 +31,8 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
       - name: Uji pembaca file (kasus jebakan bentuk file)
         run: node --test sistem/urai/uji_urai.ts
+      - name: Uji penghitung ukuran grafik halaman demo (paket G1)
+        run: node --test sistem/uji/uji_grafik.ts
       - name: Jalankan semua migrasi dari nol lalu semua uji
         env:
           DB_URL: postgresql://postgres:postgres@localhost:5432/postgres

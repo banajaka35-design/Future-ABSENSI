@@ -16,14 +16,20 @@ import sys
 HALAMAN = ["index.html", "unggah/index.html"]
 
 
+punya_src = set()
+
+
 def sidik_skrip(folder):
     hasil = []
     for h in HALAMAN:
         teks = open(os.path.join(folder, h), encoding="utf-8").read()
         if re.search(r"\son[a-z]+\s*=", teks, re.I) or "javascript:" in teks:
             raise SystemExit(f"GAGAL: {h} memuat penangan kejadian langsung (on...=) atau javascript:, diblok CSP")
-        if re.search(r"<script[^>]*\ssrc=", teks, re.I):
-            raise SystemExit(f"GAGAL: {h} memuat skrip dari luar; tidak diizinkan")
+        for src in re.findall(r"<script[^>]*\ssrc=[\"']([^\"']*)[\"']", teks, re.I):
+            # Paket G1: skrip dari halaman sendiri (alamat relatif) boleh; dari situs lain tidak.
+            if re.match(r"^([a-z][a-z0-9+.-]*:|//)", src, re.I) or ".." in src:
+                raise SystemExit(f"GAGAL: {h} memuat skrip dari luar ({src}); tidak diizinkan")
+            punya_src.add(src)
         for isi in re.findall(r"<script>(.*?)</script>", teks, re.S):
             hasil.append("'sha256-" + base64.b64encode(hashlib.sha256(isi.encode("utf-8")).digest()).decode() + "'")
     return sorted(set(hasil))
@@ -34,7 +40,7 @@ def susun(folder, asal_fungsi):
         raise SystemExit(f"GAGAL: asal Edge Function tidak sah: {asal_fungsi!r}")
     csp = "; ".join([
         "default-src 'none'",
-        "script-src " + " ".join(sidik_skrip(folder)),
+        "script-src " + " ".join(sidik := sidik_skrip(folder)) + (" 'self'" if punya_src else ""),
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
         f"connect-src 'self' {asal_fungsi}",

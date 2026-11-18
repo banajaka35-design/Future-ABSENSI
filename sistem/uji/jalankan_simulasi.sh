@@ -71,8 +71,12 @@ cek "tidak ada nilai dari luar di perintah run: workflow" \
 echo "== Header keamanan halaman (paket 6f, S3)"
 HDR="$(mktemp -d)"; cp -r web/demo/. "$HDR/"
 python3 web/buat_headers.py "$HDR" https://contoh.supabase.co > /dev/null 2>&1
-cek "_headers dibuat dengan sidik skrip kedua halaman, tanpa unsafe-inline untuk skrip" \
-  "$(grep -c "script-src 'sha256-[^ ]*' 'sha256-[^ ;]*';" "$HDR/_headers" 2>/dev/null)/$(grep -c "frame-ancestors 'none'" "$HDR/_headers" 2>/dev/null)" "1/1"
+cek "_headers dibuat dengan sidik skrip kedua halaman + skrip dari halaman sendiri, tanpa unsafe-inline untuk skrip" \
+  "$(grep -c "script-src 'sha256-[^ ]*' 'sha256-[^ ]*' 'self';" "$HDR/_headers" 2>/dev/null)/$(grep -c "frame-ancestors 'none'" "$HDR/_headers" 2>/dev/null)" "1/1"
+cp web/demo/index.html "$HDR/luar.html"; sed -i 's#<script src="grafik_inti.js">#<script src="https://jahat.example/x.js">#' "$HDR/index.html"
+cek "skrip dari situs lain ditolak pembuat header (G1)" \
+  "$(python3 web/buat_headers.py "$HDR" https://contoh.supabase.co > /dev/null 2>&1; echo $?)" "1"
+cp "$HDR/luar.html" "$HDR/index.html"; rm "$HDR/luar.html"
 echo '<button onclick="alert(1)">x</button>' >> "$HDR/index.html"
 cek "halaman dengan penangan kejadian langsung (onclick) ditolak pembuat header" \
   "$(python3 web/buat_headers.py "$HDR" https://contoh.supabase.co > /dev/null 2>&1; echo $?)" "1"

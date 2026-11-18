@@ -136,6 +136,82 @@ def main():
             banding(f"periode {pid} kebocoran: {c} - jumlah yang tampil",
                     p[c] - sum(r["dibayar"] for r in rinci.values() if r["cara"] == c), 0)
 
+        # ---- Paket G1: grafik (perintah SQL sendiri) ----
+        div = {r["id_karyawan"]: r["divisi"] for r in q(
+            f"select distinct on (h.id_karyawan) h.id_karyawan, h.divisi from hitung.hasil_harian h "
+            f"join hitung.versi_hitung x on x.id = {v} where h.versi_id = x.versi_sumber "
+            f"order by h.id_karyawan, h.tanggal desc")}
+        kelompok = {r["komponen"]: r["kelompok"] for r in q(
+            f"select distinct komponen, kelompok from hitung.rincian_gaji where versi_id = {v}")}
+        harap = defaultdict(lambda: {"orang": 0, "rahasia": 0, "pokok": 0, "lembur": 0, "pot_hari": 0, "pot_lain": 0, "bersih": 0})
+        for orang, b in bersih.items():
+            h = harap[div.get(orang) or "-"]
+            if orang in rahasia:
+                h["rahasia"] += 1
+                continue
+            km = komponen[orang]
+            h["orang"] += 1
+            h["pokok"] += km.get("gaji_pokok", 0)
+            h["lembur"] += km.get("lembur", 0)
+            h["pot_hari"] += -km.get("potongan_tidak_dibayar", 0)
+            h["pot_lain"] += -sum(n for c, n in km.items() if kelompok.get(c) == "potongan")
+            h["bersih"] += b
+        kunci_div = ("orang", "rahasia", "pokok", "lembur", "pot_hari", "pot_lain", "bersih")
+        banding(f"periode {pid} grafik biaya per divisi", {d["divisi"]: {k: d[k] for k in kunci_div} for d in p["divisi_biaya"]},
+                {d: dict(x) for d, x in harap.items()})
+        # Uji kebocoran per divisi: total divisi - jumlah per orang yang tampil di divisi itu = 0.
+        tampil_div = defaultdict(lambda: defaultdict(int))
+        for k in data["karyawan"]:
+            isi_p = k["p"].get(str(pid))
+            if not isi_p or k["rahasia"]:
+                continue
+            r = rinci.get(k["id"]) or {"rincian": []}
+            t_ = tampil_div[isi_p[0] or "-"]
+            t_["bersih"] += isi_p[1] or 0
+            for c, kel, n, _b in r["rincian"]:
+                if c == "gaji_pokok":
+                    t_["pokok"] += n
+                elif c == "lembur":
+                    t_["lembur"] += n
+                elif c == "potongan_tidak_dibayar":
+                    t_["pot_hari"] -= n
+                if kel == "potongan":
+                    t_["pot_lain"] -= n
+        for d in p["divisi_biaya"]:
+            for kunci in ("pokok", "lembur", "pot_hari", "pot_lain", "bersih"):
+                banding(f"periode {pid} kebocoran grafik divisi {d['divisi']} {kunci}: total - jumlah yang tampil",
+                        d[kunci] - tampil_div[d["divisi"]][kunci], 0)
+        telat = defaultdict(int)
+        for r in q(f"select h.tanggal from hitung.hasil_harian h join hitung.versi_hitung x on x.id = {v} "
+                   f"where h.versi_id = x.versi_sumber and h.status = 'hadir' and h.menit_telat > 0"):
+            telat[r["tanggal"]] += 1
+        per = q(f"select tanggal_awal, tanggal_akhir from fakta.periode where id = {pid}")[0]
+        tanggal = [r["d"] for r in q(f"select gs::date d from generate_series('{per['tanggal_awal']}'::date, "
+                                     f"'{per['tanggal_akhir']}'::date, interval '1 day') gs")]
+        banding(f"periode {pid} grafik telat per tanggal", [list(x) for x in p["telat"]], [[d, telat.get(d, 0)] for d in tanggal])
+        banding(f"periode {pid} THR (tanpa rahasia)", p["thr"],
+                sum(km.get("thr", 0) for o, km in komponen.items() if o not in rahasia))
+        nilai = [n for n, _ in p["pecahan"]]
+        for orang, (c, d) in cara_orang.items():
+            k = daftar.get(orang)
+            if k and str(pid) in k["p"]:
+                banding(f"periode {pid} {orang} cara bayar (daftar)", k["p"][str(pid)][2], c)
+            r = rinci.get(orang)
+            if r is None:
+                continue
+            if c == "tunai":
+                amp = r.get("amplop") or []
+                banding(f"periode {pid} {orang} isi amplop = dibayar", sum(n * l for n, l in amp), max(d, 0))
+                banding(f"periode {pid} {orang} pecahan amplop", [n for n, _ in amp], nilai)
+            elif "amplop" in r:
+                salah.append(f"periode {pid} {orang}: orang transfer punya isi amplop")
+        jumlah_amp = defaultdict(int)
+        for r in rinci.values():
+            for n, l in r.get("amplop") or []:
+                jumlah_amp[n] += l
+        banding(f"periode {pid} jumlah semua amplop = pecahan periode", [[n, jumlah_amp.get(n, 0)] for n in nilai],
+                [list(x) for x in p["pecahan"]])
+
     for s in salah[:30]:
         print("  BEDA", s)
     print(f"Pemeriksaan angka demo: {len(data['periode'])} periode, {len(data['karyawan'])} karyawan, "

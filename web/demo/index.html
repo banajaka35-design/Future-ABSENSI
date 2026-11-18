@@ -40,6 +40,20 @@
   .kosong { color: var(--redup); font-style: italic; }
   #rinci .bukti { color: var(--redup); font-size: 12px; }
   .salah { color: var(--awas); }
+  /* Paket G1: grafik (panduan dataviz: satu warna biru, teks warna tinta, batang <= 24px, ujung data membulat 4px) */
+  .grafik { --batang: #2a78d6; }
+  .grafik h3 { font-size: 14px; margin: 14px 0 4px; }
+  .empat { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; }
+  @media (max-width: 760px) { .empat { grid-template-columns: 1fr; } }
+  .grafik svg { display: block; width: 100%; overflow: visible; }
+  .grafik svg text { font: 12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--tinta); font-variant-numeric: tabular-nums; }
+  .grafik svg text.redup { fill: var(--redup); }
+  .grafik .batang { fill: var(--batang); }
+  .grafik .dasar { stroke: var(--garis); stroke-width: 1; }
+  .grafik details { margin-top: 2px; font-size: 13px; }
+  .grafik details table { max-width: 520px; }
+  .tanda { padding: 8px 12px; border-radius: 6px; background: var(--hati-latar); color: var(--hati); margin: 8px 0 0; font-size: 13px; }
+  .tab.kecil button { padding: 4px 10px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -59,6 +73,19 @@
     <div id="status"></div>
   </section>
 
+  <section class="grafik" aria-labelledby="judul-grafik">
+    <h2 id="judul-grafik">Grafik periode</h2>
+    <div id="tanda-grafik"></div>
+    <h3>Biaya per divisi</h3>
+    <div class="kecil">Empat grafik, masing-masing dengan skalanya sendiri. Potongan ditulis sebagai angka positif.</div>
+    <div class="empat" id="biaya"></div>
+    <div class="dua">
+      <div><h3>Porsi gaji bersih per divisi</h3><div id="porsi"></div></div>
+      <div><h3>Orang telat per tanggal</h3><div class="kecil">Hari hadir dengan menit telat lebih dari 0.</div><div id="telat"></div></div>
+    </div>
+    <div class="kecil" id="ket-grafik" style="margin-top:8px"></div>
+  </section>
+
   <div class="dua">
     <section>
       <h2>Pecahan uang tunai</h2>
@@ -75,9 +102,12 @@
   <section>
     <h2>Karyawan</h2>
     <input type="search" id="cari" placeholder="Cari ID atau nama" aria-label="Cari ID atau nama karyawan">
+    <div class="tab kecil" id="saring" role="group" aria-label="Saring cara bayar" style="margin:8px 0 0">
+      <button data-cara="" aria-pressed="true">Semua</button><button data-cara="transfer" aria-pressed="false">Transfer</button><button data-cara="tunai" aria-pressed="false">Tunai</button>
+    </div>
     <div class="kecil" id="jumlah" style="margin:6px 0"></div>
     <table>
-      <thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th class="r">Gaji bersih</th></tr></thead>
+      <thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>Cara bayar</th><th class="r">Gaji bersih</th></tr></thead>
       <tbody id="daftar"></tbody>
     </table>
   </section>
@@ -85,6 +115,7 @@
   <section id="rinci" hidden></section>
 </main>
 
+<script src="grafik_inti.js"></script>
 <script>
 "use strict";
 const NAMA_KOMPONEN = {
@@ -135,17 +166,95 @@ function pilihPeriode(p) {
     s.append(el("span", kel[j].length.toLocaleString("id-ID"), "jenis"), document.createTextNode(NAMA_ANOMALI[j] || j));
     const ul = el("ul"); for (const a of kel[j]) ul.append(el("li", a.ket ?? `${a.id}: gaji rahasia, keterangan tidak ditampilkan`)); d.append(s, ul); return d; });
   $("anomali").replaceChildren(...(blok.length ? blok : [el("div", "Tidak ada tanda.", "kosong")]));
+  tampilGrafik();
   tampilDaftar();
   $("rinci").hidden = true;
 }
 
+// ---- Paket G1: grafik (SVG lewat DOM; tanpa pustaka luar) ----
+const SVG = "http://www.w3.org/2000/svg";
+const sv = (tag, atr, isi) => { const e = document.createElementNS(SVG, tag); for (const k in atr || {}) e.setAttribute(k, atr[k]);
+  if (isi != null) e.textContent = isi; return e; };
+const NAMA_DIVISI = { PRD: "Produksi", GDG: "Gudang", QC: "QC", KTR: "Kantor", KAM: "Keamanan" };
+const rpPendek = n => n >= 1e9 ? "Rp" + (n / 1e9).toFixed(2).replace(".", ",") + " M" : n >= 1e6 ? "Rp" + (n / 1e6).toFixed(1).replace(".", ",") + " jt" : rp(n);
+// Batang mendatar, ujung data membulat 4px, pangkal siku; label divisi di kiri, nilai di ujung batang.
+function grafikMendatar(daftar, teksNilai, judulTabel) {
+  const kotak = el("div");
+  const lebar = Math.max(260, Math.min(520, ($("biaya").clientWidth || 520)));
+  const kiri = 74, kanan = 118, tebal = 16, jarak = 10;
+  const batang = GrafikInti.batangMendatar(daftar, lebar - kiri - kanan);
+  const tinggi = batang.length * (tebal + jarak) + 4;
+  const s = sv("svg", { viewBox: `0 0 ${lebar} ${tinggi}`, role: "img", "aria-label": judulTabel });
+  s.append(sv("line", { x1: kiri, x2: kiri, y1: 0, y2: tinggi, class: "dasar" }));
+  batang.forEach((b, i) => {
+    const y = i * (tebal + jarak) + 2, w = b.panjang, r = Math.min(4, w);
+    s.append(sv("text", { x: kiri - 8, y: y + tebal / 2 + 4, "text-anchor": "end" }, daftar[i].tampil || b.label));
+    if (w > 0) {
+      const jalur = sv("path", { class: "batang", d: `M${kiri},${y} h${w - r} a${r},${r} 0 0 1 ${r},${r} v${tebal - 2 * r} a${r},${r} 0 0 1 ${-r},${r} h${-(w - r)} z` });
+      jalur.append(sv("title", null, `${daftar[i].tampil || b.label}: ${teksNilai(daftar[i])}`));
+      s.append(jalur);
+    }
+    s.append(sv("text", { x: kiri + w + 6, y: y + tebal / 2 + 4, class: "redup" }, teksNilai(daftar[i])));
+  });
+  kotak.append(s, tabelAngka(judulTabel, daftar.map(d => [d.tampil || d.label, teksNilai(d)])));
+  return kotak;
+}
+function tabelAngka(judul, baris) {
+  const d = el("details"); d.append(el("summary", "Lihat angka"));
+  const t = el("table"); const tb = el("tbody");
+  for (const [a, b] of baris) { const tr = el("tr"); tr.append(el("td", a), el("td", b, "r")); tb.append(tr); }
+  t.append(tb); d.append(t); d.setAttribute("aria-label", judul); return d;
+}
+function grafikTelat(p) {
+  const kotak = el("div");
+  const lebar = Math.max(280, Math.min(520, ($("telat").clientWidth || 520)));
+  const atas = 18, bawah = 22, tinggiPlot = 120, n = p.telat.length;
+  const k = GrafikInti.kolom(p.telat.map(x => x[1]), tinggiPlot);
+  const pita = lebar / n, tebal = Math.min(24, Math.max(3, pita * 0.6)), selang = GrafikInti.selangLabel(n, lebar, 28);
+  const s = sv("svg", { viewBox: `0 0 ${lebar} ${atas + tinggiPlot + bawah}`, role: "img", "aria-label": "Orang telat per tanggal" });
+  s.append(sv("line", { x1: 0, x2: lebar, y1: atas + tinggiPlot, y2: atas + tinggiPlot, class: "dasar" }));
+  p.telat.forEach(([tg, jumlah], i) => {
+    const h = k.tinggi[i], x = i * pita + (pita - tebal) / 2, y = atas + tinggiPlot - h, r = Math.min(4, h, tebal / 2);
+    if (h > 0) {
+      const c = sv("path", { class: "batang", d: `M${x},${atas + tinggiPlot} v${-(h - r)} a${r},${r} 0 0 1 ${r},${-r} h${tebal - 2 * r} a${r},${r} 0 0 1 ${r},${r} v${h - r} z` });
+      c.append(sv("title", null, `${tgl(tg)}: ${jumlah.toLocaleString("id-ID")} orang telat`));
+      s.append(c);
+    }
+    if (i === k.puncak) s.append(sv("text", { x: x + tebal / 2, y: y - 5, "text-anchor": "middle" }, jumlah.toLocaleString("id-ID")));
+    if (i % selang === 0) s.append(sv("text", { x: i * pita + pita / 2, y: atas + tinggiPlot + 15, "text-anchor": "middle", class: "redup" }, String(+tg.slice(8))));
+  });
+  kotak.append(s, tabelAngka("Orang telat per tanggal", p.telat.map(([tg, j]) => [tgl(tg), j.toLocaleString("id-ID") + " orang"])));
+  return kotak;
+}
+function tampilGrafik() {
+  const p = aktif, dv = p.divisi_biaya.map(d => ({ ...d, label: d.divisi, tampil: NAMA_DIVISI[d.divisi] || d.divisi }));
+  const ukur = [["pokok", "Gaji pokok"], ["lembur", "Lembur"], ["pot_hari", "Potongan hari tidak dibayar"], ["pot_lain", "Potongan lain (BPJS, PPh 21, denda, kasbon)"]];
+  $("biaya").replaceChildren(...ukur.map(([kunci, judul]) => { const d = el("div"); d.append(el("h3", judul),
+    grafikMendatar(dv.map(x => ({ ...x, nilai: x[kunci] })), x => rpPendek(x.nilai), judul)); return d; }));
+  const totalBersih = dv.reduce((a, x) => a + x.bersih, 0);
+  $("porsi").replaceChildren(grafikMendatar(dv.map(x => ({ ...x, nilai: x.bersih })),
+    x => `${GrafikInti.persen(x.nilai, totalBersih)}% · ${rpPendek(x.nilai)}`, "Porsi gaji bersih per divisi"));
+  $("telat").replaceChildren(grafikTelat(p));
+  const tanda = [];
+  if (p.tertahan) tanda.push(el("div", `Angka sementara: PPh 21 akhir tahun belum dihitung untuk ${p.tertahan.toLocaleString("id-ID")} orang, jadi gaji bersih belum final.`, "tanda"));
+  if (p.thr) tanda.push(el("div", `Periode ini termasuk THR ${rp(p.thr)}; porsi dan gaji bersih lebih tinggi dari bulan biasa.`, "tanda"));
+  $("tanda-grafik").replaceChildren(...tanda);
+  const rahasiaDiv = dv.filter(x => x.rahasia > 0).map(x => `${x.rahasia} di ${x.tampil}`);
+  $("ket-grafik").textContent = (rahasiaDiv.length ? `Semua angka rupiah grafik tidak termasuk orang yang gajinya rahasia (${rahasiaDiv.join(", ")}). ` : "") +
+    "Divisi = divisi di hari terakhir periode. Arahkan kursor ke batang untuk angka lengkap.";
+}
+let tundaUbah;
+window.addEventListener("resize", () => { clearTimeout(tundaUbah); tundaUbah = setTimeout(() => aktif && tampilGrafik(), 200); });
+
 function tampilDaftar() {
   const kata = $("cari").value.trim().toLowerCase();
-  const ada = DATA.karyawan.filter(k => k.p[aktif.id] && (!kata || k.id.includes(kata) || k.nama.toLowerCase().includes(kata)));
+  const cara = document.querySelector("#saring button[aria-pressed=true]")?.dataset.cara || "";
+  const ada = DATA.karyawan.filter(k => k.p[aktif.id] && (!cara || k.p[aktif.id][2] === cara) &&
+    (!kata || k.id.includes(kata) || k.nama.toLowerCase().includes(kata)));
   const tampil = ada.slice(0, 200);
-  $("jumlah").textContent = `${ada.length.toLocaleString("id-ID")} karyawan di periode ini` + (ada.length > 200 ? " (ditampilkan 200 pertama; persempit pencarian)" : "");
-  $("daftar").replaceChildren(...tampil.map(k => { const [div, b] = k.p[aktif.id]; const tr = el("tr", null, "pilih");
-    tr.tabIndex = 0; tr.append(el("td", k.id), el("td", k.nama), el("td", div || "—"), el("td", k.rahasia ? "rahasia" : rp(b), "r"));
+  $("jumlah").textContent = `${ada.length.toLocaleString("id-ID")} karyawan${cara ? " dibayar " + cara : ""} di periode ini` + (ada.length > 200 ? " (ditampilkan 200 pertama; persempit pencarian)" : "");
+  $("daftar").replaceChildren(...tampil.map(k => { const [div, b, cb] = k.p[aktif.id]; const tr = el("tr", null, "pilih");
+    tr.tabIndex = 0; tr.append(el("td", k.id), el("td", k.nama), el("td", div || "—"), el("td", cb || "—"), el("td", k.rahasia ? "rahasia" : rp(b), "r"));
     tr.onclick = () => tampilRinci(k); tr.onkeydown = e => { if (e.key === "Enter") tampilRinci(k); }; return tr; }));
 }
 
@@ -171,6 +280,13 @@ async function tampilRinci(k) {
     const tr = el("tr"); tr.append(el("th", j), el("th", ""), el("th", rp(n), "r")); tb.append(tr);
   }
   t.append(tb); kotak.append(t);
+  if (r.amplop) {
+    kotak.append(el("h3", "Isi amplop"));
+    const ta = el("table"); const ba = el("tbody");
+    for (const [n, l] of r.amplop.filter(([, l]) => l > 0)) { const tr = el("tr"); tr.append(el("td", rp(n)), el("td", `${l.toLocaleString("id-ID")} lembar`, "r"), el("td", rp(n * l), "r")); ba.append(tr); }
+    const tj = el("tr"); tj.append(el("th", "Jumlah"), el("th", ""), el("th", rp(r.amplop.reduce((a, [n, l]) => a + n * l, 0)), "r")); ba.append(tj);
+    ta.append(ba); kotak.append(ta);
+  }
   kotak.append(el("p", `Cuti terpakai periode ini: ${r.cuti} hari · saldo cuti: ${r.saldo_cuti == null ? "belum ada saldo awal" : r.saldo_cuti + " hari"}`, "kecil"));
   if (r.peringatan.length) kotak.append(el("p", "Peringatan: " + r.peringatan.join(", "), "kecil"));
   kotak.scrollIntoView({ behavior: "smooth" });
@@ -180,6 +296,7 @@ fetch("data.json").then(r => r.json()).then(d => {
   DATA = d; $("dibuat").textContent = d.dibuat;
   for (const p of d.periode) { const b = el("button", `${tgl(p.awal)} – ${tgl(p.akhir)}`); b.dataset.id = p.id; b.onclick = () => pilihPeriode(p); $("tab").append(b); }
   $("cari").oninput = tampilDaftar;
+  for (const b of $("saring").children) b.onclick = () => { for (const x of $("saring").children) x.setAttribute("aria-pressed", String(x === b)); tampilDaftar(); };
   pilihPeriode(d.periode[0]);
 }).catch(() => { $("info").replaceChildren(el("span", "Data gagal dimuat.", "salah")); });
 </script>
