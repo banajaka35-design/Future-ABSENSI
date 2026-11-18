@@ -48,10 +48,19 @@ const BERKAS: Record<string, Uint8Array> = {
     }).join("\r\n"),
   ),
   F_TEKS: new TextEncoder().encode("halo, ini bukan file mesin\nbaris kedua\n"),
+  // Paket 6e: file MA1 periode 1 dengan satu baris dibuang (sidik berbeda, semua tap sudah ada di gudang).
+  F_KURANG_1: kurangiBaris(fileSim("A_p1_MA1.csv"), 2),
+  F_KURANG_2: kurangiBaris(fileSim("A_p1_MA1.csv"), 3),
 };
+function kurangiBaris(isi: Uint8Array, ke: number): Uint8Array {
+  const baris = new TextDecoder().decode(isi).split("\r\n");
+  baris.splice(ke, 1);
+  return new TextEncoder().encode(baris.join("\r\n"));
+}
 
 const terkirim: { metode: string; isi: any }[] = [];
 const diunduh: string[] = [];
+const dipicu: { pemicu: string; waktu_file: string }[] = []; // panggilan pemicu Isi Sheets (paket 6e)
 const alat: Alat = {
   async api(nama, isi) {
     assert.ok(apiBoleh(nama));
@@ -71,6 +80,10 @@ const alat: Alat = {
   urai,
   sekarang: () => Date.now(),
   tidur: async () => {},
+  async picuSheets(m) {
+    dipicu.push(m);
+    return { ok: true };
+  },
 };
 
 function dokumen(updateId: number, dari: number, fileId: string, nama: string, caption?: string) {
@@ -175,6 +188,16 @@ test("T5: file bukan file mesin ditolak", async () => {
   assert.match(segera(r.pesan, PEMBANGUN)[0], /format file tidak dikenal[\s\S]*catatan\.txt/);
   catatBaris(segera(r.pesan, HRD));
   assert.equal(belumTerkirim(), "0");
+});
+
+test("6e: T1 memicu Isi Sheets sekali (file Telegram, waktu file sah); T2-T5 ditolak/dobel tidak memicu", () => {
+  assert.equal(dipicu.length, 1, JSON.stringify(dipicu));
+  assert.equal(dipicu[0].pemicu, "file Telegram");
+  assert.ok(!Number.isNaN(Date.parse(dipicu[0].waktu_file)) && dipicu[0].waktu_file.endsWith("Z"), dipicu[0].waktu_file);
+  assert.ok(terkirim.some((t) => t.metode === "sendMessage" && t.isi.chat_id === HRD &&
+                               /^Sheets sedang diperbarui otomatis/.test(t.isi.text)));
+  assert.equal(nilai("select string_agg(asal || '/' || hasil, ',') from fakta.picu_sheets"), "telegram/terkirim");
+  assert.equal(nilai("select count(*) from fakta.kejadian_segera() where jenis = 'sheets_tidak_terpicu'"), "0");
 });
 
 test("T6: pengirim bukan HRD ditolak; file tidak diunduh dan tidak dicatat", async () => {
@@ -476,4 +499,59 @@ test("5e-2: Brevo gagal 3 kali lalu pulih -> kode keempat langsung terkirim dan 
   assert.equal(kotak.length, 1);
   const kode = /\b(\d{6})\b/.exec(kotak[0])?.[1] ?? "";
   assert.equal((await webTukarKode(alatRewel, "pulih@contoh.id", kode)).status, 200);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 6e: pemicu Isi Sheets gagal atau belum disiapkan (docs/pintu-telegram.md bagian "Pemicu Sheets")
+// ---------------------------------------------------------------------------
+
+async function kirimDengan(a: Alat, badan: string) {
+  const awal = terkirim.length;
+  const r = await tanganiPermintaan("POST", RAHASIA, badan, RAHASIA, a);
+  if (r.latar) await r.latar;
+  return terkirim.slice(awal).filter((x) => x.metode === "sendMessage").map((x) => x.isi);
+}
+
+test("6e: GitHub menolak -> HRD diberi tahu Sheets BELUM diperbarui; pemberitahuan segera ke HRD dan pembangun", async () => {
+  const sebelum = dipicu.length;
+  const alatGagal: Alat = { ...alat, async picuSheets() { return { ok: false, alasan: "GitHub 401: Bad credentials" }; } };
+  const pesan = await kirimDengan(alatGagal, dokumen(9601, HRD, "F_KURANG_1", "A_p1_MA1_kurang1.csv", "MA1"));
+  assert.equal(dipicu.length, sebelum, "pemicu tiruan default tidak dipanggil");
+  assert.ok(pesan.some((p) => p.chat_id === HRD && /^Sheets BELUM diperbarui \(GitHub 401: Bad credentials\)/.test(p.text)),
+            JSON.stringify(pesan.map((p) => p.text)));
+  for (const tg of [HRD, PEMBANGUN]) {
+    const s = segera(pesan, tg).join("\n");
+    assert.match(s, /Sheets TIDAK diperbarui otomatis/);
+    assert.match(s, /pemicu gagal \(GitHub 401: Bad credentials\)/);
+  }
+  assert.equal(nilai("select hasil || '/' || alasan from fakta.picu_sheets order by id desc limit 1"),
+               "gagal/GitHub 401: Bad credentials");
+  // Gaji periode itu tetap terhitung walau Sheets tidak terpicu.
+  assert.equal(nilai("select count(*) from fakta.antrean_kerja where status <> 'selesai'"), "0");
+  // Kejadian "Sheets tidak terpicu" terkirim (kejadian lain yang sengaja gagal di uji "Telegram gagal total" tidak dihitung).
+  assert.equal(nilai(`select count(*) from fakta.kejadian_segera() k where k.jenis = 'sheets_tidak_terpicu'
+                      and not exists (select 1 from fakta.pemberitahuan b where b.kunci = k.kunci and b.status = 'terkirim')`), "0");
+});
+
+test("6e: pemicu belum disiapkan (token kosong) -> pesan jelas dan pemberitahuan segera", async () => {
+  const { picuSheets: _tanpa, ...sisa } = alat;
+  const alatTanpa: Alat = sisa;
+  const pesan = await kirimDengan(alatTanpa, dokumen(9602, HRD, "F_KURANG_2", "A_p1_MA1_kurang2.csv", "MA1"));
+  assert.ok(pesan.some((p) => p.chat_id === HRD && /^Sheets belum diperbarui otomatis \(pemicu belum disiapkan\)/.test(p.text)));
+  assert.match(segera(pesan, PEMBANGUN).join("\n"), /pemicu belum disiapkan/);
+  assert.equal(nilai("select hasil from fakta.picu_sheets order by id desc limit 1"), "belum_disiapkan");
+  // Kejadian "Sheets tidak terpicu" terkirim (kejadian lain yang sengaja gagal di uji "Telegram gagal total" tidak dihitung).
+  assert.equal(nilai(`select count(*) from fakta.kejadian_segera() k where k.jenis = 'sheets_tidak_terpicu'
+                      and not exists (select 1 from fakta.pemberitahuan b where b.kunci = k.kunci and b.status = 'terkirim')`), "0");
+});
+
+test("6e: pemicu melempar galat -> dicatat gagal, hitung tetap tersimpan", async () => {
+  const alatLempar: Alat = { ...alat, async picuSheets() { throw new Error("jaringan putus"); } };
+  // Tidak ada file baru yang sah tersisa; picu langsung lewat fungsi yang sama dengan satu periode berhasil.
+  const { picuSheets } = await import("./inti.ts");
+  const awal = terkirim.length;
+  await picuSheets(alatLempar, HRD, Date.now(), "web");
+  const pesan = terkirim.slice(awal).filter((x) => x.metode === "sendMessage").map((x) => x.isi);
+  assert.ok(pesan.some((p) => /^Sheets BELUM diperbarui \(jaringan putus\)/.test(p.text)));
+  assert.equal(nilai("select asal || '/' || hasil from fakta.picu_sheets order by id desc limit 1"), "web/gagal");
 });

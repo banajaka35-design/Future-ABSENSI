@@ -34,6 +34,7 @@ export function buatAlat(
   alamatUnggah = "",
   jedaCobaUlang: number[] = [1000, 2000], // tiga percobaan: langsung, sesudah 1 detik, sesudah 2 detik lagi
   brevo: { kunci: string; pengirim: string } | null = null, // pengirim email (paket 5e); null = belum disiapkan
+  github: { token: string; repo: string } | null = null, // pemicu Isi Sheets (paket 6e); null = belum disiapkan
 ): Alat {
   const jalankan = async (kueri: string, parameter?: unknown[]) => {
     for (let ke = 0; ; ke++) {
@@ -66,9 +67,45 @@ export function buatAlat(
       if (!r.ok) throw new Error(`Brevo ${r.status}: ${(await r.text()).slice(0, 300)}`);
     }
     : undefined;
+  // GitHub, dokumen resmi "Create a workflow dispatch event": POST /repos/{repo}/actions/workflows/{file}/dispatches,
+  // isi {ref, inputs}; berhasil = 204 (atau 200 bila GitHub mengembalikan rincian run). Satu kali coba ulang untuk
+  // 5xx atau jaringan. Token tidak pernah ikut di pesan galat.
+  const picuSheets = github && github.token && github.repo
+    ? async (masukan: { pemicu: string; waktu_file: string }) => {
+      let alasan = "";
+      for (let ke = 0; ke < 2; ke++) {
+        try {
+          const r = await ambil(`https://api.github.com/repos/${github.repo}/actions/workflows/isi-sheets.yml/dispatches`, {
+            method: "POST",
+            headers: {
+              "authorization": `Bearer ${github.token}`,
+              "accept": "application/vnd.github+json",
+              "x-github-api-version": "2022-11-28",
+              "user-agent": "future-absensi-pintu",
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ ref: "main", inputs: masukan }),
+          });
+          if (r.status === 204 || r.status === 200) return { ok: true };
+          let pesan = "";
+          try {
+            pesan = String((await r.json())?.message ?? "");
+          } catch {
+            // isi bukan JSON
+          }
+          alasan = `GitHub ${r.status}${pesan ? ": " + pesan.slice(0, 120) : ""}`;
+          if (r.status < 500) break;
+        } catch (e) {
+          alasan = `GitHub tidak bisa dihubungi: ${String((e as Error).message ?? e).slice(0, 120)}`;
+        }
+      }
+      return { ok: false, alasan: alasan.split(github.token).join("[token]") };
+    }
+    : undefined;
   return {
     alamatUnggah,
     email,
+    picuSheets,
     async api(nama, isi) {
       if (!apiBoleh(nama)) throw new Error(`fungsi ${nama} tidak boleh dipanggil`);
       const baris = isi === undefined

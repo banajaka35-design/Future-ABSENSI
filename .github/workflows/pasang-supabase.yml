@@ -80,4 +80,5 @@ jobs:
           PEMBANGUN_TELEGRAM_ID: ${{ secrets.PEMBANGUN_TELEGRAM_ID }}
           PEMBANGUN_EMAIL: ${{ secrets.PEMBANGUN_EMAIL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          GITHUB_PICU_TOKEN: ${{ secrets.GITHUB_PICU_TOKEN }}
         run: db/pasang_pintu.sh

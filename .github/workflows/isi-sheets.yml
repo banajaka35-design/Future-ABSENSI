@@ -3,15 +3,27 @@ name: Isi Sheets
 # Rekap Google Sheets (paket 6a, docs/rekap-sheets.md): membaca gudang (hanya membaca), menimpa tab milik
 # sistem di spreadsheet, lalu memeriksa "isi Sheets sama dengan gudang". Pemeriksaan lulus -> status SELESAI;
 # langkah mana pun gagal -> status GAGAL (bila Google bisa dihubungi).
-# Berjalan sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus, atau lewat tombol.
+# Berjalan sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus, lewat tombol, atau dipicu Edge Function
+# sesudah file masuk (paket 6e; masukan pemicu dan waktu_file). Bila dipicu file, langkah terakhir mengabarkan
+# hasilnya ke akun HRD/pembangun lewat Telegram.
 on:
   workflow_run:
     workflows: ["Pasang ke Supabase", "Reset Supabase"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      pemicu:
+        description: "Diisi Edge Function (file Telegram / file web); kosongkan bila lewat tombol"
+        required: false
+        default: ""
+      waktu_file:
+        description: "Waktu file mulai diproses (ISO, UTC); diisi Edge Function"
+        required: false
+        default: ""
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: isi-sheets
@@ -26,7 +38,8 @@ jobs:
       GOOGLE_SA_KEY: ${{ secrets.GOOGLE_SA_KEY }}
       SHEETS_ID: ${{ secrets.SHEETS_ID }}
       SHEETS_BOLEH_EDIT: ${{ secrets.PEMBANGUN_EMAIL }}
-      PEMICU: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name || 'tombol' }}
+      PEMICU: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name || inputs.pemicu || 'tombol' }}
+      WAKTU_FILE: ${{ inputs.waktu_file }}
     steps:
       - uses: actions/checkout@v4
 
@@ -70,3 +83,14 @@ jobs:
       - name: Tandai GAGAL
         if: failure()
         run: python3 web/isi_sheets.py status GAGAL || echo "Status GAGAL tidak bisa ditulis; Sheets tetap SEDANG DIISI (jangan dipakai)."
+
+      - name: Kabar ke Telegram (hanya bila dipicu file)
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.pemicu != ''
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          HASIL: ${{ job.status }}
+        run: |
+          menunggu="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/isi-sheets.yml/runs?status=queued" --jq '.total_count' 2>/dev/null || echo 0)"
+          if [ "${menunggu:-0}" -gt 0 ]; then export ADA_RUN_MENUNGGU=ya; fi
+          if [ "$HASIL" = "success" ]; then python3 web/kabar_telegram.py SELESAI; else python3 web/kabar_telegram.py GAGAL; fi || true

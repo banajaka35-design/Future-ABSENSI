@@ -22,6 +22,8 @@ export interface Alat {
   tidur(ms: number): Promise<void>;
   alamatUnggah?: string; // alamat halaman unggah (paket 5d), misalnya https://.../unggah/
   email?(ke: string, judul: string, isi: string): Promise<void>; // pengirim email (paket 5e); tidak ada = belum disiapkan
+  // Pemicu workflow "Isi Sheets" di GitHub (paket 6e); tidak ada = belum disiapkan (token kosong).
+  picuSheets?(masukan: { pemicu: string; waktu_file: string }): Promise<{ ok: boolean; alasan?: string }>;
 }
 
 export const BATAS_UKURAN = 20 * 1024 * 1024; // batas unduh file lewat bot Telegram
@@ -32,7 +34,7 @@ const API_BOLEH = new Set([
   "pintu_pesan", "pintu_tunda", "pintu_ambil_tunda", "pintu_terima_file", "pintu_kerjakan",
   "pintu_pemberitahuan_ambil", "pintu_pengingat", "pintu_pemberitahuan_hasil",
   "pintu_buat_tautan", "pintu_periksa_tautan", "pintu_terima_web", "pintu_status_kiriman",
-  "pintu_minta_kode_email", "pintu_tukar_kode_email", "pintu_kode_email_gagal",
+  "pintu_minta_kode_email", "pintu_tukar_kode_email", "pintu_kode_email_gagal", "pintu_catat_picu",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -210,25 +212,72 @@ async function proses(
       chat,
       `File ${nama} tersimpan: ${angka(r.jumlah_tap)} tap, ${r.tanggal_awal} s.d. ${r.tanggal_akhir}${dibuang}. Menghitung ulang...`,
     );
-    await kerjakanAntrean(alat, chat, mulai);
+    await kerjakanAntrean(alat, chat, mulai, "telegram");
   } catch (e) {
     await kirim(alat, chat, `File ${nama} gagal diproses: ${(e as Error).message}`);
     throw e;
   }
 }
 
-export async function kerjakanAntrean(alat: Alat, chat: number | null, mulai: number): Promise<void> {
+export async function kerjakanAntrean(
+  alat: Alat,
+  chat: number | null,
+  mulai: number,
+  asal: "telegram" | "web" = "telegram",
+): Promise<void> {
+  const berhasil = await kerjakanSemua(alat, chat, mulai);
+  if (berhasil > 0) await picuSheets(alat, chat, mulai, asal);
+}
+
+// Paket 6e: minta GitHub mengisi ulang Sheets, kabari pengirim, catat hasilnya (gagal -> pemberitahuan segera).
+export async function picuSheets(alat: Alat, chat: number | null, mulai: number, asal: "telegram" | "web"): Promise<void> {
+  const waktuFile = new Date(mulai).toISOString();
+  let hasil: "terkirim" | "gagal" | "belum_disiapkan";
+  let alasan: string | undefined;
+  if (!alat.picuSheets) {
+    hasil = "belum_disiapkan";
+  } else {
+    try {
+      const r = await alat.picuSheets({ pemicu: asal === "web" ? "file web" : "file Telegram", waktu_file: waktuFile });
+      hasil = r.ok ? "terkirim" : "gagal";
+      alasan = r.ok ? undefined : (r.alasan ?? "tanpa alasan").slice(0, 200);
+    } catch (e) {
+      hasil = "gagal";
+      alasan = String((e as Error).message ?? e).slice(0, 200);
+    }
+  }
+  await kirimAman(
+    alat,
+    chat,
+    hasil === "terkirim"
+      ? "Sheets sedang diperbarui otomatis; bot akan mengabarkan bila sudah SELESAI (biasanya beberapa menit)."
+      : hasil === "gagal"
+      ? `Sheets BELUM diperbarui (${alasan}); angka di Sheets masih yang lama.`
+      : "Sheets belum diperbarui otomatis (pemicu belum disiapkan); angka di Sheets masih yang lama.",
+  );
+  try {
+    await alat.api("pintu_catat_picu", { asal, hasil, alasan: alasan ?? null, waktu_file: waktuFile });
+    if (hasil !== "terkirim") await kirimPemberitahuan(alat, chat);
+  } catch {
+    // catatan gagal tidak menggagalkan hasil hitung yang sudah tersimpan
+  }
+}
+
+// Kerjakan antrean sampai kosong, sibuk, atau batas waktu. Mengembalikan jumlah periode yang berhasil dihitung.
+async function kerjakanSemua(alat: Alat, chat: number | null, mulai: number): Promise<number> {
+  let berhasil = 0;
   while (alat.sekarang() - mulai < BATAS_KERJA_MS) {
     const r = await alat.api("pintu_kerjakan");
-    if (r.kosong) return;
+    if (r.kosong) return berhasil;
     if (r.sibuk) {
       await kirimAman(alat, chat, "Hitungan lain sedang berjalan; periode ini akan dihitung sesudahnya.");
-      return;
+      return berhasil;
     }
     const p = r.periode;
     if (r.hasil?.galat) {
       await kirimAman(alat, chat, `Periode ${p.awal} s.d. ${p.akhir} gagal dihitung: ${r.hasil.galat}`);
     } else {
+      berhasil++;
       const x = r.hasil;
       await kirimAman(
         alat,
@@ -239,9 +288,10 @@ export async function kerjakanAntrean(alat: Alat, chat: number | null, mulai: nu
       );
     }
     await kirimPemberitahuan(alat, chat); // sesudah setiap periode, bukan menunggu seluruh antrean (U14)
-    if (r.sisa === 0) return;
+    if (r.sisa === 0) return berhasil;
   }
   await kirimAman(alat, chat, "Sebagian periode masih di antrean; dihitung saat pesan berikutnya masuk.");
+  return berhasil;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +302,10 @@ export const BATAS_PESAN = 3800; // Telegram menerima paling banyak 4096 karakte
 
 // Judul dan langkah yang perlu dilakukan HRD, per jenis kejadian (PRD bagian 9).
 export const JENIS_SEGERA: Record<string, { judul: string; langkah: string }> = {
+  sheets_tidak_terpicu: {
+    judul: "Sheets TIDAK diperbarui otomatis sesudah file masuk (angka di Sheets masih yang lama)",
+    langkah: "Pembangun: jalankan workflow \"Isi Sheets\" lewat tombol di GitHub dan periksa token GITHUB_PICU_TOKEN (mungkin habis masa berlaku).",
+  },
   file_rusak_excel: {
     judul: "File ditolak: pernah dibuka dan disimpan di Excel (No.ID rusak)",
     langkah: "Ekspor ulang dari aplikasi mesin, lalu kirim tanpa membukanya di Excel.",
@@ -291,6 +345,10 @@ export interface Kejadian {
 function barisKejadian(k: Kejadian): string {
   if (k.jenis === "file_rusak_excel" || k.jenis === "format_tidak_dikenal") {
     return `File ${k.isi.nama_file} (mesin ${k.isi.mesin ?? "-"}, kiriman no. ${k.isi.kiriman_id})`;
+  }
+  if (k.jenis === "sheets_tidak_terpicu") {
+    return `${k.isi.waktu ?? "-"} WIB, file lewat ${k.isi.asal === "web" ? "web" : "Telegram"}: ` +
+      (k.isi.hasil === "belum_disiapkan" ? "pemicu belum disiapkan" : `pemicu gagal (${k.isi.alasan ?? "tanpa alasan"})`);
   }
   return String(k.isi.keterangan ?? k.jenis);
 }
@@ -483,7 +541,7 @@ export async function webUnggah(
     ? (async () => {
       await kirimAman(alat, chat, `File ${nama} diunggah lewat web (mesin ${mesin}): ${angka(r.jumlah_tap)} tap, ` +
         `${r.tanggal_awal} s.d. ${r.tanggal_akhir}. Menghitung ulang...`);
-      await kerjakanAntrean(alat, chat, mulai);
+      await kerjakanAntrean(alat, chat, mulai, "web");
     })()
     : kirimPemberitahuan(alat, null).then(() => {}); // file rusak Excel atau format: tingkat segera (U14)
   return { status: 200, isi: jawab, latar };

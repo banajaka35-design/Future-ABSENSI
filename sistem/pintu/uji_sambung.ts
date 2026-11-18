@@ -306,3 +306,62 @@ test("Brevo menolak -> halaman diberi tahu gangguan (502)", async () => {
   // 5e-2: kode yang tidak terkirim ditandai gagal (tidak menghabiskan jatah, tidak bisa dipakai)
   assert.equal(nilai("select gagal_kirim is not null from fakta.kode_email where email = 'sambung@contoh.id' order by id desc limit 1"), "t");
 });
+
+// ---------------------------------------------------------------------------
+// Paket 6e: pemicu Isi Sheets lewat GitHub API (fetch palsu; tanpa internet)
+// ---------------------------------------------------------------------------
+const TOKEN_GITHUB = "github_pat_UJI_RAHASIA_123";
+function alatGithub(jawaban: (() => Response | Promise<Response>)[], catat: { alamat: string; pilihan: RequestInit }[]) {
+  let ke = 0;
+  const ambil = (async (alamat: string | URL, pilihan?: RequestInit) => {
+    catat.push({ alamat: String(alamat), pilihan: pilihan ?? {} });
+    const j = jawaban[Math.min(ke++, jawaban.length - 1)];
+    return await j();
+  }) as typeof fetch;
+  return buatAlat(sql, "TOKEN-UJI", urai, ambil, "", [0, 0], null, { token: TOKEN_GITHUB, repo: "banajaka35-design/Future-ABSENSI" });
+}
+
+test("6e: 204 dari GitHub -> ok; alamat, kepala, dan isi permintaan benar", async () => {
+  const catat: { alamat: string; pilihan: RequestInit }[] = [];
+  const a = alatGithub([() => new Response(null, { status: 204 })], catat);
+  const r = await a.picuSheets!({ pemicu: "file Telegram", waktu_file: "2026-11-18T05:00:00.000Z" });
+  assert.deepEqual(r, { ok: true });
+  assert.equal(catat.length, 1);
+  assert.equal(catat[0].alamat,
+    "https://api.github.com/repos/banajaka35-design/Future-ABSENSI/actions/workflows/isi-sheets.yml/dispatches");
+  const kepala = catat[0].pilihan.headers as Record<string, string>;
+  assert.equal(kepala.authorization, `Bearer ${TOKEN_GITHUB}`);
+  assert.equal(kepala["x-github-api-version"], "2022-11-28");
+  assert.deepEqual(JSON.parse(String(catat[0].pilihan.body)),
+    { ref: "main", inputs: { pemicu: "file Telegram", waktu_file: "2026-11-18T05:00:00.000Z" } });
+});
+
+test("6e: 401 dari GitHub -> gagal tanpa coba ulang; alasan tanpa token", async () => {
+  const catat: { alamat: string; pilihan: RequestInit }[] = [];
+  const a = alatGithub([() => Response.json({ message: `Bad credentials ${TOKEN_GITHUB}` }, { status: 401 })], catat);
+  const r = await a.picuSheets!({ pemicu: "file web", waktu_file: "2026-11-18T05:00:00.000Z" });
+  assert.equal(r.ok, false);
+  assert.equal(catat.length, 1);
+  assert.match(r.alasan!, /^GitHub 401: Bad credentials/);
+  assert.ok(!r.alasan!.includes(TOKEN_GITHUB), r.alasan);
+});
+
+test("6e: 502 lalu 204 -> satu kali coba ulang, ok; jaringan putus dua kali -> gagal", async () => {
+  const catat: { alamat: string; pilihan: RequestInit }[] = [];
+  const a = alatGithub([() => new Response("x", { status: 502 }), () => new Response(null, { status: 204 })], catat);
+  assert.deepEqual(await a.picuSheets!({ pemicu: "file Telegram", waktu_file: "" }), { ok: true });
+  assert.equal(catat.length, 2);
+  const catat2: { alamat: string; pilihan: RequestInit }[] = [];
+  const b = alatGithub([() => { throw new TypeError("fetch failed"); }], catat2);
+  const r = await b.picuSheets!({ pemicu: "file Telegram", waktu_file: "" });
+  assert.equal(r.ok, false);
+  assert.equal(catat2.length, 2);
+  assert.match(r.alasan!, /GitHub tidak bisa dihubungi: fetch failed/);
+});
+
+test("6e: tanpa token -> picuSheets tidak ada (belum disiapkan)", () => {
+  const a = buatAlat(sql, "TOKEN-UJI", urai, fetchPalsu, "", [0, 0], null, null);
+  assert.equal(a.picuSheets, undefined);
+  const b = buatAlat(sql, "TOKEN-UJI", urai, fetchPalsu, "", [0, 0], null, { token: "", repo: "x/y" });
+  assert.equal(b.picuSheets, undefined);
+});

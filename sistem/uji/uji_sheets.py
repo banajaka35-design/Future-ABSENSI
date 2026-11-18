@@ -241,6 +241,33 @@ def main():
         kode, keluar = isi(e=dict(env, SHEETS_ID=""))
         cek("SHEETS_ID kosong -> GAGAL dengan pesan", kode == 1 and "SHEETS_ID" in keluar, keluar[-300:])
 
+        # 10b. Paket 6e: waktu file masuk tercatat di Riwayat isi; kabar akhir ke Telegram ke HRD/pembangun aktif.
+        kode, _ = isi(e=dict(env, WAKTU_FILE="2026-11-18T05:00:00Z", PEMICU="file Telegram"))
+        k = admin("/uji/keadaan")
+        rw = tab(k, "Riwayat isi")["values"]
+        cek("Riwayat isi: judul punya kolom Waktu file masuk; baris terakhir berisi waktu file",
+            kode == 0 and rw[1][-1] == "Waktu file masuk" and rw[-1][8] == "2026-11-18T05:00:00Z" and rw[-1][2] == "file Telegram",
+            (rw[1], rw[-1]))
+        psql_ = lambda s: subprocess.run(["psql", os.environ["DB_URL"], "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", s],
+                                         capture_output=True, text=True, check=True).stdout.strip()
+        psql_("insert into induk.pengguna (telegram_id, peran, aktif) values (91001, 'hrd', true), (91002, 'pembangun', true), "
+              "(91003, 'karyawan', true), (91004, 'hrd', false)")
+        try:
+            env_k = dict(env, TELEGRAM_BOT_TOKEN="123:TOKENUJI", TELEGRAM_API_URL=alamat, WAKTU_FILE="2026-11-18T05:00:00Z")
+            kode, keluar = jalan("web/kabar_telegram.py", "SELESAI", e=env_k)
+            pesan = admin("/uji/keadaan").get("pesan", [])
+            cek("kabar SELESAI ke HRD dan pembangun aktif saja, dengan lama sejak file masuk",
+                kode == 0 and sorted(p["chat_id"] for p in pesan) == [91001, 91002]
+                and all(p["text"].startswith("Sheets SELESAI diperbarui") and "Lama sejak file masuk:" in p["text"] for p in pesan),
+                pesan)
+            cek("bot token tidak tercetak di keluaran", "TOKENUJI" not in keluar, keluar[-200:])
+            kode, _ = jalan("web/kabar_telegram.py", "GAGAL", e=dict(env_k, ADA_RUN_MENUNGGU="ya"))
+            pesan = admin("/uji/keadaan").get("pesan", [])[2:]
+            cek("kabar GAGAL: jangan dipakai, ada pengisian ulang menunggu",
+                kode == 0 and len(pesan) == 2 and all("JANGAN dipakai" in p["text"] and "menunggu" in p["text"] for p in pesan), pesan)
+        finally:
+            psql_("delete from induk.pengguna where telegram_id in (91001, 91002, 91003, 91004)")
+
         # 11. Status GAGAL bisa ditulis.
         jalan("web/isi_sheets.py", "status", "GAGAL")
         k = admin("/uji/keadaan")

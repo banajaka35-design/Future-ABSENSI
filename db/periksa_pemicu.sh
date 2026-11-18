@@ -17,6 +17,13 @@ if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
   exit 0
 fi
 
+# Paket 6e (celah C1): Reset tidak boleh dijalankan ulang ("Re-run") dari riwayat, karena token pemicu Isi Sheets
+# berizin menjalankan ulang run lama; hanya percobaan pertama dari dorongan ke cabang yang sah.
+if [ "$KATA" = "RESET" ] && [ "${GITHUB_RUN_ATTEMPT:-1}" != "1" ]; then
+  echo "GAGAL: Reset tidak boleh dijalankan ulang (percobaan ke-$GITHUB_RUN_ATTEMPT). Dorong ulang ke cabang reset. Tidak ada yang diubah." >&2
+  exit 1
+fi
+
 MAIN="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
 if [ "$GITHUB_SHA" != "$MAIN" ]; then
   echo "GAGAL: cabang $GITHUB_REF_NAME menunjuk $GITHUB_SHA, bukan commit terbaru main ($MAIN). Tidak ada yang diubah." >&2

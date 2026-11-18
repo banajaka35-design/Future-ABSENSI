@@ -136,6 +136,10 @@ class Penjawab(BaseHTTPRequestHandler):
             return self.jawab(503, {"error": {"code": 503, "message": "gangguan tiruan"}})
         if jalan == "/token":
             return self.token(self.badan())
+        # Telegram tiruan untuk kabar akhir Isi Sheets (paket 6e).
+        if re.fullmatch(r"/bot[^/]+/sendMessage", jalan):
+            keadaan.setdefault("pesan", []).append(json.loads(self.badan() or b"{}"))
+            return self.jawab(200, {"ok": True, "result": {}})
         if self.headers.get("Authorization") != "Bearer " + TOKEN:
             return self.jawab(401, {"error": {"code": 401, "message": "token salah"}})
         awal = f"/v4/spreadsheets/{SID}"

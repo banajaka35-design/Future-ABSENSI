@@ -43,7 +43,7 @@ KOLOM_RINGKASAN = ["Periode", "Tanggal awal", "Tanggal akhir", "Tanggal bayar", 
 KETERANGAN_RAHASIA = ("Total tidak termasuk orang yang gajinya rahasia (lihat kolom terakhir); "
                       "total lengkap hanya untuk bos.")
 KOLOM_RIWAYAT = ["Waktu (WIB)", "Commit", "Pemicu", "Periode dan versi gaji", "Orang", "Lama isi (ms)",
-                 "Uji teks panjang", "Uji tanda sama dengan"]
+                 "Uji teks panjang", "Uji tanda sama dengan", "Waktu file masuk"]
 UJI_TEKS_PANJANG = "123456789012345678"
 UJI_SAMA_DENGAN = "=1+1"
 
@@ -254,13 +254,12 @@ def isi():
     lama = round((time.monotonic() - mulai) * 1000)
 
     # 4. Riwayat isi.
-    lama_riwayat = s.baca([rentang(TAB_RIWAYAT, "A1:B2")])[0]
-    if len(lama_riwayat) < 2 or lama_riwayat[1][:1] != [KOLOM_RIWAYAT[0]]:
-        s.tulis(rentang(TAB_RIWAYAT, "A1"), [[CATATAN], KOLOM_RIWAYAT])
+    # Baris catatan dan judul ditulis ulang setiap kali (versi 4 menambah kolom "Waktu file masuk").
+    s.tulis(rentang(TAB_RIWAYAT, "A1"), [[CATATAN], KOLOM_RIWAYAT])
     s.tambah_baris(TAB_RIWAYAT, [[
         waktu(), os.environ.get("GITHUB_SHA", "lokal"), os.environ.get("PEMICU", "manual"),
         "; ".join(f"{p['id']}:{p['versi_gaji']}" for p in periode), sum(len(p["orang"]) for p in periode), lama,
-        UJI_TEKS_PANJANG, UJI_SAMA_DENGAN]])
+        UJI_TEKS_PANJANG, UJI_SAMA_DENGAN, os.environ.get("WAKTU_FILE", "")]])
     print(f"Lama isi (tanpa riwayat): {lama} ms; permintaan ke Google: {s.jumlah_permintaan}")
 
 

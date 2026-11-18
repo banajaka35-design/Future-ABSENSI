@@ -2,19 +2,15 @@ name: Reset Supabase
 
 # Mengosongkan skema proyek di Supabase lalu memasang semuanya ulang dari nol (migrasi + data awal).
 # HANYA untuk pemasangan demo: skrip menolak kalau ada karyawan yang bukan data simulasi.
-# Dua cara memicu (aturan 8 di CLAUDE.md):
-#   1. Tombol: pemilik mengetik RESET.
-#   2. Dorongan ke cabang "reset": dilakukan Claude hanya setelah pemilik mengetik "buat" untuk paket
-#      yang menyebut reset; commit harus commit terbaru main dan uji otomatisnya lulus.
+# Satu cara memicu (aturan 8 di CLAUDE.md): dorongan ke cabang "reset", dilakukan Claude hanya setelah pemilik
+# mengetik "buat" untuk paket yang menyebut reset; commit harus commit terbaru main dan uji otomatisnya lulus.
+# Tombol (workflow_dispatch) dihapus di paket 6e (celah C1, docs/rencana-sheets-otomatis.md): token pemicu Isi Sheets
+# yang disimpan di Supabase berizin menjalankan workflow bertombol, termasuk mengirim kata konfirmasi. Dorongan ke
+# cabang butuh izin isi repo, yang tidak dimiliki token itu. Sesudah Reset selalu jalankan Pasang (pintu Telegram).
 # Urutan: cadangan dulu (30 hari, gagal = berhenti) -> kosongkan -> pasang dari nol -> pemeriksaan.
 on:
   push:
     branches: [reset]
-  workflow_dispatch:
-    inputs:
-      konfirmasi:
-        description: "Ketik RESET untuk mengosongkan dan memasang ulang Supabase"
-        required: true
 
 permissions:
   contents: read
@@ -35,7 +31,6 @@ jobs:
       - name: Periksa izin reset dan secret
         env:
           KATA: RESET
-          KONFIRMASI: ${{ inputs.konfirmasi }}
           GH_TOKEN: ${{ github.token }}
         run: |
           db/periksa_pemicu.sh
