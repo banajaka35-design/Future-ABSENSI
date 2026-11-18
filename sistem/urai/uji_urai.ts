@@ -130,3 +130,13 @@ test("U6 (tingkat file): ekspor aplikasi dan attlog.dat simulasi berisi tap yang
     assert.deepEqual(a.tap.map(kunci).sort(), b.tap.map(kunci).sort());
   }
 });
+
+test("6f (B1): semua baris ditolak -> pesan menyebut alasan terbanyak, jumlah, dan contoh; awalan tetap", () => {
+  const isi = JUDUL + Array.from({ length: 1500 }, (_, i) =>
+    `P${i},${10000 + i},22/11/2026 07.0${i % 10}.00,,C/Masuk`).join("\r\n") + "\r\nP,X!,22/11/2026 07.00.00,,C/Masuk\r\n";
+  const h = uraiEkspor(isi, { tanggal_kirim: "2026-11-18" });
+  assert.equal(h.hasil, "ditolak");
+  assert.ok(h.alasan!.startsWith(PESAN.semuaBarisDitolak), h.alasan!);
+  assert.match(h.alasan!, /1\.500 baris: tanggal mustahil \(jam mesin kemungkinan tereset atau salah\), contoh "22\/11\/2026 07\.00\.00"\./);
+  assert.match(h.alasan!, / 1 baris lain dengan alasan berbeda\.$/);
+});

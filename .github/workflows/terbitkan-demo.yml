@@ -71,6 +71,11 @@ jobs:
           print("Alamat fungsi ditulis untuk proyek", ref)
           PY
 
+      - name: Header keamanan halaman (paket 6f, celah S3)
+        run: |
+          ASAL="$(python3 -c 'import json; print(json.load(open("web/demo/unggah/alamat.json"))["fungsi"].split("/functions/")[0])')"
+          python3 web/buat_headers.py web/demo "$ASAL"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

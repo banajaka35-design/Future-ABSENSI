@@ -73,9 +73,11 @@ jobs:
         run: python3 web/periksa_sheets.py
 
       - name: Tandai SELESAI
+        env:
+          AWAL_PEMICU: ${{ github.event.workflow_run.run_started_at }}
         run: |
           python3 web/isi_sheets.py status SELESAI
-          awal="${{ github.event.workflow_run.run_started_at }}"
+          awal="$AWAL_PEMICU"
           if [ -n "$awal" ]; then
             echo "Lama dari awal workflow pemicu ($PEMICU) sampai SELESAI: $(( $(date +%s) - $(date -d "$awal" +%s) )) detik"
           fi

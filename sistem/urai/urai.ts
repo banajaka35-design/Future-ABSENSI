@@ -308,10 +308,33 @@ export function urai(teks: string, pilihan: PilihanUrai = {}): HasilUrai {
   };
 }
 
+// Paket 6f (bug B1): sebutkan alasan terbanyak dan contohnya, supaya HRD tahu langkahnya (misalnya jam mesin salah).
+// Awalan pesan tetap PESAN.semuaBarisDitolak (dicocokkan database).
+export function rincianTolak(daftar: BarisDitolak[]): string {
+  const hitung = new Map<string, { n: number; contoh: string }>();
+  for (const b of daftar) {
+    const i = b.alasan.indexOf(': "');
+    const jenis = i >= 0 ? b.alasan.slice(0, i) : b.alasan;
+    const contoh = i >= 0 ? b.alasan.slice(i + 2) : "";
+    const h = hitung.get(jenis) ?? { n: 0, contoh };
+    h.n++;
+    hitung.set(jenis, h);
+  }
+  const urut = [...hitung.entries()].sort((a, b) => b[1].n - a[1].n);
+  const [jenis, { n, contoh }] = urut[0];
+  const angka = (x: number) => x.toLocaleString("id-ID");
+  let teks = `${angka(n)} baris: ${jenis}${contoh ? `, contoh ${contoh.slice(0, 60)}` : ""}.`;
+  const sisa = daftar.length - n;
+  if (sisa > 0) teks += ` ${angka(sisa)} baris lain dengan alasan berbeda.`;
+  return teks;
+}
+
 function selesaikan(hasil: HasilUrai): HasilUrai {
   if (hasil.tap.length === 0) {
     hasil.hasil = "ditolak";
-    hasil.alasan = hasil.baris_ditolak.length > 0 ? PESAN.semuaBarisDitolak : PESAN.kosong;
+    hasil.alasan = hasil.baris_ditolak.length > 0
+      ? `${PESAN.semuaBarisDitolak} ${rincianTolak(hasil.baris_ditolak)}`
+      : PESAN.kosong;
     return hasil;
   }
   let awal = hasil.tap[0].jam_lokal;

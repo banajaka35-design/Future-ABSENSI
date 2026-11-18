@@ -64,6 +64,22 @@ python3 web/buat_data.py "$DEMO" > /dev/null
 if python3 web/periksa_data.py "$DEMO"; then cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" lulus lulus;
 else cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" gagal lulus; fi
 rm -rf "$DEMO"
+echo "== Pengamanan workflow (paket 6f, S4)"
+cek "tidak ada nilai dari luar di perintah run: workflow" \
+  "$(python3 sistem/uji/periksa_workflow.py .github/workflows/*.yml > /dev/null 2>&1; echo $?)" "0"
+
+echo "== Header keamanan halaman (paket 6f, S3)"
+HDR="$(mktemp -d)"; cp -r web/demo/. "$HDR/"
+python3 web/buat_headers.py "$HDR" https://contoh.supabase.co > /dev/null 2>&1
+cek "_headers dibuat dengan sidik skrip kedua halaman, tanpa unsafe-inline untuk skrip" \
+  "$(grep -c "script-src 'sha256-[^ ]*' 'sha256-[^ ;]*';" "$HDR/_headers" 2>/dev/null)/$(grep -c "frame-ancestors 'none'" "$HDR/_headers" 2>/dev/null)" "1/1"
+echo '<button onclick="alert(1)">x</button>' >> "$HDR/index.html"
+cek "halaman dengan penangan kejadian langsung (onclick) ditolak pembuat header" \
+  "$(python3 web/buat_headers.py "$HDR" https://contoh.supabase.co > /dev/null 2>&1; echo $?)" "1"
+cek "asal Edge Function palsu ditolak pembuat header" \
+  "$(python3 web/buat_headers.py "$HDR" https://jahat.example.com > /dev/null 2>&1; echo $?)" "1"
+rm -rf "$HDR"
+
 echo "== F15b: kebocoran gaji rahasia Pabrik A (3 orang rahasia; tanda lembur divisi KTR periode Nov-Des)"
 KODE_BOCOR_A=0
 KELUAR_BOCOR_A="$(python3 sistem/uji/uji_kebocoran.py A 2>&1)" || KODE_BOCOR_A=$?

@@ -555,3 +555,35 @@ test("6e: pemicu melempar galat -> dicatat gagal, hitung tetap tersimpan", async
   assert.ok(pesan.some((p) => /^Sheets BELUM diperbarui \(jaringan putus\)/.test(p.text)));
   assert.equal(nilai("select asal || '/' || hasil from fakta.picu_sheets order by id desc limit 1"), "web/gagal");
 });
+
+test("6f (E8b): 10 kode untuk satu email dalam 24 jam -> berikutnya tidak dikirim; jawaban sama dengan email tak terdaftar", async () => {
+  const kotak: string[] = [];
+  const alatHitung: Alat = { ...alat, async email(_ke, _judul, isi) { kotak.push(isi); } };
+  const id = nilai("select id from induk.pengguna where email = 'pulih@contoh.id'");
+  // 10 kode terkirim 1-20 jam lalu (di luar jendela 15 menit, di dalam 24 jam).
+  psql(`insert into fakta.kode_email (pengguna, email, sidik, dibuat, berlaku_sampai)
+        select ${id}, 'pulih@contoh.id', repeat('a', 64), now() - (g || ' hours')::interval, now() - (g || ' hours')::interval
+        from generate_series(1, 10) g`);
+  const r = await webMintaKode(alatHitung, "pulih@contoh.id");
+  const tak = await webMintaKode(alatHitung, "tidak.terdaftar@contoh.id");
+  assert.equal(kotak.length, 0, "kode ke-11 tidak boleh dikirim");
+  assert.deepEqual(r, tak, "jawaban halaman sama dengan email tidak terdaftar");
+  psql("delete from fakta.kode_email where email = 'pulih@contoh.id' and dibuat < now() - interval '30 minutes'");
+  await webMintaKode(alatHitung, "pulih@contoh.id");
+  assert.equal(kotak.length, 1, "sesudah jatah harian kosong lagi, kode terkirim");
+});
+
+test("6f (E8b): 100 kode semua email dalam 24 jam -> email lain pun tidak dikirimi", async () => {
+  const kotak: string[] = [];
+  const alatHitung: Alat = { ...alat, async email(_ke, _judul, isi) { kotak.push(isi); } };
+  const id = nilai("select id from induk.pengguna where email = 'hrd111@contoh.id'");
+  const ada = Number(nilai("select count(*) from fakta.kode_email where dibuat > now() - interval '24 hours'"));
+  psql(`insert into fakta.kode_email (pengguna, email, sidik, dibuat, berlaku_sampai, gagal_kirim)
+        select ${id}, 'banjir' || g || '@contoh.id', repeat('b', 64), now() - interval '2 hours', now() - interval '2 hours',
+               now() - interval '2 hours'
+        from generate_series(1, ${Math.max(100 - ada, 0)}) g`);
+  const r = await webMintaKode(alatHitung, "pulih@contoh.id");
+  assert.equal(kotak.length, 0, "batas 100 sehari untuk semua email (termasuk yang gagal dikirim)");
+  assert.deepEqual(r, await webMintaKode(alatHitung, "tidak.terdaftar@contoh.id"));
+  psql("delete from fakta.kode_email where email like 'banjir%@contoh.id'");
+});

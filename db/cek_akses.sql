@@ -17,4 +17,10 @@ union all
 select p.rolname, 'boleh jalankan fungsi', s.nspname || '.' || f.proname
 from pg_proc f join skema s on s.oid = f.pronamespace, peran p
 where has_function_privilege(p.oid, f.oid, 'execute')
+union all
+-- Paket 6f (celah S2): fungsi SECURITY DEFINER di skema public (terbuka lewat API Supabase /rest/v1/rpc), termasuk
+-- bawaan Supabase seperti public.rls_auto_enable, tidak boleh bisa dijalankan tanpa login.
+select p.rolname, 'boleh jalankan fungsi SECURITY DEFINER', 'public.' || f.proname
+from pg_proc f join pg_namespace n on n.oid = f.pronamespace and n.nspname = 'public', peran p
+where f.prosecdef and has_function_privilege(p.oid, f.oid, 'execute')
 order by 1, 2, 3;
