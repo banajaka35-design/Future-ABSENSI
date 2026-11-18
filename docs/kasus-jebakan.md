@@ -136,6 +136,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | F13b | Karyawan baru, hari kerja pertamanya sakit (perintah HRD), lalu 2 hari masuk tetapi belum didaftar di mesin | 2 hari itu alpha, dan ada pemberitahuan "belum didaftar di mesin?" | Permintaan perubahan 02 (temuan U5 Pabrik B) |
 | F14 | Sopir dengan pengaturan "tidak wajib tap", tanpa tap sebulan | Tidak alpha | PRD P4 |
 | F15 | Karyawan di kelompok gaji rahasia; akun HRD meminta rinciannya | Ditolak di gudang data; akun bos bisa melihat | PRD O4, K17 |
+| F15b | Akun HRD (atau Sheets/halaman demo untuk HRD) menjumlah semua gaji yang terlihat lalu membandingkannya dengan total | Total yang terlihat HRD tidak memasukkan orang rahasia, dengan keterangan "tidak termasuk N orang rahasia"; total dikurangi jumlah yang terlihat = 0. Total lengkap hanya untuk bos | Permintaan perubahan 04 |
 | F16 | HRD mengirim "tambah libur tgl 27 Nov" setelah semua orang terbaca alpha | Hari itu menjadi libur; alpha batal setelah hitung ulang | PRD O5 |
 | F17 | Pengaturan "uang makan di luar sistem" | Komponen uang makan Rp0 di rincian gaji | PRD G1 |
 

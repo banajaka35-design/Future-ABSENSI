@@ -1,6 +1,6 @@
-# Rekap ke Google Sheets (paket 6a, versi 2: paket 6a-2)
+# Rekap ke Google Sheets (paket 6a; versi 2: 6a-2; versi 3: 6a-3)
 
-18 November 2026 · versi 1 dan versi 2 masing-masing ditulis dan di-commit **sebelum kode** · versi 2: daftar transfer dan tunai dipisah, isi amplop per orang (keputusan pemilik 18 Nov 2026, `docs/permintaan-perubahan-03.md`) · acuan: PRD v2 bagian 7 (D3, D4), 9 (K3, K4, K7), 10, 11, 12 (U3), 13 (Tahap 6); keputusan pemilik 18 Nov 2026 (`docs/rencana-tahap-6.md`): (a) Sheets hanya rekap, (1) akun layanan Google + workflow GitHub, aturan gaji rahasia tetap (F15).
+18 November 2026 · versi 1 dan versi 2 masing-masing ditulis dan di-commit **sebelum kode** · versi 3: total Ringkasan tanpa orang rahasia (`docs/permintaan-perubahan-04.md`, F15b) · versi 2: daftar transfer dan tunai dipisah, isi amplop per orang (keputusan pemilik 18 Nov 2026, `docs/permintaan-perubahan-03.md`) · acuan: PRD v2 bagian 7 (D3, D4), 9 (K3, K4, K7), 10, 11, 12 (U3), 13 (Tahap 6); keputusan pemilik 18 Nov 2026 (`docs/rencana-tahap-6.md`): (a) Sheets hanya rekap, (1) akun layanan Google + workflow GitHub, aturan gaji rahasia tetap (F15).
 
 ## 1. Prinsip
 
@@ -27,9 +27,11 @@ Baris 1 setiap tab milik sistem berisi catatan: *"Diisi otomatis dari gudang dat
 | 4 | judul kolom |
 | 5 dst. | satu baris per periode, urut tanggal awal |
 
-Kolom: Periode (id), Tanggal awal, Tanggal akhir, Tanggal bayar, Versi baca tap (versi kode dari versi baca tap yang menjadi sumber versi gaji), Versi hitung gaji (versi kode), Orang, Total pendapatan, Total potongan, Total gaji bersih, Total dibayar, Total sisa pembulatan, Transfer, Tunai, PPh tertahan (orang), Bisa diajukan (YA/TIDAK).
+Kolom: Periode (id), Tanggal awal, Tanggal akhir, Tanggal bayar, Versi baca tap (versi kode dari versi baca tap yang menjadi sumber versi gaji), Versi hitung gaji (versi kode), Orang, Total pendapatan, Total potongan, Total gaji bersih, Total dibayar, Total sisa pembulatan, Transfer, Tunai, PPh tertahan (orang), Bisa diajukan (YA/TIDAK), Orang rahasia (tidak termasuk).
 
-Angka sama dengan halaman demo (keduanya dari gudang dengan cara hitung yang sama; uji simulasi memeriksa demo = gudang dan Sheets = gudang). Totals mencakup karyawan rahasia, sama dengan halaman demo; angka per orangnya tetap tidak terlihat.
+**Versi 3 (F15b):** Orang, semua total rupiah, Transfer, Tunai, dan PPh tertahan dihitung **tanpa orang rahasia**, sehingga total = jumlah baris yang terlihat di tab Gaji periode itu (selisih 0). "Orang rahasia (tidak termasuk)" = jumlah orang rahasia yang punya ringkasan gaji di periode itu. "Bisa diajukan" tetap dari `hitung.periode_bisa_diajukan` (semua orang). Baris 3 Ringkasan berisi keterangan: "Total tidak termasuk orang yang gajinya rahasia (lihat kolom terakhir); total lengkap hanya untuk bos."
+
+Angka sama dengan halaman demo (keduanya dari gudang dengan cara hitung yang sama; uji simulasi memeriksa demo = gudang dan Sheets = gudang). ~~Totals mencakup karyawan rahasia~~ (versi 1–2; bocor, diganti versi 3).
 
 ### 2.2 `Gaji <tanggal awal> sd <tanggal akhir> transfer` dan `... tunai` (dua tab per periode, versi 2)
 
@@ -128,6 +130,7 @@ Workflow "Isi Sheets": sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus,
 7. Baris terakhir `Riwayat isi`: commit tidak sama dengan yang sedang diperiksa, atau dua kolom uji tidak kembali persis sebagai teks.
 8. Tab milik sistem tanpa kunci, atau kunci yang mengizinkan akun lain selain akun layanan.
 9. (versi 2) Karyawan berada di tab yang tidak sesuai cara bayarnya di gudang, ada di dua tab, atau tidak punya cara bayar.
+11. (versi 3, F15b) Untuk setiap periode dan setiap angka Ringkasan (orang, pendapatan, potongan, gaji bersih, dibayar, sisa, transfer, tunai): angka Ringkasan dikurangi jumlah baris yang terlihat di dua tab Gaji periode itu ≠ 0; atau "Orang rahasia (tidak termasuk)" ≠ jumlah dari gudang.
 10. (versi 2) Tab `tunai`: untuk setiap orang bukan rahasia, jumlah (lembar × pecahan) ≠ Dibayar; atau jumlah lembar per pecahan seluruh tab (termasuk orang rahasia, dihitung dari gudang) ≠ `hitung.pecahan_tunai(versi)`.
 
 ## 6. Uji

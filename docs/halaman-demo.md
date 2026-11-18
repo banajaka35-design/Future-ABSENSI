@@ -1,4 +1,4 @@
-# Halaman demo (Tahap 4, paket 4c)
+# Halaman demo (Tahap 4, paket 4c; versi 2: paket 6a-3)
 
 17 November 2026 · ditulis sebelum kode · acuan: PRD v3.1 bagian 14 ("halaman demo sederhana di Tahap 4, hanya membaca hasil yang lulus uji, bertanda data simulasi") dan gerbang Tahap 4 ("angka demo sama dengan gudang").
 
@@ -18,6 +18,7 @@
 4. **Tanda anomali** per periode dari `hitung.anomali_gaji`: jumlah per jenis dan daftar isinya.
 5. **Daftar karyawan** dengan pencarian ID atau nama: divisi dan gaji bersih per periode. Klik satu orang: rincian per komponen, dibayar, sisa, peringatan, saldo cuti. Karyawan dengan `gaji_rahasia` di riwayat terakhirnya: angka tidak ditampilkan ("rahasia").
 6. Tidak ada tombol aksi, tidak ada formulir yang mengirim data.
+7. **Versi 2 (paket 6a-3, F15b)**: Ringkasan per periode (orang, total pendapatan, potongan, gaji bersih, dibayar, sisa, transfer, tunai, PPh tertahan) dan pecahan uang tunai dihitung **tanpa orang rahasia**, dengan keterangan "tidak termasuk N orang rahasia; amplop orang rahasia disiapkan terpisah". Total = jumlah gaji per orang yang tampil di daftar (selisih 0). Tanda anomali atas nama orang rahasia ditampilkan tanpa keterangan (keterangannya bisa berisi angka).
 
 ## Pemeriksaan "angka demo sama dengan gudang"
 
@@ -28,10 +29,13 @@ Skrip pemeriksa membaca file data halaman dan menghitung ulang langsung dari gud
 | Jumlah orang | baris `hitung.ringkasan_gaji` versi gaji terakhir |
 | Total pendapatan, potongan, gaji bersih, dibayar, sisa pembulatan | jumlah kolom ringkasan |
 | Dibayar transfer dan tunai | dibayar menurut cara bayar riwayat karyawan pada tanggal akhir periode |
-| Pecahan tunai | `hitung.pecahan_tunai(versi)` |
+| Pecahan tunai | ~~`hitung.pecahan_tunai(versi)`~~ (versi 1; lihat versi 2) |
 | Bisa diajukan, jumlah tertahan | `hitung.periode_bisa_diajukan`, peringatan `pph_masa_terakhir_tertahan` |
 | Tanda anomali per jenis | `hitung.anomali_gaji` |
 | Per orang (bukan rahasia) | gaji bersih dan setiap komponen rincian |
 | Orang rahasia | tidak ada angka di file data |
+| Ringkasan tanpa orang rahasia (versi 2) | jumlah kolom ringkasan untuk orang bukan rahasia; dan total dikurangi jumlah per orang di file data = 0 untuk orang, gaji bersih, dibayar, transfer, tunai |
+| Pecahan tunai (versi 2) | amplop orang tunai bukan rahasia; ditambah amplop orang rahasia = `hitung.pecahan_tunai(versi)` |
+| Anomali orang rahasia (versi 2) | tanpa keterangan |
 
 Pemeriksaan dijalankan (1) di uji GitHub dengan data simulasi Pabrik A, dan (2) di workflow terbit, terhadap Supabase, sebelum mengunggah. Gagal → tidak diunggah.
