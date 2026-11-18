@@ -1,4 +1,4 @@
-# Rekap ke Google Sheets (paket 6a; versi 2: 6a-2; versi 3: 6a-3)
+# Rekap ke Google Sheets (paket 6a; versi 2: 6a-2; versi 3: 6a-3; versi 4: 6e)
 
 18 November 2026 · versi 1 dan versi 2 masing-masing ditulis dan di-commit **sebelum kode** · versi 3: total Ringkasan tanpa orang rahasia (`docs/permintaan-perubahan-04.md`, F15b) · versi 2: daftar transfer dan tunai dipisah, isi amplop per orang (keputusan pemilik 18 Nov 2026, `docs/permintaan-perubahan-03.md`) · acuan: PRD v2 bagian 7 (D3, D4), 9 (K3, K4, K7), 10, 11, 12 (U3), 13 (Tahap 6); keputusan pemilik 18 Nov 2026 (`docs/rencana-tahap-6.md`): (a) Sheets hanya rekap, (1) akun layanan Google + workflow GitHub, aturan gaji rahasia tetap (F15).
 
@@ -113,9 +113,13 @@ Dua kolom uji terakhir selalu berisi `123456789012345678` dan `=1+1` sebagai **t
 
 ## 4. Kapan diisi
 
-Workflow "Isi Sheets": sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus, dan lewat tombol. Satu antrean (`isi-sheets`), tidak jalan bersamaan. Secret belum diisi → workflow GAGAL dengan pesan yang menyebut secret yang kurang.
+Workflow "Isi Sheets": sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus, lewat tombol, dan **(versi 4, paket 6e) dipicu Edge Function sesudah file masuk lewat bot atau halaman unggah dan paling sedikit satu periode berhasil dihitung** (`docs/pintu-telegram.md` bagian "Pemicu Sheets"). Masukan tombol/pemicu: `pemicu` dan `waktu_file`. Satu antrean (`isi-sheets`), tidak jalan bersamaan; GitHub menyimpan paling banyak satu run menunggu per antrean. Secret belum diisi → workflow GAGAL dengan pesan yang menyebut secret yang kurang.
 
-**Tidak di 6a:** isi otomatis sesudah file masuk lewat Telegram (butuh Edge Function memicu GitHub dengan token GitHub di Supabase), pemberitahuan Telegram bila isi gagal (6a: workflow merah), tab anomali.
+**Kabar ke Telegram (versi 4, celah C3):** bila dipicu file (masukan `pemicu` terisi), langkah terakhir workflow mengirim pesan ke semua akun aktif berperan `hrd` atau `pembangun` (`fakta.penerima`, dibaca dari gudang): "Sheets SELESAI <waktu>, diperiksa sama dengan gudang. Lama sejak file masuk: <n> detik." atau "Sheets GAGAL diperbarui <waktu>; jangan dipakai. <bila ada run lain menunggu: akan diisi ulang otomatis>". Bot token dari secret `TELEGRAM_BOT_TOKEN` (sudah ada); tidak dicetak ke log. Gagal mengirim kabar tidak mengubah hasil isi Sheets.
+
+**Riwayat isi (versi 4):** kolom baru "Waktu file masuk" (kosong bila bukan dari file). Baris judul ditulis ulang setiap kali diisi.
+
+**Tidak di 6e:** pemberitahuan per HRD bila isi gagal di luar pesan di atas; tab anomali; halaman demo tidak ikut terbit otomatis (M3).
 
 ## 5. Pemeriksa (gerbang Tahap 6 menurut PRD v2: "Isi Sheets sama dengan gudang")
 

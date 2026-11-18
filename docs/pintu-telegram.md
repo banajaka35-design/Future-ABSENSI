@@ -55,3 +55,13 @@ Uji T1 menemukan baca tap butuh 75 detik bila di periode itu baru ada file satu 
 - Antrean dikerjakan oleh Edge Function yang sama, paling lama sekitar 120 detik per pesan (batas Edge Function gratis 150 detik). Sisa antrean dikerjakan saat pesan berikutnya datang. Penjadwal terpisah belum ada.
 - Ukuran file dari bot Telegram paling besar 20 MB (batas Telegram untuk unduh lewat bot).
 - File `.gz` belum diterima; HRD mengirim file asli dari mesin.
+
+## Pemicu Sheets sesudah file masuk (paket 6e, 18 Nov 2026; ditulis sebelum kode)
+
+Rancangan lengkap dan analisa celah: `docs/rencana-sheets-otomatis.md`.
+
+1. `kerjakanAntrean` menghitung berapa periode **berhasil** dihitung dalam satu kali kerja. Bila paling sedikit satu, sesudah antrean berhenti (kosong, sibuk, atau batas waktu), Edge Function memanggil GitHub API `POST /repos/banajaka35-design/Future-ABSENSI/actions/workflows/isi-sheets.yml/dispatches` dengan `ref: main` dan masukan `pemicu` ("file Telegram" atau "file web") serta `waktu_file` (waktu file mulai diproses, ISO, zona UTC). Satu kali coba ulang bila jawaban 5xx atau jaringan gagal. Jawaban sukses GitHub: HTTP 204.
+2. Pesan ke chat pengirim (bila ada): sukses → "Sheets sedang diperbarui otomatis; bot akan mengabarkan bila sudah SELESAI (biasanya beberapa menit)." Gagal → "Sheets BELUM diperbarui (<alasan singkat>); angka di Sheets masih yang lama." Token kosong → "Sheets belum diperbarui otomatis (pemicu belum disiapkan)."
+3. Setiap percobaan dicatat lewat `api.pintu_catat_picu` di tabel baru `fakta.picu_sheets` (migrasi 0022): waktu, asal, hasil (`terkirim`, `gagal`, `belum_disiapkan`), alasan singkat. Hasil `gagal` dan `belum_disiapkan` menjadi kejadian tingkat segera `sheets_tidak_terpicu` (fungsi `fakta.kejadian_segera` diperluas), sehingga dikirim ke semua akun HRD dan pembangun lewat jalur pemberitahuan segera yang sudah ada (paket 5c). Token dan isi jawaban GitHub tidak pernah dicatat atau dikirim.
+4. Token: rahasia Edge Function `GITHUB_PICU_TOKEN`, diisi `db/pasang_pintu.sh` dari secret GitHub bernama sama (fine-grained, hanya repo ini, Actions: Read and write, 90 hari). Tidak ada → hasil `belum_disiapkan`.
+5. Workflow "Reset Supabase" tidak lagi punya tombol (celah C1): hanya lewat dorongan ke cabang `reset`.
