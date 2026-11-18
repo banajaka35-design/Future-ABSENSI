@@ -2,8 +2,10 @@
 -- dan di uji simulasi. Hanya membaca.
 select uji.sama('tahap 3: 4 periode uji', (select count(*) from fakta.periode)::int, 4);
 select uji.sama('tahap 3: koreksi jam mesin MA2 tercatat', (select count(*) from induk.koreksi_jam_mesin where mesin = 'MA2')::int, 1);
-select uji.sama('tahap 3: 12 kiriman diterima (4 file lanjutan mesin kantor kosong, ditolak)',
-  (select count(*) from fakta.kiriman_file where hasil = 'diterima')::int, 12);
+-- Paket 6f (bug B2): hanya kiriman data awal (asal 'lain'); kiriman sungguhan lewat Telegram/web tidak boleh
+-- membuat pemasangan berikutnya gagal (ditemukan saat Pasang 18 Nov 2026 sesudah uji nyata 6e).
+select uji.sama('tahap 3: 12 kiriman data awal diterima (4 file lanjutan mesin kantor kosong, ditolak)',
+  (select count(*) from fakta.kiriman_file where hasil = 'diterima' and asal = 'lain')::int, 12);
 select uji.sama('tahap 3: setiap periode punya hasil baca tap',
   (select count(*) from fakta.periode p where not exists (select 1 from hitung.versi_terakhir v where v.periode_id = p.id))::int, 0);
 select uji.sama('tahap 3: setiap karyawan aktif punya hasil di setiap hari periode',
