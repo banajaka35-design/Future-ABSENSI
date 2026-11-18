@@ -1,4 +1,4 @@
-# Halaman demo (Tahap 4, paket 4c; versi 2: paket 6a-3)
+# Halaman demo (Tahap 4, paket 4c; versi 2: paket 6a-3; versi 3: paket 6a-4)
 
 17 November 2026 · ditulis sebelum kode · acuan: PRD v3.1 bagian 14 ("halaman demo sederhana di Tahap 4, hanya membaca hasil yang lulus uji, bertanda data simulasi") dan gerbang Tahap 4 ("angka demo sama dengan gudang").
 
@@ -19,6 +19,7 @@
 5. **Daftar karyawan** dengan pencarian ID atau nama: divisi dan gaji bersih per periode. Klik satu orang: rincian per komponen, dibayar, sisa, peringatan, saldo cuti. Karyawan dengan `gaji_rahasia` di riwayat terakhirnya: angka tidak ditampilkan ("rahasia").
 6. Tidak ada tombol aksi, tidak ada formulir yang mengirim data.
 7. **Versi 2 (paket 6a-3, F15b)**: Ringkasan per periode (orang, total pendapatan, potongan, gaji bersih, dibayar, sisa, transfer, tunai, PPh tertahan) dan pecahan uang tunai dihitung **tanpa orang rahasia**, dengan keterangan "tidak termasuk N orang rahasia; amplop orang rahasia disiapkan terpisah". Total = jumlah gaji per orang yang tampil di daftar (selisih 0). Tanda anomali atas nama orang rahasia ditampilkan tanpa keterangan (keterangannya bisa berisi angka).
+8. **Versi 3 (paket 6a-4, F15b)**: tanda anomali tingkat divisi (tanpa ID karyawan) untuk divisi yang memuat orang rahasia di periode itu (divisi = divisi di hari terakhir periode, sama dengan daftar karyawan) ditampilkan **tanpa angka**: keterangan diganti "Divisi <kode>: angka tidak ditampilkan karena divisi ini memuat gaji rahasia". Alasan: angka divisi memuat orang rahasia, sedangkan angka orang lain di divisi itu tampil per orang, sehingga selisihnya membuka angka orang rahasia (contoh nyata 18 Nov 2026: lembur KTR 20.159.394 − 19.921.677 = 237.717).
 
 ## Pemeriksaan "angka demo sama dengan gudang"
 
@@ -37,5 +38,6 @@ Skrip pemeriksa membaca file data halaman dan menghitung ulang langsung dari gud
 | Ringkasan tanpa orang rahasia (versi 2) | jumlah kolom ringkasan untuk orang bukan rahasia; dan total dikurangi jumlah per orang di file data = 0 untuk orang, gaji bersih, dibayar, transfer, tunai |
 | Pecahan tunai (versi 2) | amplop orang tunai bukan rahasia; ditambah amplop orang rahasia = `hitung.pecahan_tunai(versi)` |
 | Anomali orang rahasia (versi 2) | tanpa keterangan |
+| Anomali berangka (versi 3) | keterangan yang memuat "Rp" tidak boleh menyangkut orang rahasia atau divisi yang memuat orang rahasia (divisi orang rahasia dihitung dari hasil harian dengan perintah SQL sendiri); jumlah tanda per jenis tetap = gudang |
 
 Pemeriksaan dijalankan (1) di uji GitHub dengan data simulasi Pabrik A, dan (2) di workflow terbit, terhadap Supabase, sebelum mengunggah. Gagal → tidak diunggah.

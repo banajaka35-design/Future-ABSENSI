@@ -31,4 +31,4 @@ Gudang, mesin hitung, bot, data simulasi tidak diubah. Supabase tidak diubah.
 ## Belum dikerjakan
 
 - Total lengkap untuk bos: menunggu akun bos (Tahap 9); sampai itu hanya di gudang.
-- [Kemungkinan Besar] Tanda anomali tingkat divisi masih memasukkan orang rahasia dalam angka divisinya (risiko kecil; dicatat).
+- ~~[Kemungkinan Besar] Tanda anomali tingkat divisi masih memasukkan orang rahasia dalam angka divisinya (risiko kecil; dicatat).~~ **Ralat 18 Nov 2026: penilaian ini salah.** Tanda "lembur divisi KTR naik" di halaman demo membuka lembur gabungan 3 orang rahasia (20.159.394 − 19.921.677 = 237.717). Ditutup di paket 6a-4.
