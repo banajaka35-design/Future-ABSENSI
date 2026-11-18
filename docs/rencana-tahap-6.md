@@ -36,10 +36,33 @@
 2. Nomor rekening disimpan terenkripsi dan **tidak boleh keluar ke Sheets atau chat** (kontrak data). Cara file sampai ke HRD harus diputuskan (lihat pertanyaan 4).
 3. Data simulasi belum berisi nomor rekening; perlu nomor karangan untuk demo.
 
+## Daftar paket 6a (siap di-"buat", 18 Nov 2026)
+
+**Diubah / ditambah di repo**
+1. `docs/rekap-sheets.md` ditulis dan di-commit sebelum kode: tab, kolom, kapan diisi, pemeriksaan.
+2. Tab di spreadsheet "PROJECT ABSENSI": **Ringkasan** (satu baris per periode: orang, pendapatan, potongan, bersih, dibayar, transfer, tunai; angka sama dengan halaman demo), **satu tab per periode** "Gaji <tanggal awal>" (satu baris per karyawan, kolom PRD v2 bagian 10: ID, nama, divisi, hari hadir, gaji pokok, uang makan, lembur, telat/lupa tap, alpha (jumlah dan nominal), kasbon, BPJS, PPh 21, gaji bersih), **Riwayat isi** (kapan diisi, commit, versi hitung per periode).
+3. Karyawan `gaji_rahasia`: baris ada, kolom angka kosong. Nomor rekening tidak pernah ditulis. Log tap dan rincian harian tidak ditulis (keputusan (a)).
+4. Penulis isi `web/isi_sheets.py`: membaca gudang (hanya membaca, lewat `SUPABASE_DB_URL` yang sudah ada), menimpa seluruh isi tab (PRD D3).
+5. Pemeriksa `web/periksa_sheets.py`: isi Sheets dibaca ulang lewat API, dibandingkan dengan gudang memakai perintah SQL sendiri (bukan hasil penulis); beda satu sel = GAGAL (gerbang Tahap 6 v2, U3).
+6. Workflow baru "Isi Sheets": jalan sesudah "Pasang ke Supabase" lulus dan lewat tombol; satu antrean, tidak jalan bersamaan.
+7. Uji otomatis: penulis dan pemeriksa dijalankan dengan Sheets tiruan (tanpa internet) di uji simulasi; uji pemeriksa harus menangkap satu sel yang sengaja diubah.
+8. Serah-terima dan laporan `docs/laporan-tahap-6a.md` (termasuk lama isi yang diukur, dibanding target 60 detik PRD v2).
+
+**Dipasang ke Supabase:** tidak ada (tanpa migrasi; hanya membaca).
+
+**Disiapkan pemilik (dipandu satu per satu, boleh sambil jalan):** proyek Google Cloud, Sheets API dinyalakan, akun layanan, kunci JSON ke secret GitHub `GOOGLE_SA_KEY`, spreadsheet dibagikan ke email akun layanan sebagai Editor, ID spreadsheet ke secret `SHEETS_ID`.
+
+**Belum pasti**
+- [Kemungkinan Besar] Pembuatan kunci akun layanan diizinkan untuk Gmail pribadi (lihat keputusan 2).
+- [Menebak] Pustaka Google (`google-auth`) dipasang di server GitHub saat workflow jalan; di uji tiruan tidak dibutuhkan.
+- Isi otomatis sesudah file masuk lewat Telegram **tidak** ikut 6a: butuh Edge Function memicu GitHub (token GitHub di Supabase). Diusulkan paket kecil sesudahnya.
+- Tab anomali tidak ada di PRD v2 bagian 10, jadi tidak ikut 6a.
+- Kolom "rincian lembur/telat/alpha" ditulis sebagai jumlah (jam/kali/hari) + nominal; bentuk rincian lain belum ditetapkan.
+
 ## Yang belum pasti (diputuskan pemilik, satu per satu)
 
 1. ~~**(a) atau (b)**~~ **Diputuskan pemilik 18 Nov 2026: (a)**, Sheets hanya rekap satu baris per orang (sesuai PRD v2 celah D4 dan bagian 10). Rincian tap: (a) Sheets hanya rekap sesuai PRD celah D4; (b) tambah tab "rincian tap per orang" seperti file 2 rekap HRD. Saran: (a), karena D4 melarang log tap mentah di Sheets dan rincian sudah ada di halaman demo/rincian gaji.
-2. **Cara sistem menulis ke Sheets.** Usulan: akun layanan Google (service account) yang diberi akses edit ke satu spreadsheet saja; kuncinya di secret GitHub. Pemilik perlu membuat akun layanan di Google Cloud (langkah dipandu satu per satu). [Kemungkinan Besar] ini cara paling sederhana tanpa membuka database; belum dicek ke dokumen resmi Google.
+2. ~~**Cara sistem menulis ke Sheets.**~~ **Diputuskan pemilik 18 Nov 2026: (1) akun layanan Google + workflow GitHub** (bukan Apps Script seperti tulisan PRD v2 bagian 4), supaya gudang tetap tertutup dan semua kode tetap di GitHub. Cek dokumen 18 Nov 2026: batasan Google yang melarang kunci akun layanan berlaku otomatis untuk *organisasi* Google Cloud yang dibuat sejak 3 Mei 2024; akun Gmail pribadi tanpa organisasi umumnya tidak kena [Kemungkinan Besar], tetapi ada satu laporan forum Gmail pribadi tetap ditolak. Bila ditolak: cadangan tanpa kunci (Workload Identity Federation dari GitHub), lebih rumit. Catatan usulan awal: Usulan: akun layanan Google (service account) yang diberi akses edit ke satu spreadsheet saja; kuncinya di secret GitHub. Pemilik perlu membuat akun layanan di Google Cloud (langkah dipandu satu per satu). [Kemungkinan Besar] ini cara paling sederhana tanpa membuka database; belum dicek ke dokumen resmi Google.
 3. **Bank yang dipakai perusahaan sasaran** dan bentuk file unggah massalnya (setiap bank berbeda). Untuk demo bisa satu bentuk CSV umum dulu.
 4. **Cara file bank sampai ke HRD** tanpa melanggar aturan rekening: misalnya dikirim sebagai dokumen ke Telegram HRD, atau diunduh dari halaman unggah dengan tautan 15 menit (5d/5e). Belum diputuskan.
 5. **Bentuk lembar cetak** yang biasa dipakai HRD sasaran (contoh lembar dari perusahaan nyata akan sangat membantu; isi pribadinya tidak dicatat di repo).

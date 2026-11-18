@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 18 November 2026, cabang `main` (Tahap 6: acuan PRD v2, keputusan 1 = (a)).
+Terakhir diperbarui: 18 November 2026, cabang `main` (Tahap 6: acuan PRD v2, keputusan 1 = (a), keputusan 2 = (1), daftar paket 6a).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -15,7 +15,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 ## Posisi sekarang: Tahap 5 selesai (5a–5e, 5d-2, 5e-2); berikutnya Tahap 6 (tulis daftar paket dulu)
 
-**18 Nov 2026:** PRD v3.1 tidak tersedia; pemilik memutuskan memakai PRD v2 (rangkuman dan bagian yang mungkin berbeda di `docs/rencana-tahap-6.md` bagian "Acuan PRD"). **Keputusan 1 = (a)**: Sheets hanya rekap. Berikutnya: keputusan 2 (cara menulis ke Sheets).
+**18 Nov 2026:** PRD v3.1 tidak tersedia; pemilik memutuskan memakai PRD v2 (rangkuman dan bagian yang mungkin berbeda di `docs/rencana-tahap-6.md` bagian "Acuan PRD"). **Keputusan 1 = (a)**: Sheets hanya rekap. **Keputusan 2 = (1)**: akun layanan Google + workflow GitHub. Daftar paket 6a tertulis di `docs/rencana-tahap-6.md`, menunggu "buat".
 
 **Mulai 18 Nov 2026 dari sini:** draf daftar paket Tahap 6 ada di `docs/rencana-tahap-6.md` (belum di-"buat"). Langkah pertama: pemilik menempelkan teks PRD v3.1 yang diminta di bagian "Yang dibutuhkan dari PRD", lalu keputusan (a)/(b) dan cara menulis ke Sheets. Kalimat pembuka untuk chat baru:
 
