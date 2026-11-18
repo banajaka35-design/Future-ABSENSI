@@ -38,6 +38,6 @@ Tidak diubah: kasus jebakan, migrasi, mesin hitung, halaman demo (angka ikut gud
 
 Riwayat kiriman Telegram, pemberitahuan, kode email, catatan pengingat, dan jejak perubahan lama terhapus (data demo).
 
-## Belum terbukti
+## Uji nyata bot (langkah 10)
 
-- Bot membalas pemilik sesudah Reset + Pasang (langkah 10: pemilik mengirim satu pesan).
+Pemilik mengirim `/unggah` ke bot "Abaensi" 18 Nov 2026 11.39 WIB; bot membalas tautan unggah. Dicek di Supabase: `fakta.tautan_unggah` baris 1, dibuat 04.39.48 UTC oleh pengguna 1 (akun pembangun yang didaftarkan ulang oleh Pasang), berlaku 15 menit, belum dipakai. **Bot pulih sesudah Reset + Pasang: terbukti.**
