@@ -16,7 +16,7 @@ const EMAIL_PENGIRIM = Deno.env.get("EMAIL_PENGIRIM") ?? "";
 const alat = buatAlat(sql, Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "", urai, fetch, ASAL_WEB ? `${ASAL_WEB}/unggah/` : "",
   undefined, BREVO_KUNCI && EMAIL_PENGIRIM ? { kunci: BREVO_KUNCI, pengirim: EMAIL_PENGIRIM } : null,
   // Pemicu Isi Sheets (paket 6e, docs/pintu-telegram.md). Kosong = "belum disiapkan".
-  Deno.env.get("GITHUB_PICU_TOKEN") ? { token: Deno.env.get("GITHUB_PICU_TOKEN") ?? "", repo: "banajaka35-design/Future-ABSENSI" } : null);
+  Deno.env.get("PICU_SHEETS_TOKEN") ? { token: Deno.env.get("PICU_SHEETS_TOKEN") ?? "", repo: "banajaka35-design/Future-ABSENSI" } : null);
 const RAHASIA = Deno.env.get("TELEGRAM_RAHASIA") ?? "";
 const RAHASIA_PENGINGAT = Deno.env.get("PENGINGAT_RAHASIA") ?? "";
 

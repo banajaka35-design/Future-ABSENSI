@@ -11,7 +11,7 @@
 #      dan jadwal harian 01.00 UTC (08.00 WIB) dipasang. Skema `jadwal` di luar skema proyek: tidak ikut cadangan
 #      dan tidak terhapus oleh Reset Supabase.
 # Butuh: DB_URL, SUPABASE_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN, PEMBANGUN_TELEGRAM_ID.
-# Pilihan (paket 6e): GITHUB_PICU_TOKEN (pemicu Isi Sheets sesudah file masuk; kosong -> belum disiapkan).
+# Pilihan (paket 6e): PICU_SHEETS_TOKEN (pemicu Isi Sheets sesudah file masuk; kosong -> belum disiapkan).
 # Pilihan (paket 5e, masuk lewat kode email): PEMBANGUN_EMAIL (email akun pembangun, juga alamat pengirim bila
 # EMAIL_PENGIRIM kosong), BREVO_API_KEY. Kosong -> jalur email menjawab "belum disiapkan"; pemasangan tidak gagal.
 set -euo pipefail
@@ -125,11 +125,11 @@ else
   echo "Pengirim email kode: dilewati (secret BREVO_API_KEY atau PEMBANGUN_EMAIL belum diisi)"
 fi
 # Pemicu Isi Sheets (paket 6e): token GitHub fine-grained (hanya repo ini, Actions: Read and write, 90 hari).
-if [ -n "${GITHUB_PICU_TOKEN:-}" ]; then
-  printf 'GITHUB_PICU_TOKEN=%s\n' "$GITHUB_PICU_TOKEN" >> "$BERKAS"
+if [ -n "${PICU_SHEETS_TOKEN:-}" ]; then
+  printf 'PICU_SHEETS_TOKEN=%s\n' "$PICU_SHEETS_TOKEN" >> "$BERKAS"
   echo "Pemicu Isi Sheets: diisi"
 else
-  echo "Pemicu Isi Sheets: dilewati (secret GITHUB_PICU_TOKEN belum diisi; bot memberi tahu HRD Sheets tidak diperbarui otomatis)"
+  echo "Pemicu Isi Sheets: dilewati (secret GitHub GTHUB_PICU_TOKEN belum diisi; bot memberi tahu HRD Sheets tidak diperbarui otomatis)"
 fi
 npx --yes supabase@2 secrets set --project-ref "$REF" --env-file "$BERKAS"
 

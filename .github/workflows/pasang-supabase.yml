@@ -80,5 +80,5 @@ jobs:
           PEMBANGUN_TELEGRAM_ID: ${{ secrets.PEMBANGUN_TELEGRAM_ID }}
           PEMBANGUN_EMAIL: ${{ secrets.PEMBANGUN_EMAIL }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
-          GITHUB_PICU_TOKEN: ${{ secrets.GITHUB_PICU_TOKEN }}
+          PICU_SHEETS_TOKEN: ${{ secrets.GTHUB_PICU_TOKEN }}  # nama secret tanpa awalan GITHUB_ (dilarang GitHub)
         run: db/pasang_pintu.sh

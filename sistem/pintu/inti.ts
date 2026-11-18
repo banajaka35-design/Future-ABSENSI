@@ -304,7 +304,7 @@ export const BATAS_PESAN = 3800; // Telegram menerima paling banyak 4096 karakte
 export const JENIS_SEGERA: Record<string, { judul: string; langkah: string }> = {
   sheets_tidak_terpicu: {
     judul: "Sheets TIDAK diperbarui otomatis sesudah file masuk (angka di Sheets masih yang lama)",
-    langkah: "Pembangun: jalankan workflow \"Isi Sheets\" lewat tombol di GitHub dan periksa token GITHUB_PICU_TOKEN (mungkin habis masa berlaku).",
+    langkah: "Pembangun: jalankan workflow \"Isi Sheets\" lewat tombol di GitHub dan periksa secret GTHUB_PICU_TOKEN (token mungkin habis masa berlaku).",
   },
   file_rusak_excel: {
     judul: "File ditolak: pernah dibuka dan disimpan di Excel (No.ID rusak)",

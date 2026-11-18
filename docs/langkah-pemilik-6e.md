@@ -10,7 +10,7 @@ Kode paket 6e sudah selesai dan semua uji GitHub lulus (commit e23dedf). Yang te
 4. Permissions → Repository permissions → **Actions: Read and write** (yang lain biarkan "No access")
 5. **Generate token** → salin tokennya
 6. Buka **github.com/banajaka35-design/Future-ABSENSI/settings/secrets/actions/new**
-   Name: `GITHUB_PICU_TOKEN` · Secret: tempel token → **Add secret**
+   Name: `GTHUB_PICU_TOKEN` · Secret: tempel token → **Add secret**
 7. Catat tanggal habis tokennya. Jangan kirim token ke chat.
 
 ## Langkah 2 (Claude): pasang ulang

@@ -13,7 +13,7 @@ File masuk lewat bot atau halaman unggah → `api.pintu_terima_file` menaruh per
 1. **Dokumen dulu**: `docs/rekap-sheets.md` versi 4 (bagian "kapan diisi") dan `docs/pintu-telegram.md` (pemicu Sheets), sebelum kode.
 2. **Pemicu**: sesudah antrean selesai dikerjakan dan **paling sedikit satu periode berhasil dihitung**, Edge Function meminta GitHub menjalankan workflow "Isi Sheets" (GitHub API `workflow_dispatch`, satu panggilan, coba ulang sekali). Berlaku untuk file dari bot dan dari halaman unggah. File ditolak atau periode gagal dihitung → tidak memicu.
 3. **Pesan ke HRD**: sesudah pemicu berhasil: "Sheets sedang diperbarui; tunggu status SELESAI di tab Ringkasan (biasanya beberapa menit)". Pemicu gagal: "Sheets BELUM diperbarui (…alasan…); angka di Sheets masih yang lama" dan dicatat sebagai pemberitahuan segera untuk pembangun.
-4. **Kunci GitHub**: token fine-grained milik pemilik, **hanya repo Future-ABSENSI, hanya izin Actions: Read and write** (bisa menjalankan workflow, tidak bisa membaca kode atau secret). Disimpan sebagai secret GitHub `GITHUB_PICU_TOKEN`, lalu diteruskan `db/pasang_pintu.sh` ke rahasia Edge Function. Tanpa secret → pemicu dilewati dan HRD diberi tahu "Sheets belum diperbarui otomatis". Token tidak pernah masuk repo atau log.
+4. **Kunci GitHub**: token fine-grained milik pemilik, **hanya repo Future-ABSENSI, hanya izin Actions: Read and write** (bisa menjalankan workflow, tidak bisa membaca kode atau secret). Disimpan sebagai secret GitHub `GTHUB_PICU_TOKEN`, lalu diteruskan `db/pasang_pintu.sh` ke rahasia Edge Function. Tanpa secret → pemicu dilewati dan HRD diberi tahu "Sheets belum diperbarui otomatis". Token tidak pernah masuk repo atau log.
 5. **Workflow "Isi Sheets"**: pemicu tetap satu antrean; GitHub hanya menyimpan satu run menunggu per antrean, jadi banyak file beruntun tidak menumpuk [Kemungkinan Besar, aturan concurrency GitHub]. Waktu "file masuk" dicatat di Riwayat isi supaya lama file masuk → SELESAI bisa diukur.
 6. **Uji otomatis** (`sistem/uji/uji_pintu.sh`, GitHub tiruan): file diterima dan dihitung → satu panggilan pemicu dengan alamat dan isi yang benar; file ditolak → tidak ada panggilan; GitHub menjawab galat → pesan "Sheets BELUM diperbarui" dan pemberitahuan segera; token kosong → dilewati dengan pesan; token tidak pernah muncul di pesan atau log uji.
 7. **Supabase**: Edge Function dan rahasianya dipasang ulang lewat **Pasang ke Supabase** (cabang `pasang`). Tidak ada migrasi baru [Kemungkinan Besar; bila ternyata perlu fungsi baru untuk mencatat waktu file masuk, ditulis di migrasi baru dan disebut di laporan].
@@ -43,7 +43,7 @@ File masuk lewat bot atau halaman unggah → `api.pintu_terima_file` menaruh per
 
 ## Yang disiapkan pemilik (dipandu satu per satu)
 
-Membuat token fine-grained di GitHub (Settings → Developer settings): hanya repo Future-ABSENSI, izin Actions: Read and write, **masa berlaku 90 hari** (C2). Lalu mengisi secret `GITHUB_PICU_TOKEN`. Tanggal habisnya dicatat di serah-terima.
+Membuat token fine-grained di GitHub (Settings → Developer settings): hanya repo Future-ABSENSI, izin Actions: Read and write, **masa berlaku 90 hari** (C2). Lalu mengisi secret `GTHUB_PICU_TOKEN`. Tanggal habisnya dicatat di serah-terima.
 
 ## Tidak diubah
 
