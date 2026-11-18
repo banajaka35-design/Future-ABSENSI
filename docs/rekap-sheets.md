@@ -1,6 +1,6 @@
-# Rekap ke Google Sheets (paket 6a)
+# Rekap ke Google Sheets (paket 6a, versi 2: paket 6a-2)
 
-18 November 2026 · ditulis dan di-commit **sebelum kode** · acuan: PRD v2 bagian 7 (D3, D4), 9 (K3, K4, K7), 10, 11, 12 (U3), 13 (Tahap 6); keputusan pemilik 18 Nov 2026 (`docs/rencana-tahap-6.md`): (a) Sheets hanya rekap, (1) akun layanan Google + workflow GitHub, aturan gaji rahasia tetap (F15).
+18 November 2026 · versi 1 dan versi 2 masing-masing ditulis dan di-commit **sebelum kode** · versi 2: daftar transfer dan tunai dipisah, isi amplop per orang (keputusan pemilik 18 Nov 2026, `docs/permintaan-perubahan-03.md`) · acuan: PRD v2 bagian 7 (D3, D4), 9 (K3, K4, K7), 10, 11, 12 (U3), 13 (Tahap 6); keputusan pemilik 18 Nov 2026 (`docs/rencana-tahap-6.md`): (a) Sheets hanya rekap, (1) akun layanan Google + workflow GitHub, aturan gaji rahasia tetap (F15).
 
 ## 1. Prinsip
 
@@ -31,9 +31,11 @@ Kolom: Periode (id), Tanggal awal, Tanggal akhir, Tanggal bayar, Versi baca tap 
 
 Angka sama dengan halaman demo (keduanya dari gudang dengan cara hitung yang sama; uji simulasi memeriksa demo = gudang dan Sheets = gudang). Totals mencakup karyawan rahasia, sama dengan halaman demo; angka per orangnya tetap tidak terlihat.
 
-### 2.2 `Gaji <tanggal awal> sd <tanggal akhir>` (satu tab per periode)
+### 2.2 `Gaji <tanggal awal> sd <tanggal akhir> transfer` dan `... tunai` (dua tab per periode, versi 2)
 
-Baris 1 catatan, baris 2 judul kolom, baris 3 dst. satu baris per karyawan yang punya ringkasan gaji di versi itu, urut ID.
+Setiap periode punya **dua tab**: `transfer` berisi karyawan yang cara bayarnya transfer, `tunai` berisi yang tunai, menurut riwayat yang berlaku di tanggal akhir periode. Setiap karyawan yang punya ringkasan gaji di versi itu ada di **tepat satu** tab. Karyawan tanpa cara bayar → pemeriksa GAGAL (tidak boleh terjadi). Tab dibuat walaupun daftarnya kosong (hanya catatan dan judul). Tab versi 1 `Gaji <awal> sd <akhir>` (tanpa akhiran) terhapus otomatis karena bukan tab yang dipakai.
+
+Baris 1 catatan, baris 2 judul kolom, baris 3 dst. satu baris per karyawan, urut ID.
 
 **Kolom pengenal dan hadir** (dari hasil harian versi sumber; berlaku juga untuk orang rahasia):
 
@@ -84,6 +86,8 @@ Baris 1 catatan, baris 2 judul kolom, baris 3 dst. satu baris per karyawan yang 
 | Peringatan | `peringatan`, dipisah koma (misalnya `pph_masa_terakhir_tertahan`) | |
 | Ditanggung perusahaan: BPJS Kesehatan, JHT, JP, JKK, JKM | komponen `bpjs_*_perusahaan`; tidak masuk gaji bersih | perusahaan |
 
+**Kolom tambahan khusus tab `tunai`: isi amplop per orang** (sesudah kolom "Ditanggung perusahaan"). Satu kolom per pecahan, judul `Amplop Rp100.000 (lembar)`, `Amplop Rp50.000 (lembar)`, dan seterusnya, dari pecahan terbesar. Pecahan = {100.000, 50.000, 20.000, 10.000, 5.000, 2.000, 1.000} yang **tidak lebih kecil dari pengaturan `pembulatan_tunai`** di tanggal akhir periode (sama dengan `hitung.pecahan_tunai`). Isi: "Dibayar" dipecah dari pecahan terbesar; dibayar ≤ 0 → semua 0. Orang rahasia: kolom amplop kosong.
+
 Arti "telat" dan "lupa tap" di Pabrik A: **tidak ada potongan rupiah** untuk telat; telat menghilangkan premi hadir dan (di atas batas) uang makan. Jadi PRD v2 "rincian dan nominal telat atau lupa tap" ditulis sebagai jumlah kali/menit di kolom hadir, sedangkan akibat rupiahnya terlihat di Premi hadir dan Uang makan. Alpha: jumlah hari di kolom hadir, rupiahnya di "Potongan hari tidak dibayar" beserta keterangannya.
 
 ### 2.3 `Riwayat isi`
@@ -115,7 +119,7 @@ Workflow "Isi Sheets": sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus,
 
 `web/periksa_sheets.py` membaca ulang seluruh tab milik sistem dari Google (nilai mentah, bukan tampilan) dan menghitung ulang dari gudang dengan **perintah SQL sendiri**, terpisah dari penulis. GAGAL bila salah satu:
 
-1. Daftar tab `Gaji ...` tidak sama dengan daftar periode yang punya versi gaji.
+1. Daftar tab `Gaji ...` tidak sama dengan dua tab (transfer, tunai) untuk setiap periode yang punya versi gaji.
 2. Judul kolom berbeda dari dokumen ini.
 3. Satu sel saja berbeda dari gudang (termasuk sel yang seharusnya kosong untuk orang rahasia, dan ID yang bukan teks).
 4. Jumlah orang di tab berbeda dari jumlah ringkasan gaji di gudang.
@@ -123,10 +127,12 @@ Workflow "Isi Sheets": sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus,
 6. `Ringkasan`: satu angka berbeda dari gudang, atau total tab periode (termasuk orang rahasia, dihitung dari gudang) berbeda dari `Ringkasan` (U3).
 7. Baris terakhir `Riwayat isi`: commit tidak sama dengan yang sedang diperiksa, atau dua kolom uji tidak kembali persis sebagai teks.
 8. Tab milik sistem tanpa kunci, atau kunci yang mengizinkan akun lain selain akun layanan.
+9. (versi 2) Karyawan berada di tab yang tidak sesuai cara bayarnya di gudang, ada di dua tab, atau tidak punya cara bayar.
+10. (versi 2) Tab `tunai`: untuk setiap orang bukan rahasia, jumlah (lembar × pecahan) ≠ Dibayar; atau jumlah lembar per pecahan seluruh tab (termasuk orang rahasia, dihitung dari gudang) ≠ `hitung.pecahan_tunai(versi)`.
 
 ## 6. Uji
 
-- **Uji otomatis (GitHub, setiap dorongan)**: Sheets tiruan (`sistem/uji/sheets_tiruan.py`, server kecil di komputer uji, tanpa internet) yang meniru bagian Sheets API yang dipakai, termasuk masuk dengan token. Tiruan menolak `valueInputOption` selain `RAW`. Dengan data simulasi Pabrik A: isi → periksa lulus; isi ulang → tab dan kunci tidak dobel; satu sel diubah → pemeriksa GAGAL; satu sel orang rahasia diisi angka → GAGAL; ID ditulis sebagai angka → GAGAL; tab `Gaji` periode yang tidak ada → dihapus; tab buatan HRD → tidak disentuh.
+- **Uji otomatis (GitHub, setiap dorongan)**: Sheets tiruan (`sistem/uji/sheets_tiruan.py`, server kecil di komputer uji, tanpa internet) yang meniru bagian Sheets API yang dipakai, termasuk masuk dengan token. Tiruan menolak `valueInputOption` selain `RAW`. Dengan data simulasi Pabrik A: isi → periksa lulus; isi ulang → tab dan kunci tidak dobel; satu sel diubah → pemeriksa GAGAL; satu sel orang rahasia diisi angka → GAGAL; ID ditulis sebagai angka → GAGAL; tab `Gaji` periode yang tidak ada → dihapus; tab buatan HRD → tidak disentuh. Versi 2: 8 tab Gaji; satu lembar amplop diubah → GAGAL; orang dipindah ke tab cara bayar yang salah → GAGAL; tab versi 1 terhapus.
 - **Uji nyata** (sesudah pemilik mengisi secret): workflow dijalankan ke spreadsheet "PROJECT ABSENSI", lalu isi Sheets dicek langsung (bukan dari log workflow).
 - **Diukur**: lama isi (langkah penulis saja) dan lama dari awal workflow pemicu sampai `SELESAI`. Target PRD v2 bagian 11 ("rekap selesai di Sheets untuk 55.000–65.000 baris paling lama 60 detik") mengacu jumlah tap, bukan baris Sheets; keduanya dilaporkan terpisah. Lama dari file Telegram masuk sampai Sheets terisi tidak bisa diukur di 6a.
 - **Bukti akhir paket** (PRD v2 bagian 12): jumlah baris per tab, 3 contoh orang lengkap (satu di antaranya rahasia), dan tautan Sheets.
