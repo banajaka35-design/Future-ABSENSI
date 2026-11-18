@@ -206,6 +206,21 @@ def main():
         cek("total gaji bersih di Ringkasan diubah -> pemeriksa GAGAL", kode == 1 and "Total gaji bersih" in keluar, keluar[-400:])
         isi()
 
+        # 8f. Total Ringkasan dikembalikan ke cara lama (termasuk orang rahasia) -> GAGAL (F15b).
+        lama = subprocess.run(["psql", os.environ["DB_URL"], "-X", "-q", "-t", "-A", "-c",
+                               "select sum(g.gaji_bersih) from hitung.ringkasan_gaji g join hitung.versi_terakhir v "
+                               "on v.id = g.versi_id and v.jenis = 'hitung_gaji' join fakta.periode p on p.id = v.periode_id "
+                               "where p.tanggal_awal = (select min(tanggal_awal) from fakta.periode)"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+        k = admin("/uji/keadaan")
+        sekarang = tab(k, "Ringkasan")["values"][4][9]
+        cek("Ringkasan tanpa orang rahasia (lebih kecil dari total lengkap gudang)", int(lama) > sekarang, (lama, sekarang))
+        cek("Ringkasan berketerangan rahasia di baris 3", str(tab(k, "Ringkasan")["values"][2][0]).startswith("Total tidak termasuk"))
+        admin("/uji/ubah_sel", {"tab": "Ringkasan", "baris": 4, "kolom": 9, "nilai": int(lama)})
+        kode, keluar = periksa()
+        cek("total cara lama (termasuk rahasia) -> pemeriksa GAGAL (F15b)", kode == 1 and "F15b" in keluar, keluar[-500:])
+        isi()
+
         # 8c. Kunci dilonggarkan (orang lain boleh mengubah) -> GAGAL.
         admin("/uji/ubah_kunci", {"tab": gaji[0], "isi": {"editors": {"users": [SA, "orang.lain@contoh.id"]}}})
         cek("kunci tab mengizinkan akun lain -> pemeriksa GAGAL", periksa()[0] == 1)

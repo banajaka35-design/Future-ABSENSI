@@ -38,7 +38,10 @@ KOLOM_TOTAL = ["Total pendapatan", "Total potongan", "Gaji bersih", "Sisa pembul
 KOLOM_KET = ["Keterangan lembur", "Keterangan hari tidak dibayar", "Peringatan"]
 KOLOM_RINGKASAN = ["Periode", "Tanggal awal", "Tanggal akhir", "Tanggal bayar", "Versi baca tap", "Versi hitung gaji",
                    "Orang", "Total pendapatan", "Total potongan", "Total gaji bersih", "Total dibayar",
-                   "Total sisa pembulatan", "Transfer", "Tunai", "PPh tertahan (orang)", "Bisa diajukan"]
+                   "Total sisa pembulatan", "Transfer", "Tunai", "PPh tertahan (orang)", "Bisa diajukan",
+                   "Orang rahasia (tidak termasuk)"]
+KETERANGAN_RAHASIA = ("Total tidak termasuk orang yang gajinya rahasia (lihat kolom terakhir); "
+                      "total lengkap hanya untuk bos.")
 KOLOM_RIWAYAT = ["Waktu (WIB)", "Commit", "Pemicu", "Periode dan versi gaji", "Orang", "Lama isi (ms)",
                  "Uji teks panjang", "Uji tanda sama dengan"]
 UJI_TEKS_PANJANG = "123456789012345678"
@@ -160,16 +163,18 @@ def baris_gaji(p, cara):
 
 
 def baris_ringkasan(periode, status):
-    baris = [[CATATAN], ["Status", status], [], KOLOM_RINGKASAN]
+    baris = [[CATATAN], ["Status", status], [KETERANGAN_RAHASIA], KOLOM_RINGKASAN]
     for p in periode:
-        o = p["orang"]
+        # F15b: total untuk HRD tanpa orang rahasia, supaya total - jumlah yang terlihat = 0.
+        o = [x for x in p["orang"] if not x["rahasia"]]
+        n_rahasia = len(p["orang"]) - len(o)
         jumlah = lambda k: sum(x[k] for x in o)  # noqa: E731
         baris.append([p["id"], p["awal"], p["akhir"], p["bayar"] or "", p["kode_baca"], p["kode_gaji"], len(o),
                       jumlah("pendapatan"), jumlah("potongan"), jumlah("bersih"), jumlah("dibayar"), jumlah("sisa"),
                       sum(x["dibayar"] for x in o if x["cara"] == "transfer"),
                       sum(x["dibayar"] for x in o if x["cara"] == "tunai"),
                       sum(1 for x in o if "pph_masa_terakhir_tertahan" in (x["peringatan"] or [])),
-                      "YA" if p["bisa_diajukan"] else "TIDAK"])
+                      "YA" if p["bisa_diajukan"] else "TIDAK", n_rahasia])
     return baris
 
 

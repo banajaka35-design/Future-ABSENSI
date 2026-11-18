@@ -55,13 +55,14 @@
     <h2>Ringkasan periode</h2>
     <div class="kecil" id="info"></div>
     <div class="angka" id="angka" style="margin-top:12px"></div>
+    <div class="kecil" id="ket-rahasia" style="margin-top:8px"></div>
     <div id="status"></div>
   </section>
 
   <div class="dua">
     <section>
       <h2>Pecahan uang tunai</h2>
-      <div class="kecil" style="margin-bottom:8px">Lembar yang perlu disiapkan untuk semua yang dibayar tunai.</div>
+      <div class="kecil" style="margin-bottom:8px">Lembar yang perlu disiapkan untuk semua yang dibayar tunai, tidak termasuk orang yang gajinya rahasia (amplopnya disiapkan terpisah).</div>
       <table><thead><tr><th>Pecahan</th><th class="r">Lembar</th><th class="r">Jumlah</th></tr></thead><tbody id="pecahan"></tbody></table>
     </section>
     <section>
@@ -111,6 +112,9 @@ function pilihPeriode(p) {
                  ["Gaji bersih", rp(p.bersih)], ["Dibayar", rp(p.dibayar)], ["Lewat transfer", rp(p.transfer)],
                  ["Tunai", rp(p.tunai)], ["Sisa pembulatan dibawa", rp(p.sisa)]];
   $("angka").replaceChildren(...angka.map(([j, n]) => { const d = el("div"); d.append(el("span", j, "kecil"), el("b", n)); return d; }));
+  $("ket-rahasia").textContent = p.rahasia
+    ? `Semua angka di atas tidak termasuk ${p.rahasia.toLocaleString("id-ID")} orang yang gajinya rahasia; total lengkap hanya untuk bos.`
+    : "";
   const st = el("div", null, "status " + (p.bisa_diajukan ? "bisa" : "tidak"));
   if (p.bisa_diajukan) st.textContent = "Periode ini bisa diajukan untuk rilis.";
   else {
@@ -129,7 +133,7 @@ function pilihPeriode(p) {
   for (const a of p.anomali) (kel[a.jenis] ||= []).push(a);
   const blok = Object.keys(kel).sort().map(j => { const d = el("details"); const s = el("summary");
     s.append(el("span", kel[j].length.toLocaleString("id-ID"), "jenis"), document.createTextNode(NAMA_ANOMALI[j] || j));
-    const ul = el("ul"); for (const a of kel[j]) ul.append(el("li", a.ket)); d.append(s, ul); return d; });
+    const ul = el("ul"); for (const a of kel[j]) ul.append(el("li", a.ket ?? `${a.id}: gaji rahasia, keterangan tidak ditampilkan`)); d.append(s, ul); return d; });
   $("anomali").replaceChildren(...(blok.length ? blok : [el("div", "Tidak ada tanda.", "kosong")]));
   tampilDaftar();
   $("rinci").hidden = true;

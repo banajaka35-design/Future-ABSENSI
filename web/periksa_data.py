@@ -39,25 +39,52 @@ def main():
         pid, v = p["id"], versi.get(p["id"])
         if v is None:
             continue
-        g = q(f"select count(*) orang, sum(total_pendapatan) pendapatan, sum(total_potongan) potongan, sum(gaji_bersih) bersih, "
-              f"sum(dibayar) dibayar, sum(sisa_pembulatan) sisa from hitung.ringkasan_gaji where versi_id = {v}")[0]
-        for k in ("orang", "pendapatan", "potongan", "bersih", "dibayar", "sisa"):
-            banding(f"periode {pid} {k}", p[k], int(g[k]))
+        # F15b (paket 6a-3): total untuk HRD tanpa orang rahasia.
+        ring = q(f"select id_karyawan, total_pendapatan, total_potongan, gaji_bersih, dibayar, sisa_pembulatan, peringatan "
+                 f"from hitung.ringkasan_gaji where versi_id = {v}")
+        tampil = [r for r in ring if r["id_karyawan"] not in rahasia]
+        banding(f"periode {pid} orang", p["orang"], len(tampil))
+        banding(f"periode {pid} orang rahasia", p["rahasia"], len(ring) - len(tampil))
+        for k, kol in (("pendapatan", "total_pendapatan"), ("potongan", "total_potongan"), ("bersih", "gaji_bersih"),
+                       ("dibayar", "dibayar"), ("sisa", "sisa_pembulatan")):
+            banding(f"periode {pid} {k}", p[k], sum(int(r[kol]) for r in tampil))
         cara = Counter()
-        for r in q(f"select r.cara_bayar, g.dibayar from hitung.ringkasan_gaji g join fakta.periode p on p.id = {pid} "
+        cara_orang = {}
+        for r in q(f"select g.id_karyawan, r.cara_bayar, g.dibayar from hitung.ringkasan_gaji g join fakta.periode p on p.id = {pid} "
                    f"join induk.karyawan_riwayat r on r.id_karyawan = g.id_karyawan and r.berlaku_dari <= p.tanggal_akhir "
                    f"and (r.berlaku_sampai is null or r.berlaku_sampai > p.tanggal_akhir) where g.versi_id = {v}"):
-            cara[r["cara_bayar"]] += int(r["dibayar"])
+            cara_orang[r["id_karyawan"]] = (r["cara_bayar"], int(r["dibayar"]))
+            if r["id_karyawan"] not in rahasia:
+                cara[r["cara_bayar"]] += int(r["dibayar"])
         banding(f"periode {pid} transfer", p["transfer"], cara["transfer"])
         banding(f"periode {pid} tunai", p["tunai"], cara["tunai"])
-        banding(f"periode {pid} pecahan", [list(x) for x in p["pecahan"]],
-                [[int(r["pecahan"]), int(r["lembar"])] for r in q(
-                    f"select pecahan, lembar from hitung.pecahan_tunai({v}) order by pecahan desc")])
+        gudang_pecahan = [[int(r["pecahan"]), int(r["lembar"])] for r in q(
+            f"select pecahan, lembar from hitung.pecahan_tunai({v}) order by pecahan desc")]
+        nilai = [n for n, _ in gudang_pecahan]
+
+        def amplop(dibayar):
+            hasil, s = [], max(dibayar, 0)
+            for n in nilai:
+                hasil.append(s // n)
+                s %= n
+            return hasil
+        tampil_lembar, rahasia_lembar = [0] * len(nilai), [0] * len(nilai)
+        for o, (c, d) in cara_orang.items():
+            if c == "tunai":
+                tujuan = rahasia_lembar if o in rahasia else tampil_lembar
+                for i, x in enumerate(amplop(d)):
+                    tujuan[i] += x
+        banding(f"periode {pid} pecahan (tanpa rahasia)", [list(x) for x in p["pecahan"]],
+                [[n, l] for n, l in zip(nilai, tampil_lembar)])
+        banding(f"periode {pid} pecahan tampil + amplop rahasia = hitung.pecahan_tunai",
+                [[n, a + b] for n, a, b in zip(nilai, tampil_lembar, rahasia_lembar)], gudang_pecahan)
         banding(f"periode {pid} bisa diajukan", p["bisa_diajukan"],
                 q(f"select hitung.periode_bisa_diajukan({pid}) b")[0]["b"] == "t")
-        banding(f"periode {pid} tertahan", p["tertahan"], int(q(
-            f"select count(*) n from hitung.ringkasan_gaji where versi_id = {v} "
-            f"and 'pph_masa_terakhir_tertahan' = any(peringatan)")[0]["n"]))
+        banding(f"periode {pid} tertahan", p["tertahan"], sum(
+            1 for r in tampil if "pph_masa_terakhir_tertahan" in [x.strip('"') for x in r["peringatan"].strip("{}").split(",")]))
+        for a in p["anomali"]:
+            if a.get("id") in rahasia and a.get("ket") is not None:
+                salah.append(f"periode {pid}: tanda anomali orang rahasia {a['id']} masih berketerangan")
         banding(f"periode {pid} anomali per jenis", dict(Counter(a["jenis"] for a in p["anomali"])),
                 {r["jenis"]: int(r["n"]) for r in q(f"select jenis, count(*) n from hitung.anomali_gaji({pid}) group by jenis")})
 
@@ -86,6 +113,16 @@ def main():
             banding(f"periode {pid} {orang} gaji bersih (rincian)", r["bersih"], b)
             banding(f"periode {pid} {orang} komponen", {x[0]: x[2] for x in r["rincian"]}, komponen[orang])
         banding(f"periode {pid} jumlah orang di rincian", len(rinci), len([o for o in bersih if o not in rahasia]))
+        # Uji kebocoran F15b: total halaman - jumlah per orang yang tampil = 0.
+        tampil_bersih = sum(k["p"][str(pid)][1] or 0 for k in data["karyawan"] if str(pid) in k["p"] and not k["rahasia"])
+        banding(f"periode {pid} kebocoran: total gaji bersih - jumlah gaji bersih yang tampil", p["bersih"] - tampil_bersih, 0)
+        banding(f"periode {pid} kebocoran: orang - jumlah orang yang tampil",
+                p["orang"] - sum(1 for k in data["karyawan"] if str(pid) in k["p"] and not k["rahasia"]), 0)
+        for kunci, isi in (("dibayar", "dibayar"), ("sisa", "sisa")):
+            banding(f"periode {pid} kebocoran: total {kunci} - jumlah yang tampil", p[kunci] - sum(r[isi] for r in rinci.values()), 0)
+        for c in ("transfer", "tunai"):
+            banding(f"periode {pid} kebocoran: {c} - jumlah yang tampil",
+                    p[c] - sum(r["dibayar"] for r in rinci.values() if r["cara"] == c), 0)
 
     for s in salah[:30]:
         print("  BEDA", s)

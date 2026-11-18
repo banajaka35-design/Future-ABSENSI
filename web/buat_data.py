@@ -22,6 +22,10 @@ rahasia as (
   select distinct on (r.id_karyawan) r.id_karyawan, r.gaji_rahasia
   from induk.karyawan_riwayat r order by r.id_karyawan, r.berlaku_dari desc
 ),
+terlihat as (
+  select g.* from hitung.ringkasan_gaji g left join rahasia s on s.id_karyawan = g.id_karyawan
+  where not coalesce(s.gaji_rahasia, false)
+),
 cara as (
   select v.versi_gaji, g.id_karyawan, r.cara_bayar
   from ver v join hitung.ringkasan_gaji g on g.versi_id = v.versi_gaji
@@ -39,24 +43,31 @@ select json_build_object(
   'periode', (select json_agg(json_build_object(
       'id', v.periode_id, 'awal', v.tanggal_awal, 'akhir', v.tanggal_akhir, 'bayar', v.tanggal_bayar,
       'kode_baca', v.kode_baca, 'kode_gaji', v.kode_gaji,
-      'orang', (select count(*) from hitung.ringkasan_gaji g where g.versi_id = v.versi_gaji),
-      'pendapatan', (select sum(total_pendapatan) from hitung.ringkasan_gaji g where g.versi_id = v.versi_gaji),
-      'potongan', (select sum(total_potongan) from hitung.ringkasan_gaji g where g.versi_id = v.versi_gaji),
-      'bersih', (select sum(gaji_bersih) from hitung.ringkasan_gaji g where g.versi_id = v.versi_gaji),
-      'dibayar', (select sum(dibayar) from hitung.ringkasan_gaji g where g.versi_id = v.versi_gaji),
-      'sisa', (select sum(sisa_pembulatan) from hitung.ringkasan_gaji g where g.versi_id = v.versi_gaji),
-      'transfer', (select coalesce(sum(g.dibayar), 0) from hitung.ringkasan_gaji g join cara c on c.versi_gaji = g.versi_id
+      -- F15b (paket 6a-3): total untuk HRD tanpa orang rahasia; total - jumlah per orang yang tampil = 0.
+      'orang', (select count(*) from terlihat g where g.versi_id = v.versi_gaji),
+      'rahasia', (select count(*) from hitung.ringkasan_gaji g join rahasia s on s.id_karyawan = g.id_karyawan
+                  where g.versi_id = v.versi_gaji and s.gaji_rahasia),
+      'pendapatan', (select coalesce(sum(total_pendapatan), 0) from terlihat g where g.versi_id = v.versi_gaji),
+      'potongan', (select coalesce(sum(total_potongan), 0) from terlihat g where g.versi_id = v.versi_gaji),
+      'bersih', (select coalesce(sum(gaji_bersih), 0) from terlihat g where g.versi_id = v.versi_gaji),
+      'dibayar', (select coalesce(sum(dibayar), 0) from terlihat g where g.versi_id = v.versi_gaji),
+      'sisa', (select coalesce(sum(sisa_pembulatan), 0) from terlihat g where g.versi_id = v.versi_gaji),
+      'transfer', (select coalesce(sum(g.dibayar), 0) from terlihat g join cara c on c.versi_gaji = g.versi_id
                    and c.id_karyawan = g.id_karyawan where g.versi_id = v.versi_gaji and c.cara_bayar = 'transfer'),
-      'tunai', (select coalesce(sum(g.dibayar), 0) from hitung.ringkasan_gaji g join cara c on c.versi_gaji = g.versi_id
+      'tunai', (select coalesce(sum(g.dibayar), 0) from terlihat g join cara c on c.versi_gaji = g.versi_id
                 and c.id_karyawan = g.id_karyawan where g.versi_id = v.versi_gaji and c.cara_bayar = 'tunai'),
-      'pecahan', (select json_agg(json_build_array(t.pecahan, t.lembar) order by t.pecahan desc)
-                  from hitung.pecahan_tunai(v.versi_gaji) t),
+      'nilai_pecahan', (select json_agg(t.pecahan order by t.pecahan desc) from hitung.pecahan_tunai(v.versi_gaji) t),
+      'dibayar_tunai', (select coalesce(json_agg(g.dibayar), '[]'::json) from terlihat g join cara c on c.versi_gaji = g.versi_id
+                        and c.id_karyawan = g.id_karyawan where g.versi_id = v.versi_gaji and c.cara_bayar = 'tunai'),
       'bisa_diajukan', hitung.periode_bisa_diajukan(v.periode_id),
-      'tertahan', (select count(*) from hitung.ringkasan_gaji g where g.versi_id = v.versi_gaji
+      'tertahan', (select count(*) from terlihat g where g.versi_id = v.versi_gaji
                    and 'pph_masa_terakhir_tertahan' = any(g.peringatan)),
       'anomali', coalesce((select json_agg(json_build_object('jenis', a.jenis, 'id', a.id_karyawan, 'divisi', a.divisi,
-                                                             'ket', a.keterangan) order by a.jenis, a.id_karyawan, a.divisi)
-                           from hitung.anomali_gaji(v.periode_id) a), '[]'::json)
+                                                             'ket', case when coalesce(s.gaji_rahasia, false) then null
+                                                                         else a.keterangan end)
+                                           order by a.jenis, a.id_karyawan, a.divisi)
+                           from hitung.anomali_gaji(v.periode_id) a left join rahasia s on s.id_karyawan = a.id_karyawan),
+                          '[]'::json)
     ) order by v.tanggal_awal) from ver v),
   'karyawan', (select json_agg(json_build_object(
       'id', k.id, 'nama', k.nama, 'rahasia', coalesce(s.gaji_rahasia, false),
@@ -88,6 +99,16 @@ def main():
                            check=True, capture_output=True, text=True).stdout
     data = json.loads(hasil)
     rincian = data.pop("rincian") or {}
+    # Pecahan tunai tanpa orang rahasia (F15b): amplop orang tunai yang tampil, dipecah dari pecahan terbesar.
+    for p in data["periode"]:
+        nilai = p.pop("nilai_pecahan") or []
+        lembar = [0] * len(nilai)
+        for d in p.pop("dibayar_tunai"):
+            s = max(d, 0)
+            for i, n in enumerate(nilai):
+                lembar[i] += s // n
+                s %= n
+        p["pecahan"] = [[n, l] for n, l in zip(nilai, lembar)]
     os.makedirs(folder, exist_ok=True)
     tulis = [("data.json", data)] + [(f"rincian_{pid}.json", isi or {}) for pid, isi in rincian.items()]
     for nama, isi in tulis:

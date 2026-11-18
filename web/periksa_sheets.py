@@ -35,7 +35,10 @@ TOTAL = ["Total pendapatan", "Total potongan", "Gaji bersih", "Sisa pembulatan l
 KET = ["Keterangan lembur", "Keterangan hari tidak dibayar", "Peringatan"]
 JUDUL_RINGKASAN = ["Periode", "Tanggal awal", "Tanggal akhir", "Tanggal bayar", "Versi baca tap", "Versi hitung gaji",
                    "Orang", "Total pendapatan", "Total potongan", "Total gaji bersih", "Total dibayar",
-                   "Total sisa pembulatan", "Transfer", "Tunai", "PPh tertahan (orang)", "Bisa diajukan"]
+                   "Total sisa pembulatan", "Transfer", "Tunai", "PPh tertahan (orang)", "Bisa diajukan",
+                   "Orang rahasia (tidak termasuk)"]
+KETERANGAN_RAHASIA = ("Total tidak termasuk orang yang gajinya rahasia (lihat kolom terakhir); "
+                      "total lengkap hanya untuk bos.")
 
 
 def q(sql):
@@ -116,6 +119,7 @@ def main():
                      s.baca(baca))) if baca else {}
 
     total = {}
+    terlihat = {}  # jumlah dari baris yang benar-benar terlihat di tab Gaji (uji kebocoran F15b)
     for p in periode:
         v, pid, akhir = p["versi_gaji"], p["id"], p["tanggal_akhir"]
         semua = {r["id_karyawan"]: r for r in q(f"select * from hitung.ringkasan_gaji where versi_id = {v}")}
@@ -154,10 +158,20 @@ def main():
 
         # Ringkasan per periode dihitung dari gudang (semua orang, termasuk rahasia).
         cara_orang = {o: cara_bayar(o, akhir) for o in semua}
-        t = total[pid] = {"orang": len(semua), "pendapatan": 0, "potongan": 0, "bersih": 0, "dibayar": 0, "sisa": 0,
-                          "transfer": 0, "tunai": 0, "tertahan": 0}
+        # F15b: total untuk HRD hanya orang bukan rahasia.
+        t = total[pid] = {"orang": sum(1 for o in semua if o not in rahasia), "pendapatan": 0, "potongan": 0,
+                          "bersih": 0, "dibayar": 0, "sisa": 0, "transfer": 0, "tunai": 0, "tertahan": 0,
+                          "rahasia": sum(1 for o in semua if o in rahasia)}
+        terlihat[pid] = {"orang": 0, "pendapatan": 0, "potongan": 0, "bersih": 0, "dibayar": 0, "sisa": 0,
+                         "transfer": 0, "tunai": 0}
         lembar = [0] * len(pecahan)
         for o, g in semua.items():
+            if cara_orang[o] == "tunai" and int(g["dibayar"]) > 0:
+                lembar = [a + b for a, b in zip(lembar, isi_amplop(int(g["dibayar"])))]
+            if cara_orang[o] not in ("transfer", "tunai"):
+                salah.append(f"periode {pid}: {o} tidak punya cara bayar")
+            if o in rahasia:
+                continue
             t["pendapatan"] += int(g["total_pendapatan"])
             t["potongan"] += int(g["total_potongan"])
             t["bersih"] += int(g["gaji_bersih"])
@@ -165,11 +179,7 @@ def main():
             t["sisa"] += int(g["sisa_pembulatan"])
             if cara_orang[o] in ("transfer", "tunai"):
                 t[cara_orang[o]] += int(g["dibayar"])
-            else:
-                salah.append(f"periode {pid}: {o} tidak punya cara bayar")
             t["tertahan"] += "pph_masa_terakhir_tertahan" in [x.strip('"') for x in g["peringatan"].strip("{}").split(",")]
-            if cara_orang[o] == "tunai" and int(g["dibayar"]) > 0:
-                lembar = [a + b for a, b in zip(lembar, isi_amplop(int(g["dibayar"])))]
         # Jumlah lembar semua amplop = hitung.pecahan_tunai (perintah gudang).
         beda(f"periode {pid} jumlah lembar per pecahan semua amplop", list(zip(pecahan, lembar)),
              [(int(r["pecahan"]), int(r["lembar"])) for r in q(
@@ -203,6 +213,13 @@ def main():
                     salah.append(f"{judul}: {orang} tidak ada di gudang dengan cara bayar {cara_tab}")
                     continue
                 cara = cara_orang[orang]
+                tl = terlihat[pid]
+                tl["orang"] += 1 if isinstance(b[i_bersih], int) else 0
+                for kunci, kol in (("pendapatan", -2), ("potongan", -1), ("bersih", 0), ("dibayar", 2), ("sisa", 3)):
+                    if isinstance(b[i_bersih + kol], int):
+                        tl[kunci] += b[i_bersih + kol]
+                if isinstance(b[i_bersih + 2], int):
+                    tl[cara_tab] += b[i_bersih + 2]
                 ingat = g["peringatan"].strip("{}")
                 ingat = [x.strip('"') for x in ingat.split(",")] if ingat else []
                 harap = [orang, nama.get(orang, ""), akhir_div.get(orang, ("", ""))[1], cara] + hari[orang]
@@ -240,6 +257,7 @@ def main():
         r = rapikan(nilai[TAB_RINGKASAN], len(JUDUL_RINGKASAN))
         beda("Ringkasan baris 1", r[0][:1] if r else None, [CATATAN])
         beda("Ringkasan judul kolom", r[3] if len(r) > 3 else None, JUDUL_RINGKASAN)
+        beda("Ringkasan keterangan rahasia (baris 3)", r[2][:1] if len(r) > 2 else None, [KETERANGAN_RAHASIA])
         isi = r[4:]
         beda("Ringkasan jumlah periode", len(isi), len(periode))
         for b, p in zip(isi, periode):
@@ -249,10 +267,16 @@ def main():
             harap = [int(pid), p["tanggal_awal"], p["tanggal_akhir"], p["tanggal_bayar"], p["kode_baca"],
                      p["kode_gaji"], t.get("orang"), t.get("pendapatan"), t.get("potongan"), t.get("bersih"),
                      t.get("dibayar"), t.get("sisa"), t.get("transfer"), t.get("tunai"), t.get("tertahan"),
-                     "YA" if bisa else "TIDAK"]
+                     "YA" if bisa else "TIDAK", t.get("rahasia")]
             for j, (a, e) in enumerate(zip(b, harap)):
                 if a != e:
                     salah.append(f"Ringkasan periode {pid} {JUDUL_RINGKASAN[j]}: Sheets {a!r}, gudang {e!r}")
+            # Uji kebocoran F15b: angka Ringkasan - jumlah baris yang terlihat di tab Gaji = 0.
+            tl = terlihat.get(pid, {})
+            for kunci, j in (("orang", 6), ("pendapatan", 7), ("potongan", 8), ("bersih", 9), ("dibayar", 10), ("sisa", 11), ("transfer", 12), ("tunai", 13)):
+                if isinstance(b[j], int) and b[j] - tl.get(kunci, 0) != 0:
+                    salah.append(f"Ringkasan periode {pid} {JUDUL_RINGKASAN[j]}: selisih dengan jumlah baris terlihat "
+                                 f"{b[j] - tl.get(kunci, 0)} (harus 0, F15b)")
 
     # --- Riwayat isi -------------------------------------------------------------------------
     if TAB_RIWAYAT in nilai:
@@ -267,7 +291,7 @@ def main():
 
     for x in salah[:40]:
         print("  BEDA", x)
-    print(f"Pemeriksaan Sheets: {len(harap_tab)} tab Gaji, {sum(t['orang'] for t in total.values())} baris orang, "
+    print(f"Pemeriksaan Sheets: {len(harap_tab)} tab Gaji, {sum(t['orang'] for t in total.values())} orang-periode bukan rahasia, "
           f"{len(rahasia)} rahasia; {len(salah)} beda; permintaan ke Google: {s.jumlah_permintaan}")
     sys.exit(1 if salah else 0)
 

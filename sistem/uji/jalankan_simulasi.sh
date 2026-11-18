@@ -6,6 +6,7 @@
 #   Sidik: dua kali hitung dengan masukan sama menghasilkan sidik yang sama
 #   U5  Pabrik B dengan kode yang sama: U1, U2 (pembanding), U3
 #   U10 anomali gaji yang ditanam di salinan data uji tertangkap
+#   F15b uji kebocoran gaji rahasia Pabrik B (sistem/uji/uji_kebocoran.py)
 #   6a  rekap Sheets: isi ke Sheets tiruan, pemeriksa "isi Sheets sama dengan gudang" (sistem/uji/uji_sheets.py)
 # Setiap uji memakai database baru. Pemakaian:
 #   ADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres sistem/uji/jalankan_simulasi.sh
@@ -153,6 +154,15 @@ cek "U5 Pabrik B: cuti bersama 24 Des 2026 tidak memotong cuti (cuti terpakai De
                     join fakta.periode p on p.id = v.periode_id where v.jenis = 'hitung_gaji' and p.tanggal_awal = '2026-12-01')
                  = (select count(*) from hitung.hasil_harian h join hitung.versi_terakhir v on v.id = h.versi_id
                     join fakta.periode p on p.id = v.periode_id where p.tanggal_awal = '2026-12-01' and h.status = 'cuti')")" t
+
+echo "== F15b: kebocoran gaji rahasia di Pabrik B (1 orang rahasia), Sheets tiruan dan halaman demo"
+KODE_BOCOR=0
+KELUAR_BOCOR="$(python3 sistem/uji/uji_kebocoran.py B 2>&1)" || KODE_BOCOR=$?
+echo "$KELUAR_BOCOR"
+LULUS=$((LULUS + $(echo "$KELUAR_BOCOR" | grep -c "^  LULUS" || true)))
+GAGAL_BOCOR="$(echo "$KELUAR_BOCOR" | grep -c "^  GAGAL" || true)"
+GAGAL=$((GAGAL + GAGAL_BOCOR))
+if [ "$KODE_BOCOR" -ne 0 ] && [ "$GAGAL_BOCOR" -eq 0 ]; then cek "uji kebocoran Pabrik B berjalan sampai selesai" "kode $KODE_BOCOR" "kode 0"; fi
 
 echo "== U10: anomali gaji (Pabrik B, periode April; tanda bawaan tanpa ditanam dicatat sebagai pembanding)"
 for p in 2026-03-01 2026-04-01 2026-12-01; do
