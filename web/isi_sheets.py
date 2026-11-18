@@ -76,6 +76,8 @@ select json_build_object(
       'id', v.periode_id, 'awal', v.tanggal_awal, 'akhir', v.tanggal_akhir, 'bayar', v.tanggal_bayar,
       'versi_gaji', v.versi_gaji, 'kode_baca', v.kode_baca, 'kode_gaji', v.kode_gaji,
       'bisa_diajukan', hitung.periode_bisa_diajukan(v.periode_id),
+      'pecahan', (select json_agg(d order by d desc) from unnest(array[100000, 50000, 20000, 10000, 5000, 2000, 1000]::bigint[]) d
+                  where d >= aturan.pengaturan_pada('pembulatan_tunai', null, v.tanggal_akhir)::bigint),
       'orang', (select coalesce(json_agg(json_build_object(
           'id', g.id_karyawan, 'nama', k.nama, 'rahasia', coalesce(s.gaji_rahasia, false),
           'cara', r.cara_bayar, 'divisi', hr.divisi,
@@ -105,8 +107,24 @@ def ambil_gudang():
     return json.loads(keluar)["periode"]
 
 
-def nama_tab(p):
-    return f"{AWALAN_GAJI}{p['awal']} sd {p['akhir']}"
+CARA = ("transfer", "tunai")
+
+
+def nama_tab(p, cara):
+    return f"{AWALAN_GAJI}{p['awal']} sd {p['akhir']} {cara}"
+
+
+def rupiah(n):
+    return f"Rp{n:,}".replace(",", ".")
+
+
+def amplop(dibayar, pecahan):
+    """Isi amplop: dibayar dipecah dari pecahan terbesar; dibayar <= 0 -> semua 0."""
+    hasil, sisa = [], max(dibayar, 0)
+    for d in pecahan:
+        hasil.append(sisa // d)
+        sisa %= d
+    return hasil
 
 
 def kolom_komponen(p):
@@ -116,22 +134,27 @@ def kolom_komponen(p):
     return KOMPONEN + [(k, k) for k in lain]
 
 
-def baris_gaji(p):
+def baris_gaji(p, cara):
     komp = kolom_komponen(p)
-    judul = KOLOM_HADIR + [lbl for _, lbl in komp] + KOLOM_TOTAL + KOLOM_KET + [lbl for _, lbl in PERUSAHAAN]
+    pecahan = p["pecahan"] if cara == "tunai" else []
+    judul = (KOLOM_HADIR + [lbl for _, lbl in komp] + KOLOM_TOTAL + KOLOM_KET + [lbl for _, lbl in PERUSAHAAN]
+             + [f"Amplop {rupiah(d)} (lembar)" for d in pecahan])
     baris = [[CATATAN], judul]
     for o in p["orang"]:
+        if o["cara"] != cara:
+            continue
         c = o["komponen"] or {}
         kiri = [o["id"], o["nama"], o["divisi"] or "", o["cara"] or ""] + o["hari"]
         if o["rahasia"]:
-            uang = [""] * (len(komp) + len(KOLOM_TOTAL) + len(KOLOM_KET) + len(PERUSAHAAN))
+            uang = [""] * (len(komp) + len(KOLOM_TOTAL) + len(KOLOM_KET) + len(PERUSAHAAN) + len(pecahan))
         else:
             uang = ([c[k][1] if k in c else 0 for k, _ in komp]
                     + [o["pendapatan"], o["potongan"], o["bersih"], o["sisa_lalu"], o["dibayar"], o["sisa"]]
                     + [c["lembur"][2] if "lembur" in c else "",
                        c["potongan_tidak_dibayar"][2] if "potongan_tidak_dibayar" in c else "",
                        ", ".join(o["peringatan"] or [])]
-                    + [c[k][1] if k in c else 0 for k, _ in PERUSAHAAN])
+                    + [c[k][1] if k in c else 0 for k, _ in PERUSAHAAN]
+                    + amplop(o["dibayar"], pecahan))
         baris.append(kiri + uang)
     return baris
 
@@ -210,7 +233,8 @@ def isi():
     # 2. Tab.
     isi_tab = {TAB_RINGKASAN: baris_ringkasan(periode, f"SEDANG DIISI {waktu()}")}
     for p in periode:
-        isi_tab[nama_tab(p)] = baris_gaji(p)
+        for cara in CARA:
+            isi_tab[nama_tab(p, cara)] = baris_gaji(p, cara)
     isi_tab[TAB_RIWAYAT] = [[CATATAN], KOLOM_RIWAYAT]
     siapkan_tab(s, isi_tab)
 

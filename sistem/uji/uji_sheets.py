@@ -87,7 +87,9 @@ def main():
         k = admin("/uji/keadaan")
         judul = [t["title"] for t in k["tab"]]
         gaji = [t for t in judul if t.startswith("Gaji ")]
-        cek("4 tab Gaji + Ringkasan + Riwayat isi + tab HRD", len(gaji) == 4 and "Ringkasan" in judul
+        cek("8 tab Gaji (transfer + tunai per periode) + Ringkasan + Riwayat isi + tab HRD",
+            len(gaji) == 8 and sum(x.endswith(" transfer") for x in gaji) == 4 and sum(x.endswith(" tunai") for x in gaji) == 4
+            and "Ringkasan" in judul
             and "Riwayat isi" in judul and "Sheet1" in judul, judul)
         cek("tab buatan HRD tidak disentuh", tab(k, "Sheet1")["values"] == [["catatan HRD, jangan disentuh sistem"]])
         g = tab(k, gaji[0])
@@ -102,6 +104,21 @@ def main():
         cek("setiap tab milik sistem punya tepat 1 kunci untuk akun layanan saja",
             all(len(t["protectedRanges"]) == 1 and t["protectedRanges"][0]["editors"]["users"] == [SA]
                 for t in k["tab"] if t["title"] != "Sheet1"))
+        tunai = [x for x in gaji if x.endswith(" tunai")]
+        kt = tab(k, tunai[0])["values"][1]
+        semua_tunai = [r for x in tunai for r in tab(k, x)["values"][2:]]
+        cek("tab tunai: semua orang tunai dan bagian Gudang",
+            semua_tunai and all(r[3] == "tunai" and r[2] == "GDG" for r in semua_tunai), {(r[2], r[3]) for r in semua_tunai})
+        semua_transfer = [r for x in gaji if x.endswith(" transfer") for r in tab(k, x)["values"][2:]]
+        cek("tab transfer: semua orang transfer, tidak ada Gudang",
+            semua_transfer and all(r[3] == "transfer" and r[2] != "GDG" for r in semua_transfer))
+        i_amp = [i for i, x in enumerate(kt) if str(x).startswith("Amplop Rp")]
+        nilai_amp = [int(str(kt[i]).split("Rp")[1].split(" ")[0].replace(".", "")) for i in i_amp]
+        i_dibayar = kt.index("Dibayar")
+        cek("tab tunai punya 7 kolom amplop (Rp100.000 sampai Rp1.000)", nilai_amp == [100000, 50000, 20000, 10000, 5000, 2000, 1000], nilai_amp)
+        cek("isi amplop setiap orang tunai = dibayar",
+            all(sum(r[i] * d for i, d in zip(i_amp, nilai_amp)) == max(r[i_dibayar], 0) for r in semua_tunai))
+        cek("tab transfer tanpa kolom amplop", not any(str(x).startswith("Amplop") for x in tab(k, gaji[0])["values"][1]))
         cek("baris 1-2 dibekukan di tab Gaji, 1-4 di Ringkasan",
             g["frozenRowCount"] == 2 and tab(k, "Ringkasan")["frozenRowCount"] == 4)
 
@@ -114,7 +131,7 @@ def main():
         kode, _ = isi()
         k = admin("/uji/keadaan")
         cek("isi ulang: jumlah tab dan kunci tetap",
-            kode == 0 and len(k["tab"]) == 7 and all(len(t["protectedRanges"]) == 1 for t in k["tab"] if t["title"] != "Sheet1"))
+            kode == 0 and len(k["tab"]) == 11 and all(len(t["protectedRanges"]) == 1 for t in k["tab"] if t["title"] != "Sheet1"))
         cek("isi ulang: Riwayat isi bertambah satu baris", len(tab(k, "Riwayat isi")["values"]) == 4)
         cek("isi ulang: status kembali SEDANG DIISI sampai diperiksa",
             str(tab(k, "Ringkasan")["values"][1][1]).startswith("SEDANG DIISI"))
@@ -158,6 +175,29 @@ def main():
         k = admin("/uji/keadaan")
         cek("isi menghapus tab Gaji lama", all(t["title"] != "Gaji 2025-01-01 sd 2025-01-31" for t in k["tab"]))
         cek("pemeriksa lulus lagi", periksa()[0] == 0)
+
+        # 8a. Tab versi 1 (tanpa akhiran transfer/tunai) dihapus oleh isi.
+        admin("/uji/tambah_tab", {"judul": "Gaji 2026-01-21 sd 2026-02-20"})
+        cek("tab Gaji versi 1 tertinggal -> pemeriksa GAGAL", periksa()[0] == 1)
+        isi()
+        k = admin("/uji/keadaan")
+        cek("isi menghapus tab Gaji versi 1", all(t["title"] != "Gaji 2026-01-21 sd 2026-02-20" for t in k["tab"]))
+
+        # 8d. Satu lembar amplop diubah -> GAGAL.
+        g = tab(k, tunai[0])
+        admin("/uji/ubah_sel", {"tab": tunai[0], "baris": 2, "kolom": i_amp[0], "nilai": g["values"][2][i_amp[0]] + 1})
+        kode, keluar = periksa()
+        cek("satu lembar amplop ditambah -> pemeriksa GAGAL", kode == 1 and "amplop" in keluar.lower(), keluar[-400:])
+        isi()
+
+        # 8e. Orang transfer ditaruh di tab tunai -> GAGAL.
+        k = admin("/uji/keadaan")
+        id_transfer = tab(k, gaji[0])["values"][2][0]
+        admin("/uji/ubah_sel", {"tab": tunai[0], "baris": 2, "kolom": 0, "nilai": id_transfer})
+        kode, keluar = periksa()
+        cek("orang transfer di tab tunai -> pemeriksa GAGAL", kode == 1 and "cara bayar tunai" in keluar, keluar[-400:])
+        isi()
+        cek("pemeriksa lulus sesudah dipulihkan", periksa()[0] == 0)
 
         # 8b. Ringkasan diubah -> GAGAL.
         k = admin("/uji/keadaan")

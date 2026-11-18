@@ -81,7 +81,8 @@ def main():
                 return r["cara_bayar"]
         return ""
 
-    harap_tab = {f"{AWALAN_GAJI}{p['tanggal_awal']} sd {p['tanggal_akhir']}": p for p in periode}
+    harap_tab = {f"{AWALAN_GAJI}{p['tanggal_awal']} sd {p['tanggal_akhir']} {c}": p for p in periode
+                 for c in ("transfer", "tunai")}
     beda("daftar tab Gaji", sorted(t for t in tab if t.startswith(AWALAN_GAJI)), sorted(harap_tab))
     for t in (TAB_RINGKASAN, TAB_RIWAYAT):
         if t not in tab:
@@ -115,9 +116,9 @@ def main():
                      s.baca(baca))) if baca else {}
 
     total = {}
-    for judul, p in harap_tab.items():
+    for p in periode:
         v, pid, akhir = p["versi_gaji"], p["id"], p["tanggal_akhir"]
-        ring = {r["id_karyawan"]: r for r in q(f"select * from hitung.ringkasan_gaji where versi_id = {v}")}
+        semua = {r["id_karyawan"]: r for r in q(f"select * from hitung.ringkasan_gaji where versi_id = {v}")}
         rinci = defaultdict(dict)
         kelompok = {}
         for r in q(f"select id_karyawan, komponen, kelompok, nominal, bukti from hitung.rincian_gaji where versi_id = {v}"):
@@ -141,66 +142,98 @@ def main():
             h[8] += st == "cuti"
             if r["id_karyawan"] not in akhir_div or r["tanggal"] > akhir_div[r["id_karyawan"]][0]:
                 akhir_div[r["id_karyawan"]] = (r["tanggal"], r["divisi"])
+        batas = int(q(f"select aturan.pengaturan_pada('pembulatan_tunai', null, '{akhir}')::bigint b")[0]["b"])
+        pecahan = [d for d in (100000, 50000, 20000, 10000, 5000, 2000, 1000) if d >= batas]
 
-        lain = sorted(set(kelompok) - set(LABEL) - set(LABEL_PERUSAHAAN))
-        komp = list(LABEL) + lain
-        judul_harap = HADIR + [LABEL.get(k, k) for k in komp] + TOTAL + KET + list(LABEL_PERUSAHAAN.values())
-        lebar = len(judul_harap)
-        total[pid] = {"orang": len(ring), "pendapatan": 0, "potongan": 0, "bersih": 0, "dibayar": 0, "sisa": 0,
-                      "transfer": 0, "tunai": 0, "tertahan": 0}
-        if judul not in nilai:
-            continue
-        isi = rapikan(nilai[judul], lebar)
-        beda(f"{judul} baris 1", isi[0][:1] if isi else None, [CATATAN])
-        beda(f"{judul} judul kolom", isi[1] if len(isi) > 1 else None, judul_harap)
-        data = isi[2:]
-        beda(f"{judul} jumlah orang", len(data), len(ring))
-        i_bersih = HADIR.__len__() + len(komp) + 2
-        for b in data:
-            orang = b[0]
-            if not isinstance(orang, str):
-                salah.append(f"{judul}: ID {orang!r} bukan teks")
-                orang = str(orang)
-            g = ring.pop(orang, None)
-            if g is None:
-                salah.append(f"{judul}: {orang} tidak ada di gudang")
-                continue
-            t = total[pid]
-            for k in ("pendapatan", "potongan"):
-                t[k] += int(g[f"total_{k}"])
+        def isi_amplop(dibayar):
+            hasil, s = [], max(dibayar, 0)
+            for d in pecahan:
+                hasil.append(s // d)
+                s %= d
+            return hasil
+
+        # Ringkasan per periode dihitung dari gudang (semua orang, termasuk rahasia).
+        cara_orang = {o: cara_bayar(o, akhir) for o in semua}
+        t = total[pid] = {"orang": len(semua), "pendapatan": 0, "potongan": 0, "bersih": 0, "dibayar": 0, "sisa": 0,
+                          "transfer": 0, "tunai": 0, "tertahan": 0}
+        lembar = [0] * len(pecahan)
+        for o, g in semua.items():
+            t["pendapatan"] += int(g["total_pendapatan"])
+            t["potongan"] += int(g["total_potongan"])
             t["bersih"] += int(g["gaji_bersih"])
             t["dibayar"] += int(g["dibayar"])
             t["sisa"] += int(g["sisa_pembulatan"])
-            cara = cara_bayar(orang, akhir)
-            if cara in ("transfer", "tunai"):
-                t[cara] += int(g["dibayar"])
-            ingat = g["peringatan"].strip("{}")
-            ingat = [x.strip('"') for x in ingat.split(",")] if ingat else []
-            t["tertahan"] += "pph_masa_terakhir_tertahan" in ingat
-            harap = [orang, nama.get(orang, ""), akhir_div.get(orang, ("", ""))[1], cara] + hari[orang]
-            c = rinci[orang]
-            if orang in rahasia:
-                harap += [""] * (lebar - len(harap))
+            if cara_orang[o] in ("transfer", "tunai"):
+                t[cara_orang[o]] += int(g["dibayar"])
             else:
-                harap += [int(c[k]["nominal"]) if k in c else 0 for k in komp]
-                harap += [int(g["total_pendapatan"]), int(g["total_potongan"]), int(g["gaji_bersih"]), int(g["sisa_lalu"]),
-                          int(g["dibayar"]), int(g["sisa_pembulatan"])]
-                harap += [c["lembur"]["bukti"] if "lembur" in c else "",
-                          c["potongan_tidak_dibayar"]["bukti"] if "potongan_tidak_dibayar" in c else "", ", ".join(ingat)]
-                harap += [int(c[k]["nominal"]) if k in c else 0 for k in LABEL_PERUSAHAAN]
-                # Per baris: komponen pendapatan + potongan = bersih; dibayar + sisa = bersih + sisa lalu.
-                angka = b[len(HADIR):len(HADIR) + len(komp)]
-                if all(isinstance(x, int) for x in angka):
-                    jumlah = sum(x for k, x in zip(komp, angka) if kelompok.get(k, "pendapatan") in ("pendapatan", "potongan"))
-                    beda(f"{judul} {orang} jumlah komponen = gaji bersih", jumlah, b[i_bersih])
-                ib = i_bersih
-                if all(isinstance(b[x], int) for x in (ib, ib + 1, ib + 2, ib + 3)):
-                    beda(f"{judul} {orang} dibayar + sisa = bersih + sisa lalu", b[ib + 2] + b[ib + 3], b[ib] + b[ib + 1])
-            for j, (a, e) in enumerate(zip(b, harap)):
-                if a != e or type(a) is not type(e):
-                    salah.append(f"{judul} {orang} kolom {judul_harap[j]}: Sheets {a!r}, gudang {e!r}")
-        for orang in ring:
-            salah.append(f"{judul}: {orang} ada di gudang, tidak ada di Sheets")
+                salah.append(f"periode {pid}: {o} tidak punya cara bayar")
+            t["tertahan"] += "pph_masa_terakhir_tertahan" in [x.strip('"') for x in g["peringatan"].strip("{}").split(",")]
+            if cara_orang[o] == "tunai" and int(g["dibayar"]) > 0:
+                lembar = [a + b for a, b in zip(lembar, isi_amplop(int(g["dibayar"])))]
+        # Jumlah lembar semua amplop = hitung.pecahan_tunai (perintah gudang).
+        beda(f"periode {pid} jumlah lembar per pecahan semua amplop", list(zip(pecahan, lembar)),
+             [(int(r["pecahan"]), int(r["lembar"])) for r in q(
+                 f"select pecahan, lembar from hitung.pecahan_tunai({v}) order by pecahan desc")])
+
+        lain = sorted(set(kelompok) - set(LABEL) - set(LABEL_PERUSAHAAN))
+        komp = list(LABEL) + lain
+        for cara_tab in ("transfer", "tunai"):
+            judul = f"{AWALAN_GAJI}{p['tanggal_awal']} sd {p['tanggal_akhir']} {cara_tab}"
+            amp = pecahan if cara_tab == "tunai" else []
+            judul_harap = (HADIR + [LABEL.get(k, k) for k in komp] + TOTAL + KET + list(LABEL_PERUSAHAAN.values())
+                           + [f"Amplop Rp{d:,} (lembar)".replace(",", ".") for d in amp])
+            lebar = len(judul_harap)
+            ring = {o: g for o, g in semua.items() if cara_orang[o] == cara_tab}
+            if judul not in nilai:
+                continue
+            isi = rapikan(nilai[judul], lebar)
+            beda(f"{judul} baris 1", isi[0][:1] if isi else None, [CATATAN])
+            beda(f"{judul} judul kolom", isi[1] if len(isi) > 1 else None, judul_harap)
+            data = isi[2:]
+            beda(f"{judul} jumlah orang", len(data), len(ring))
+            i_bersih = len(HADIR) + len(komp) + 2
+            i_amplop = len(judul_harap) - len(amp)
+            for b in data:
+                orang = b[0]
+                if not isinstance(orang, str):
+                    salah.append(f"{judul}: ID {orang!r} bukan teks")
+                    orang = str(orang)
+                g = ring.pop(orang, None)
+                if g is None:
+                    salah.append(f"{judul}: {orang} tidak ada di gudang dengan cara bayar {cara_tab}")
+                    continue
+                cara = cara_orang[orang]
+                ingat = g["peringatan"].strip("{}")
+                ingat = [x.strip('"') for x in ingat.split(",")] if ingat else []
+                harap = [orang, nama.get(orang, ""), akhir_div.get(orang, ("", ""))[1], cara] + hari[orang]
+                c = rinci[orang]
+                if orang in rahasia:
+                    harap += [""] * (lebar - len(harap))
+                else:
+                    harap += [int(c[k]["nominal"]) if k in c else 0 for k in komp]
+                    harap += [int(g["total_pendapatan"]), int(g["total_potongan"]), int(g["gaji_bersih"]),
+                              int(g["sisa_lalu"]), int(g["dibayar"]), int(g["sisa_pembulatan"])]
+                    harap += [c["lembur"]["bukti"] if "lembur" in c else "",
+                              c["potongan_tidak_dibayar"]["bukti"] if "potongan_tidak_dibayar" in c else "", ", ".join(ingat)]
+                    harap += [int(c[k]["nominal"]) if k in c else 0 for k in LABEL_PERUSAHAAN]
+                    harap += isi_amplop(int(g["dibayar"])) if amp else []
+                    # Per baris: komponen pendapatan + potongan = bersih; dibayar + sisa = bersih + sisa lalu;
+                    # isi amplop = dibayar.
+                    angka = b[len(HADIR):len(HADIR) + len(komp)]
+                    if all(isinstance(x, int) for x in angka):
+                        jumlah = sum(x for k, x in zip(komp, angka) if kelompok.get(k, "pendapatan") in ("pendapatan", "potongan"))
+                        beda(f"{judul} {orang} jumlah komponen = gaji bersih", jumlah, b[i_bersih])
+                    ib = i_bersih
+                    if all(isinstance(b[x], int) for x in (ib, ib + 1, ib + 2, ib + 3)):
+                        beda(f"{judul} {orang} dibayar + sisa = bersih + sisa lalu", b[ib + 2] + b[ib + 3], b[ib] + b[ib + 1])
+                    isi_a = b[i_amplop:]
+                    if amp and all(isinstance(x, int) for x in isi_a) and isinstance(b[ib + 2], int):
+                        beda(f"{judul} {orang} isi amplop = dibayar", sum(x * d for x, d in zip(isi_a, amp)), max(b[ib + 2], 0))
+                for j, (a, e) in enumerate(zip(b, harap)):
+                    if a != e or type(a) is not type(e):
+                        salah.append(f"{judul} {orang} kolom {judul_harap[j]}: Sheets {a!r}, gudang {e!r}")
+            for orang in ring:
+                salah.append(f"{judul}: {orang} ada di gudang, tidak ada di Sheets")
 
     # --- Ringkasan ---------------------------------------------------------------------------
     if TAB_RINGKASAN in nilai:
@@ -234,7 +267,7 @@ def main():
 
     for x in salah[:40]:
         print("  BEDA", x)
-    print(f"Pemeriksaan Sheets: {len(harap_tab)} tab periode, {sum(t['orang'] for t in total.values())} baris orang, "
+    print(f"Pemeriksaan Sheets: {len(harap_tab)} tab Gaji, {sum(t['orang'] for t in total.values())} baris orang, "
           f"{len(rahasia)} rahasia; {len(salah)} beda; permintaan ke Google: {s.jumlah_permintaan}")
     sys.exit(1 if salah else 0)
 
