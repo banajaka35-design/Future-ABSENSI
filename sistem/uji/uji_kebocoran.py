@@ -26,6 +26,83 @@ def cek(judul, ok, ket=""):
     gagal += 0 if ok else 1
 
 
+def psql(sql):
+    return subprocess.run(["psql", os.environ["DB_URL"], "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", sql],
+                          check=True, capture_output=True, text=True).stdout.strip()
+
+
+def uji_f15c(jalan):
+    """F15c (paket G1-2): satu orang rahasia berhenti rahasia mulai periode terakhir. Periode sebelumnya tetap tanpa
+    angka (demo dan Sheets), periode terakhir tampil, kedua pemeriksa lulus; data dikembalikan ke aturan lama
+    ("status terakhir") -> pemeriksa demo GAGAL. Basis data uji dikembalikan seperti semula sesudahnya."""
+    global nama
+    nama_asli, nama = nama, nama + " F15c"
+    baris = psql("select r.id, r.id_karyawan from induk.karyawan_riwayat r where r.gaji_rahasia and r.berlaku_sampai is null "
+                 "order by r.id_karyawan limit 1")
+    per = [x.split("|") for x in psql("select p.id, p.tanggal_awal from fakta.periode p join hitung.versi_terakhir v "
+                                      "on v.periode_id = p.id and v.jenis = 'hitung_gaji' order by p.tanggal_awal").splitlines()]
+    if not baris or len(per) < 2:
+        print("    (tidak ada orang rahasia atau kurang dari 2 periode; uji F15c dilewati)")
+        nama = nama_asli
+        return
+    rid, orang = baris.split("|")
+    akhir_id, akhir_tgl = per[-1]
+    lama = [x[0] for x in per[:-1]]
+    kolom = ("id_karyawan, divisi, jabatan, tipe_upah, gaji_pokok, tunjangan_tetap, ptkp, cara_bayar, rekening_terenkripsi, "
+             "wajib_tap, bpjs_kesehatan, bpjs_ketenagakerjaan")
+    psql(f"update induk.karyawan_riwayat set berlaku_sampai = '{akhir_tgl}' where id = {rid}; "
+         f"insert into induk.karyawan_riwayat (berlaku_dari, gaji_rahasia, {kolom}) "
+         f"select '{akhir_tgl}', false, {kolom} from induk.karyawan_riwayat where id = {rid}")
+    try:
+        r = jalan("web/isi_sheets.py", "isi")
+        cek("Sheets terisi sesudah status rahasia berubah", r.returncode == 0, r.stderr[-300:])
+        r = jalan("web/periksa_sheets.py")
+        cek("pemeriksa Sheets lulus dengan rahasia per periode", r.returncode == 0, (r.stdout + r.stderr)[-600:])
+        k = json.loads(urllib.request.urlopen(alamat + "/uji/keadaan", data=b"{}").read())
+        angka = {}
+        for t_ in k["tab"]:
+            if not t_["title"].startswith("Gaji "):
+                continue
+            ib = t_["values"][1].index("Gaji bersih")
+            for b in t_["values"][2:]:
+                if b and str(b[0]) == orang:
+                    angka[t_["title"].split(" sd ")[0][5:]] = b[ib] if len(b) > ib else ""
+        awal = {x[0]: x[1] for x in per}
+        cek(f"Sheets: {orang} tanpa angka di periode lama, berangka di periode {akhir_tgl}",
+            all(angka.get(awal[x]) in ("", None) for x in lama) and isinstance(angka.get(akhir_tgl), int), angka)
+        demo = tempfile.mkdtemp()
+        r = subprocess.run([sys.executable, "web/buat_data.py", demo], cwd=AKAR, capture_output=True, text=True)
+        cek("data demo dibuat sesudah status rahasia berubah", r.returncode == 0, r.stderr[-300:])
+        r = subprocess.run([sys.executable, "web/periksa_data.py", demo], cwd=AKAR, capture_output=True, text=True)
+        cek("pemeriksa demo lulus dengan rahasia per periode", r.returncode == 0, (r.stdout + r.stderr)[-600:])
+        jalur = os.path.join(demo, "data.json")
+        data = json.load(open(jalur, encoding="utf-8"))
+        ko = next(x for x in data["karyawan"] if x["id"] == orang)
+        rinci = {x: json.load(open(os.path.join(demo, f"rincian_{x}.json"), encoding="utf-8")) for x, _ in per}
+        cek(f"demo: {orang} tanpa angka dan tanpa rincian di periode lama, tampil di periode terakhir",
+            all(ko["p"][x][1] is None and orang not in rinci[x] for x in lama)
+            and ko["p"][akhir_id][1] is not None and orang in rinci[akhir_id], ko["p"])
+        p_akhir = next(p for p in data["periode"] if str(p["id"]) == akhir_id)
+        cek("demo: tanda anomali orang ini di periode terakhir (dibanding periode rahasia) tanpa keterangan",
+            all(a.get("ket") is None for a in p_akhir["anomali"] if a.get("id") == orang))
+        # Kebalikan: aturan lama "status terakhir" (orang ini tidak rahasia) -> angka periode lama terbuka.
+        b_lama = int(psql(f"select gaji_bersih from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id "
+                          f"and v.jenis = 'hitung_gaji' where v.periode_id = {lama[0]} and g.id_karyawan = '{orang}'"))
+        ko["p"][lama[0]][1] = b_lama
+        json.dump(data, open(jalur, "w", encoding="utf-8"))
+        r = subprocess.run([sys.executable, "web/periksa_data.py", demo], cwd=AKAR, capture_output=True, text=True)
+        cek("demo dengan aturan lama (gaji periode rahasia terbuka) -> pemeriksa GAGAL", r.returncode == 1, r.stdout[-300:])
+    finally:
+        # Kembalikan basis data uji (hanya di Postgres uji; pengaman baris bertanggal dilewati khusus di sini).
+        psql(f"begin; set local session_replication_role = replica; "
+             f"delete from induk.karyawan_riwayat where id_karyawan = '{orang}' and berlaku_dari = '{akhir_tgl}' and id <> {rid}; "
+             f"update induk.karyawan_riwayat set berlaku_sampai = null where id = {rid}; commit")
+        r = jalan("web/isi_sheets.py", "isi")
+        cek("basis data uji dan Sheets tiruan dikembalikan", r.returncode == 0 and psql(
+            f"select count(*) from induk.karyawan_riwayat where id_karyawan = '{orang}' and gaji_rahasia and berlaku_sampai is null") == "1")
+        nama = nama_asli
+
+
 kerja = tempfile.mkdtemp()
 pribadi, publik = os.path.join(kerja, "k.pem"), os.path.join(kerja, "p.pem")
 subprocess.run(["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048", "-out", pribadi],
@@ -94,6 +171,7 @@ try:
             r.returncode == 1 and "gaji rahasia" in r.stdout, r.stdout[-300:])
     else:
         print(f"    (tidak ada tanda divisi berahasia di data {nama}; uji kebalikan dilewati)")
+    uji_f15c(jalan)
 finally:
     tiruan.terminate()
 sys.exit(1 if gagal else 0)

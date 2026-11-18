@@ -75,7 +75,12 @@ def main():
     riwayat = defaultdict(list)
     for r in q("select id_karyawan, berlaku_dari, berlaku_sampai, cara_bayar, gaji_rahasia from induk.karyawan_riwayat"):
         riwayat[r["id_karyawan"]].append(r)
-    rahasia = {k for k, rs in riwayat.items() if max(rs, key=lambda r: r["berlaku_dari"])["gaji_rahasia"] == "t"}
+    # F15c (paket G1-2): rahasia per periode = rahasia pada hari mana pun di periode itu, atau rahasia sekarang.
+    rahasia_kini = {k for k, rs in riwayat.items() if max(rs, key=lambda r: r["berlaku_dari"])["gaji_rahasia"] == "t"}
+
+    def rahasia_periode(awal, akhir):
+        return rahasia_kini | {k for k, rs in riwayat.items() for r in rs if r["gaji_rahasia"] == "t"
+                               and r["berlaku_dari"] <= akhir and (not r["berlaku_sampai"] or r["berlaku_sampai"] > awal)}
     nama = {r["id"]: r["nama"] for r in q("select id, nama from induk.karyawan")}
 
     def cara_bayar(orang, tanggal):
@@ -122,6 +127,7 @@ def main():
     terlihat = {}  # jumlah dari baris yang benar-benar terlihat di tab Gaji (uji kebocoran F15b)
     for p in periode:
         v, pid, akhir = p["versi_gaji"], p["id"], p["tanggal_akhir"]
+        rahasia = rahasia_periode(p["tanggal_awal"], akhir)
         semua = {r["id_karyawan"]: r for r in q(f"select * from hitung.ringkasan_gaji where versi_id = {v}")}
         rinci = defaultdict(dict)
         kelompok = {}
@@ -292,7 +298,7 @@ def main():
     for x in salah[:40]:
         print("  BEDA", x)
     print(f"Pemeriksaan Sheets: {len(harap_tab)} tab Gaji, {sum(t['orang'] for t in total.values())} orang-periode bukan rahasia, "
-          f"{len(rahasia)} rahasia; {len(salah)} beda; permintaan ke Google: {s.jumlah_permintaan}")
+          f"{len(rahasia_kini)} rahasia; {len(salah)} beda; permintaan ke Google: {s.jumlah_permintaan}")
     sys.exit(1 if salah else 0)
 
 

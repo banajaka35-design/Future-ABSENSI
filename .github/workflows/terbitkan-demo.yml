@@ -2,10 +2,11 @@ name: Terbitkan demo
 
 # Halaman demo (docs/halaman-demo.md): membaca salinan hasil dari Supabase (hanya membaca), memeriksa
 # "angka demo sama dengan gudang", lalu mengunggah ke Cloudflare Pages. Pemeriksaan gagal -> tidak diunggah.
-# Berjalan sesudah "Pasang ke Supabase" lulus, atau lewat tombol.
+# Berjalan sesudah "Isi Sheets" lulus, atau lewat tombol. Paket G1-2 (celah C2): Isi Sheets sendiri berjalan sesudah
+# Pasang, sesudah Reset, dan sesudah file Telegram/web diproses, jadi demo ikut segar tanpa terbit dua kali sesudah Pasang.
 on:
   workflow_run:
-    workflows: ["Pasang ke Supabase"]
+    workflows: ["Isi Sheets"]
     types: [completed]
   workflow_dispatch:
 

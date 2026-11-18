@@ -55,9 +55,16 @@ with ver as (
   join hitung.versi_terakhir g on g.periode_id = p.id and g.jenis = 'hitung_gaji'
   join hitung.versi_hitung s on s.id = g.versi_sumber
 ),
+-- F15c (paket G1-2, permintaan perubahan 05): rahasia per periode = rahasia pada hari mana pun di periode itu,
+-- atau rahasia sekarang (status terakhir).
 rahasia as (
-  select distinct on (id_karyawan) id_karyawan, gaji_rahasia
-  from induk.karyawan_riwayat order by id_karyawan, berlaku_dari desc
+  select v.versi_gaji, k.id as id_karyawan,
+         (exists (select 1 from induk.karyawan_riwayat r
+                  where r.id_karyawan = k.id and r.gaji_rahasia
+                    and daterange(r.berlaku_dari, r.berlaku_sampai, '[)') && daterange(v.tanggal_awal, v.tanggal_akhir, '[]'))
+          or coalesce((select r.gaji_rahasia from induk.karyawan_riwayat r where r.id_karyawan = k.id
+                       order by r.berlaku_dari desc limit 1), false)) as gaji_rahasia
+  from ver v cross join induk.karyawan k
 ),
 hari as (
   select v.versi_gaji, h.id_karyawan,
@@ -94,7 +101,7 @@ select json_build_object(
         ) order by g.id_karyawan), '[]'::json)
         from hitung.ringkasan_gaji g
         join induk.karyawan k on k.id = g.id_karyawan
-        left join rahasia s on s.id_karyawan = g.id_karyawan
+        left join rahasia s on s.versi_gaji = v.versi_gaji and s.id_karyawan = g.id_karyawan
         left join induk.karyawan_riwayat r on r.id_karyawan = g.id_karyawan
          and daterange(r.berlaku_dari, r.berlaku_sampai, '[)') @> v.tanggal_akhir
         left join hari hr on hr.versi_gaji = v.versi_gaji and hr.id_karyawan = g.id_karyawan

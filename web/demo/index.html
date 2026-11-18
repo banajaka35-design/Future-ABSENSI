@@ -242,7 +242,8 @@ function tampilGrafik() {
   $("tanda-grafik").replaceChildren(...tanda);
   const rahasiaDiv = dv.filter(x => x.rahasia > 0).map(x => `${x.rahasia} di ${x.tampil}`);
   $("ket-grafik").textContent = (rahasiaDiv.length ? `Semua angka rupiah grafik tidak termasuk orang yang gajinya rahasia (${rahasiaDiv.join(", ")}). ` : "") +
-    "Divisi = divisi di hari terakhir periode. Arahkan kursor ke batang untuk angka lengkap.";
+    "Divisi = divisi di hari terakhir periode. Persen porsi dibulatkan satu desimal, jadi jumlahnya bisa 99,9% atau 100,1%. " +
+    "Angka lengkap: arahkan kursor ke batang, atau ketuk \u201cLihat angka\u201d di HP.";
 }
 let tundaUbah;
 window.addEventListener("resize", () => { clearTimeout(tundaUbah); tundaUbah = setTimeout(() => aktif && tampilGrafik(), 200); });
@@ -255,14 +256,15 @@ function tampilDaftar() {
   const tampil = ada.slice(0, 200);
   $("jumlah").textContent = `${ada.length.toLocaleString("id-ID")} karyawan${cara ? " dibayar " + cara : ""} di periode ini` + (ada.length > 200 ? " (ditampilkan 200 pertama; persempit pencarian)" : "");
   $("daftar").replaceChildren(...tampil.map(k => { const [div, b, cb] = k.p[aktif.id]; const tr = el("tr", null, "pilih");
-    tr.tabIndex = 0; tr.append(el("td", k.id), el("td", k.nama), el("td", div || "—"), el("td", cb || "—"), el("td", k.rahasia ? "rahasia" : rp(b), "r"));
+    tr.tabIndex = 0; tr.append(el("td", k.id), el("td", k.nama), el("td", div || "—"), el("td", cb || "—"), el("td", b === null ? "rahasia" : rp(b), "r"));
     tr.onclick = () => tampilRinci(k); tr.onkeydown = e => { if (e.key === "Enter") tampilRinci(k); }; return tr; }));
 }
 
 async function tampilRinci(k) {
   const kotak = $("rinci"); kotak.hidden = false;
   kotak.replaceChildren(el("h2", `${k.nama} (${k.id})`), el("div", `Periode ${tgl(aktif.awal)} s.d. ${tgl(aktif.akhir)}`, "kecil"));
-  if (k.rahasia) { kotak.append(el("p", "Gaji karyawan ini ditandai rahasia; angkanya tidak ditampilkan di demo.", "kosong")); kotak.scrollIntoView({ behavior: "smooth" }); return; }
+  // F15c: rahasia per periode (angka null di periode ini), bukan tanda per orang.
+  if (k.p[aktif.id]?.[1] === null) { kotak.append(el("p", "Gaji karyawan ini rahasia di periode ini; angkanya tidak ditampilkan di demo.", "kosong")); kotak.scrollIntoView({ behavior: "smooth" }); return; }
   try {
     rincianCache[aktif.id] ||= await (await fetch(`rincian_${aktif.id}.json`)).json();
   } catch (e) { kotak.append(el("p", "Rincian gagal dimuat.", "salah")); return; }

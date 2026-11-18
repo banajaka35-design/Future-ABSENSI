@@ -18,12 +18,26 @@ with ver as (
   join hitung.versi_terakhir g on g.periode_id = p.id and g.jenis = 'hitung_gaji'
   join hitung.versi_terakhir b on b.periode_id = p.id and b.jenis = 'baca_tap'
 ),
+-- F15c (paket G1-2, permintaan perubahan 05): rahasia per periode. Gaji satu periode disembunyikan bila orang itu
+-- rahasia pada hari mana pun di periode itu, atau rahasia sekarang (status terakhir).
+-- Semua periode yang punya versi gaji (sama dengan pilihan "periode lalu" di hitung.anomali_gaji), dengan versi lalu.
+per as (
+  select p.id as periode_id, p.tanggal_awal, p.tanggal_akhir, g.id as versi_gaji,
+         lag(g.id) over (order by p.tanggal_awal) as versi_lalu
+  from fakta.periode p join hitung.versi_terakhir g on g.periode_id = p.id and g.jenis = 'hitung_gaji'
+),
 rahasia as (
-  select distinct on (r.id_karyawan) r.id_karyawan, r.gaji_rahasia
-  from induk.karyawan_riwayat r order by r.id_karyawan, r.berlaku_dari desc
+  select v.versi_gaji, k.id as id_karyawan,
+         (exists (select 1 from induk.karyawan_riwayat r
+                  where r.id_karyawan = k.id and r.gaji_rahasia
+                    and daterange(r.berlaku_dari, r.berlaku_sampai, '[)') && daterange(v.tanggal_awal, v.tanggal_akhir, '[]'))
+          or coalesce((select r.gaji_rahasia from induk.karyawan_riwayat r where r.id_karyawan = k.id
+                       order by r.berlaku_dari desc limit 1), false)) as gaji_rahasia
+  from per v cross join induk.karyawan k
 ),
 terlihat as (
-  select g.* from hitung.ringkasan_gaji g left join rahasia s on s.id_karyawan = g.id_karyawan
+  select g.* from hitung.ringkasan_gaji g
+  left join rahasia s on s.versi_gaji = g.versi_id and s.id_karyawan = g.id_karyawan
   where not coalesce(s.gaji_rahasia, false)
 ),
 cara as (
@@ -34,7 +48,7 @@ cara as (
 ),
 divisi as (
   select distinct on (v.versi_gaji, h.id_karyawan) v.versi_gaji, h.id_karyawan, h.divisi
-  from ver v join hitung.versi_hitung x on x.id = v.versi_gaji
+  from per v join hitung.versi_hitung x on x.id = v.versi_gaji
   join hitung.hasil_harian h on h.versi_id = x.versi_sumber
   order by v.versi_gaji, h.id_karyawan, h.tanggal desc
 )
@@ -45,7 +59,7 @@ select json_build_object(
       'kode_baca', v.kode_baca, 'kode_gaji', v.kode_gaji,
       -- F15b (paket 6a-3): total untuk HRD tanpa orang rahasia; total - jumlah per orang yang tampil = 0.
       'orang', (select count(*) from terlihat g where g.versi_id = v.versi_gaji),
-      'rahasia', (select count(*) from hitung.ringkasan_gaji g join rahasia s on s.id_karyawan = g.id_karyawan
+      'rahasia', (select count(*) from hitung.ringkasan_gaji g join rahasia s on s.versi_gaji = g.versi_id and s.id_karyawan = g.id_karyawan
                   where g.versi_id = v.versi_gaji and s.gaji_rahasia),
       'pendapatan', (select coalesce(sum(total_pendapatan), 0) from terlihat g where g.versi_id = v.versi_gaji),
       'potongan', (select coalesce(sum(total_potongan), 0) from terlihat g where g.versi_id = v.versi_gaji),
@@ -72,7 +86,7 @@ select json_build_object(
                        coalesce(sum(k.pot_lain) filter (where not coalesce(s.gaji_rahasia, false)), 0) as pot_lain,
                        coalesce(sum(g.gaji_bersih) filter (where not coalesce(s.gaji_rahasia, false)), 0) as bersih
                 from hitung.ringkasan_gaji g
-                left join rahasia s on s.id_karyawan = g.id_karyawan
+                left join rahasia s on s.versi_gaji = g.versi_id and s.id_karyawan = g.id_karyawan
                 left join divisi d on d.versi_gaji = g.versi_id and d.id_karyawan = g.id_karyawan
                 left join lateral (
                   select sum(r.nominal) filter (where r.komponen = 'gaji_pokok') as pokok,
@@ -95,28 +109,37 @@ select json_build_object(
       'tertahan', (select count(*) from terlihat g where g.versi_id = v.versi_gaji
                    and 'pph_masa_terakhir_tertahan' = any(g.peringatan)),
       'anomali', coalesce((select json_agg(json_build_object('jenis', a.jenis, 'id', a.id_karyawan, 'divisi', a.divisi,
-                                                             'ket', case when coalesce(s.gaji_rahasia, false) then null
+                                                             -- F15c: tanda membandingkan periode ini dengan periode lalu,
+                                                             -- jadi disembunyikan bila rahasia di salah satunya.
+                                                             'ket', case when exists (
+                                                                           select 1 from rahasia s
+                                                                           where s.id_karyawan = a.id_karyawan and s.gaji_rahasia
+                                                                             and s.versi_gaji in (v.versi_gaji, (select q.versi_lalu from per q where q.versi_gaji = v.versi_gaji)))
+                                                                         then null
                                                                          -- 6a-4: divisi yang memuat orang rahasia tanpa angka
                                                                          when a.id_karyawan is null and exists (
-                                                                           select 1 from divisi d join rahasia r2 on r2.id_karyawan = d.id_karyawan
-                                                                           where d.versi_gaji = v.versi_gaji and d.divisi = a.divisi
+                                                                           select 1 from divisi d join rahasia r2 on r2.versi_gaji = d.versi_gaji and r2.id_karyawan = d.id_karyawan
+                                                                           where d.versi_gaji in (v.versi_gaji, (select q.versi_lalu from per q where q.versi_gaji = v.versi_gaji))
+                                                                             and d.divisi = a.divisi
                                                                              and r2.gaji_rahasia)
                                                                          then format('Divisi %s: angka tidak ditampilkan karena divisi ini memuat gaji rahasia',
                                                                                      a.divisi)
                                                                          else a.keterangan end)
                                            order by a.jenis, a.id_karyawan, a.divisi)
-                           from hitung.anomali_gaji(v.periode_id) a left join rahasia s on s.id_karyawan = a.id_karyawan),
+                           from hitung.anomali_gaji(v.periode_id) a),
                           '[]'::json)
     ) order by v.tanggal_awal) from ver v),
   'karyawan', (select json_agg(json_build_object(
-      'id', k.id, 'nama', k.nama, 'rahasia', coalesce(s.gaji_rahasia, false),
+      'id', k.id, 'nama', k.nama,
+      'rahasia', coalesce((select bool_or(s.gaji_rahasia) from rahasia s where s.id_karyawan = k.id), false),
       -- p: {periode: [divisi, gaji bersih (null bila rahasia), cara bayar]} (cara bayar: paket G1)
       'p', (select json_object_agg(v.periode_id, json_build_array(d.divisi,
                       case when coalesce(s.gaji_rahasia, false) then null else g.gaji_bersih end, c.cara_bayar))
             from ver v join hitung.ringkasan_gaji g on g.versi_id = v.versi_gaji and g.id_karyawan = k.id
+            left join rahasia s on s.versi_gaji = v.versi_gaji and s.id_karyawan = k.id
             left join divisi d on d.versi_gaji = v.versi_gaji and d.id_karyawan = k.id
             left join cara c on c.versi_gaji = v.versi_gaji and c.id_karyawan = k.id)) order by k.id)
-    from induk.karyawan k left join rahasia s on s.id_karyawan = k.id
+    from induk.karyawan k
     where exists (select 1 from ver v join hitung.ringkasan_gaji g on g.versi_id = v.versi_gaji and g.id_karyawan = k.id)),
   -- Rincian per periode (dipisah per file supaya halaman awal kecil); orang rahasia tidak ikut.
   'rincian', (select json_object_agg(v.periode_id, (
@@ -128,7 +151,7 @@ select json_build_object(
                            from hitung.rincian_gaji r where r.versi_id = g.versi_id and r.id_karyawan = g.id_karyawan)))
       from hitung.ringkasan_gaji g
       left join cara c on c.versi_gaji = g.versi_id and c.id_karyawan = g.id_karyawan
-      left join rahasia s on s.id_karyawan = g.id_karyawan
+      left join rahasia s on s.versi_gaji = g.versi_id and s.id_karyawan = g.id_karyawan
       where g.versi_id = v.versi_gaji and not coalesce(s.gaji_rahasia, false))) from ver v)
 )
 """

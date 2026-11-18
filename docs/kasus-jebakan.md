@@ -137,6 +137,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | F14 | Sopir dengan pengaturan "tidak wajib tap", tanpa tap sebulan | Tidak alpha | PRD P4 |
 | F15 | Karyawan di kelompok gaji rahasia; akun HRD meminta rinciannya | Ditolak di gudang data; akun bos bisa melihat | PRD O4, K17 |
 | F15b | Akun HRD (atau Sheets/halaman demo untuk HRD) menjumlah semua gaji yang terlihat lalu membandingkannya dengan total | Total yang terlihat HRD tidak memasukkan orang rahasia, dengan keterangan "tidak termasuk N orang rahasia"; total dikurangi jumlah yang terlihat = 0. Total lengkap hanya untuk bos | Permintaan perubahan 04 |
+| F15c | Status rahasia seseorang berubah di tengah riwayat (dicabut atau dipasang) | Gaji satu periode disembunyikan bila orang itu rahasia pada hari mana pun di periode itu, atau rahasia sekarang. Tanda anomali yang membandingkan dengan periode lalu tidak berangka bila orang itu, atau divisi itu, memuat orang rahasia di periode ini atau periode lalu | Permintaan perubahan 05 |
 | F16 | HRD mengirim "tambah libur tgl 27 Nov" setelah semua orang terbaca alpha | Hari itu menjadi libur; alpha batal setelah hitung ulang | PRD O5 |
 | F17 | Pengaturan "uang makan di luar sistem" | Komponen uang makan Rp0 di rincian gaji | PRD G1 |
 

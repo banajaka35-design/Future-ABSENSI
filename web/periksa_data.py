@@ -32,13 +32,29 @@ def main():
     versi = {int(r["periode_id"]): int(r["id"]) for r in q(
         "select periode_id, id from hitung.versi_terakhir where jenis = 'hitung_gaji'")}
     banding("periode yang ditampilkan", sorted(p["id"] for p in data["periode"]), sorted(versi))
-    rahasia = {r["id_karyawan"] for r in q(
-        "select distinct on (id_karyawan) id_karyawan, gaji_rahasia from induk.karyawan_riwayat "
-        "order by id_karyawan, berlaku_dari desc") if r["gaji_rahasia"] == "t"}
+    # F15c (paket G1-2): rahasia per periode = rahasia pada hari mana pun di periode itu, atau rahasia sekarang.
+    # Dihitung di Python dari baris riwayat (bukan SQL yang sama dengan pembuat data).
+    riwayat = q("select id_karyawan, berlaku_dari, berlaku_sampai, gaji_rahasia from induk.karyawan_riwayat")
+    terakhir = {}
+    for r in sorted(riwayat, key=lambda r: (r["id_karyawan"], r["berlaku_dari"])):
+        terakhir[r["id_karyawan"]] = r["gaji_rahasia"] == "t"
+    rahasia_kini = {o for o, x in terakhir.items() if x}
+    tgl = {int(r["id"]): (r["tanggal_awal"], r["tanggal_akhir"]) for r in q("select id, tanggal_awal, tanggal_akhir from fakta.periode")}
+
+    def rahasia_periode(pid):
+        awal, akhir = tgl[pid]
+        return rahasia_kini | {r["id_karyawan"] for r in riwayat if r["gaji_rahasia"] == "t" and r["berlaku_dari"] <= akhir
+                               and (not r["berlaku_sampai"] or r["berlaku_sampai"] > awal)}
+
+    urut = sorted(versi, key=lambda x: tgl[x][0])
+    lalu_dari = {b: a for a, b in zip(urut, urut[1:])}
     for p in data["periode"]:
         pid, v = p["id"], versi.get(p["id"])
         if v is None:
             continue
+        rahasia = rahasia_periode(pid)
+        pid_lalu = lalu_dari.get(pid)
+        rahasia_lalu = rahasia_periode(pid_lalu) if pid_lalu else set()
         # F15b (paket 6a-3): total untuk HRD tanpa orang rahasia.
         ring = q(f"select id_karyawan, total_pendapatan, total_potongan, gaji_bersih, dibayar, sisa_pembulatan, peringatan "
                  f"from hitung.ringkasan_gaji where versi_id = {v}")
@@ -83,19 +99,22 @@ def main():
         banding(f"periode {pid} tertahan", p["tertahan"], sum(
             1 for r in tampil if "pph_masa_terakhir_tertahan" in [x.strip('"') for x in r["peringatan"].strip("{}").split(",")]))
         for a in p["anomali"]:
-            if a.get("id") in rahasia and a.get("ket") is not None:
+            if a.get("id") in (rahasia | rahasia_lalu) and a.get("ket") is not None:
                 salah.append(f"periode {pid}: tanda anomali orang rahasia {a['id']} masih berketerangan")
         # 6a-4: divisi orang rahasia di periode ini (hari terakhir yang punya hasil harian), perintah SQL sendiri.
+        # F15c: tanda divisi membandingkan dengan periode lalu, jadi divisi orang rahasia periode lalu ikut.
         div_rahasia = set()
-        if rahasia:
-            daftar_r = ",".join("'" + x.replace("'", "''") + "'" for x in sorted(rahasia))
-            div_rahasia = {r["divisi"] for r in q(
+        for vv, rr in ((v, rahasia), (versi.get(pid_lalu), rahasia_lalu)):
+            if vv is None or not rr:
+                continue
+            daftar_r = ",".join("'" + x.replace("'", "''") + "'" for x in sorted(rr))
+            div_rahasia |= {r["divisi"] for r in q(
                 f"select distinct on (h.id_karyawan) h.divisi from hitung.hasil_harian h "
-                f"join hitung.versi_hitung x on x.id = {v} where h.versi_id = x.versi_sumber "
+                f"join hitung.versi_hitung x on x.id = {vv} where h.versi_id = x.versi_sumber "
                 f"and h.id_karyawan in ({daftar_r}) order by h.id_karyawan, h.tanggal desc")}
         for a in p["anomali"]:
             ket = a.get("ket") or ""
-            if "Rp" in ket and (a.get("id") in rahasia or (a.get("id") is None and a.get("divisi") in div_rahasia)):
+            if "Rp" in ket and (a.get("id") in (rahasia | rahasia_lalu) or (a.get("id") is None and a.get("divisi") in div_rahasia)):
                 salah.append(f"periode {pid}: tanda anomali berangka menyangkut gaji rahasia ({a.get('id') or a.get('divisi')}): {ket}")
         banding(f"periode {pid} anomali per jenis", dict(Counter(a["jenis"] for a in p["anomali"])),
                 {r["jenis"]: int(r["n"]) for r in q(f"select jenis, count(*) n from hitung.anomali_gaji({pid}) group by jenis")})
@@ -126,10 +145,10 @@ def main():
             banding(f"periode {pid} {orang} komponen", {x[0]: x[2] for x in r["rincian"]}, komponen[orang])
         banding(f"periode {pid} jumlah orang di rincian", len(rinci), len([o for o in bersih if o not in rahasia]))
         # Uji kebocoran F15b: total halaman - jumlah per orang yang tampil = 0.
-        tampil_bersih = sum(k["p"][str(pid)][1] or 0 for k in data["karyawan"] if str(pid) in k["p"] and not k["rahasia"])
+        tampil_bersih = sum(k["p"][str(pid)][1] or 0 for k in data["karyawan"] if str(pid) in k["p"] and k["id"] not in rahasia)
         banding(f"periode {pid} kebocoran: total gaji bersih - jumlah gaji bersih yang tampil", p["bersih"] - tampil_bersih, 0)
         banding(f"periode {pid} kebocoran: orang - jumlah orang yang tampil",
-                p["orang"] - sum(1 for k in data["karyawan"] if str(pid) in k["p"] and not k["rahasia"]), 0)
+                p["orang"] - sum(1 for k in data["karyawan"] if str(pid) in k["p"] and k["id"] not in rahasia), 0)
         for kunci, isi in (("dibayar", "dibayar"), ("sisa", "sisa")):
             banding(f"periode {pid} kebocoran: total {kunci} - jumlah yang tampil", p[kunci] - sum(r[isi] for r in rinci.values()), 0)
         for c in ("transfer", "tunai"):
@@ -163,7 +182,7 @@ def main():
         tampil_div = defaultdict(lambda: defaultdict(int))
         for k in data["karyawan"]:
             isi_p = k["p"].get(str(pid))
-            if not isi_p or k["rahasia"]:
+            if not isi_p or k["id"] in rahasia:
                 continue
             r = rinci.get(k["id"]) or {"rincian": []}
             t_ = tampil_div[isi_p[0] or "-"]
@@ -215,7 +234,7 @@ def main():
     for s in salah[:30]:
         print("  BEDA", s)
     print(f"Pemeriksaan angka demo: {len(data['periode'])} periode, {len(data['karyawan'])} karyawan, "
-          f"{len(rahasia)} rahasia; {len(salah)} beda")
+          f"{len(rahasia_kini)} rahasia; {len(salah)} beda")
     sys.exit(1 if salah else 0)
 
 
