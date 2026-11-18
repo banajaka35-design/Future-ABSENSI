@@ -42,6 +42,7 @@
   .salah { color: var(--awas); }
   /* Paket G1: grafik (panduan dataviz: satu warna biru, teks warna tinta, batang <= 24px, ujung data membulat 4px) */
   .grafik { --batang: #2a78d6; }
+  .gulir { overflow-x: auto; } /* G1: kolom Cara bayar membuat daftar karyawan lebih lebar dari layar 375 px */
   .grafik h3 { font-size: 14px; margin: 14px 0 4px; }
   .empat { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; }
   @media (max-width: 760px) { .empat { grid-template-columns: 1fr; } }
@@ -106,10 +107,10 @@
       <button data-cara="" aria-pressed="true">Semua</button><button data-cara="transfer" aria-pressed="false">Transfer</button><button data-cara="tunai" aria-pressed="false">Tunai</button>
     </div>
     <div class="kecil" id="jumlah" style="margin:6px 0"></div>
-    <table>
+    <div class="gulir"><table>
       <thead><tr><th>ID</th><th>Nama</th><th>Divisi</th><th>Cara bayar</th><th class="r">Gaji bersih</th></tr></thead>
       <tbody id="daftar"></tbody>
-    </table>
+    </table></div>
   </section>
 
   <section id="rinci" hidden></section>
@@ -236,7 +237,7 @@ function tampilGrafik() {
     x => `${GrafikInti.persen(x.nilai, totalBersih)}% · ${rpPendek(x.nilai)}`, "Porsi gaji bersih per divisi"));
   $("telat").replaceChildren(grafikTelat(p));
   const tanda = [];
-  if (p.tertahan) tanda.push(el("div", `Angka sementara: PPh 21 akhir tahun belum dihitung untuk ${p.tertahan.toLocaleString("id-ID")} orang, jadi gaji bersih belum final.`, "tanda"));
+  if (p.tertahan) tanda.push(el("div", `Angka sementara: PPh 21 masa terakhir ${p.tertahan.toLocaleString("id-ID")} orang belum bisa dihitung (dihitung 0), jadi gaji bersih mereka belum final.`, "tanda"));
   if (p.thr) tanda.push(el("div", `Periode ini termasuk THR ${rp(p.thr)}; porsi dan gaji bersih lebih tinggi dari bulan biasa.`, "tanda"));
   $("tanda-grafik").replaceChildren(...tanda);
   const rahasiaDiv = dv.filter(x => x.rahasia > 0).map(x => `${x.rahasia} di ${x.tampil}`);

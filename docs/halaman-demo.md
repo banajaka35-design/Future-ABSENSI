@@ -24,7 +24,7 @@
     - **Porsi gaji per divisi**: batang mendatar, persen dan rupiah gaji bersih tiap divisi terhadap gaji bersih periode (tanpa rahasia).
     - **Telat per tanggal**: kolom per tanggal periode (termasuk hari tanpa telat = 0), jumlah orang berstatus hadir dengan menit telat > 0 (semua orang, termasuk rahasia: hitungan hadir bukan angka gaji); hanya angka tertinggi diberi label; label tanggal dijarangkan di layar sempit.
     - Semua angka rupiah grafik **tanpa orang rahasia**; bila divisi memuat orang rahasia, keterangan "tidak termasuk N orang rahasia" di bawah grafik. Divisi = divisi di hari terakhir periode.
-    - Tanda "Angka sementara: PPh akhir tahun belum dihitung untuk N orang" bila periode punya orang PPh tertahan; keterangan "Termasuk THR Rp…" bila periode memuat THR.
+    - Tanda "Angka sementara: PPh 21 masa terakhir N orang belum bisa dihitung" (ralat G1: tanda ini muncul di semua periode yang punya orang tertahan, bukan hanya Nov–Des; teks awal "akhir tahun" salah untuk periode 1–3) bila periode punya orang PPh tertahan; keterangan "Termasuk THR Rp…" bila periode memuat THR.
     - Satu warna (biru `#2a78d6`, palet acuan dataviz slot 1) untuk semua batang; teks memakai warna tinta, bukan warna batang. Setiap batang punya keterangan arahkan-kursor (`<title>`), dan setiap grafik punya tabel angka ("lihat angka") untuk pembaca layar dan pemeriksaan.
     - Penghitung ukuran batang di berkas `grafik_inti.js` (fungsi murni, diuji `node --test`), dimuat dari halaman sendiri (`script-src 'self'`).
     - **Daftar karyawan**: pilihan Semua / Transfer / Tunai; rincian orang tunai menampilkan isi amplop (pecahan sama dengan `hitung.pecahan_tunai`, dibayar dipecah dari pecahan terbesar).
