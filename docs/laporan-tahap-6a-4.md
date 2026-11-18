@@ -20,6 +20,11 @@ Sheets, Supabase, mesin hitung tidak diubah (Sheets tidak memuat tanda anomali).
 - Uji GitHub commit dc1e73e: uji database 453 lulus; uji simulasi 88 lulus; 0 gagal. Pabrik A dan B: 1 tanda divisi berahasia tanpa angka; uji kebalikan GAGAL sesuai harapan.
 - Terbitkan demo (run 44242701673, tombol): lulus; pemeriksa terhadap Supabase 0 beda (termasuk aturan tanda berangka) sebelum diunggah.
 
-## Belum dicek langsung
+## Dicek langsung (18 Nov 2026, 12.2x WIB)
 
-- Halaman terbit belum dibuka langsung sesudah terbit: komputer pemilik terputus dari sesi (browser aplikasi Claude tidak terjangkau), dan alamat halaman ditolak jaringan kerja Claude. [Kemungkinan Besar] isi terbit = isi yang diperiksa, karena workflow mengunggah folder yang sama sesudah pemeriksa lulus. Dicek langsung begitu komputer terhubung lagi.
+Halaman terbit dibuka di browser aplikasi Claude (komputer pemilik terhubung lagi), `data.json` dibuat 12.13 WIB: tanda periode 3 KAM/PRD/QC berangka; periode 4 KTR "Divisi KTR: angka tidak ditampilkan karena divisi ini memuat gaji rahasia". Sesuai.
+
+## Keputusan pemilik sesudahnya (18 Nov 2026)
+
+- Paket isi Sheets otomatis sesudah file Telegram **dimajukan** sebelum G1.
+- Nama orang rahasia di daftar tanda "gaji berubah" (tanpa angka) **tetap ditampilkan** ("harus tetap transparan").
