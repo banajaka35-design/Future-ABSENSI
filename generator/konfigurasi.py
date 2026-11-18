@@ -82,7 +82,8 @@ PABRIK = {
             ("2026-11-21", "2026-12-20"),
         ],
         "cuti_bersama": "dibayar",
-        "cara_bayar_tunai": 0.3,     # mayoritas transfer
+        # Permintaan perubahan 03: cara bayar mengikuti bagian, bukan acak. Hanya Gudang tunai (~15%).
+        "divisi_tunai": ["GDG"],
         "tidak_wajib_tap": {"GDG": 4},  # sopir
         "gaji_rahasia": {"KTR": 3},
         # Kejadian khusus yang ditanam (PRD M2-M7, C06).
@@ -109,7 +110,8 @@ PABRIK = {
             ("2026-12-01", "2026-12-31"),
         ],
         "cuti_bersama": "potong_cuti",
-        "cara_bayar_tunai": 0.75,    # mayoritas tunai
+        # Permintaan perubahan 03: Produksi dan Gudang tunai (pabrik kecil, mayoritas tunai).
+        "divisi_tunai": ["PRD", "GDG"],
         "tidak_wajib_tap": {},
         "gaji_rahasia": {"KTR": 1},
         "mesin_mati": [("MB1", "2026-03-11", "tidak_dilaporkan")],

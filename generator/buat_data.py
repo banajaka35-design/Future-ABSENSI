@@ -110,7 +110,9 @@ class Generator:
             "regu": regu, "mulai": mulai, "berhenti": None,
             "tipe_upah": "bulanan", "gaji_pokok": pokok, "tunjangan_tetap": tetap,
             "ptkp": self.r.choice(["TK/0", "TK/1", "K/0", "K/1", "K/2", "K/3"]),
-            "cara_bayar": "tunai" if self.r.random() < self.cfg["cara_bayar_tunai"] else "transfer",
+            # Permintaan perubahan 03: angka acak tetap diambil (hasilnya tidak dipakai) supaya urutan acak
+            # dan semua data lain tidak bergeser; cara bayar mengikuti bagian.
+            "cara_bayar": "tunai" if (self.r.random() is not None and dv in self.cfg["divisi_tunai"]) else "transfer",
             "wajib_tap": True, "gaji_rahasia": False, "catatan": catatan,
             "regu_berubah": [],  # (tanggal berlaku, regu baru)
         }

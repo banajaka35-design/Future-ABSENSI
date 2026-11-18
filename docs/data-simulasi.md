@@ -12,7 +12,7 @@ Semua isi `data/simulasi/` adalah karangan, dibuat oleh `generator/buat_data.py`
 | Periode | 21 Jan–20 Feb, 21 Feb–20 Mar, 21 Mar–20 Apr, 21 Nov–20 Des 2026 | Feb, Mar, Apr, Des 2026 |
 | Pola kerja | Rotasi 4 regu 8 hari (2 pagi, 2 siang, 2 malam, 2 libur) untuk PRD, QC, Keamanan; Gudang 2 shift 6 hari; Kantor 6 hari dengan Sabtu pendek dan jadwal Ramadan | Produksi 2 shift 5 hari; Gudang 2 shift 6 hari; Kantor 5 hari; Keamanan rotasi 4 regu |
 | Cuti bersama | Dibayar | Memotong cuti |
-| Cara bayar | Mayoritas transfer | Mayoritas tunai |
+| Cara bayar (permintaan perubahan 03, berpola per bagian) | Gudang tunai (158 orang), bagian lain transfer | Produksi dan Gudang tunai (148 orang), Kantor dan Keamanan transfer |
 
 ## Folder per pabrik
 
