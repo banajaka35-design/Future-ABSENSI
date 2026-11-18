@@ -27,7 +27,7 @@ Baris 1 setiap tab milik sistem berisi catatan: *"Diisi otomatis dari gudang dat
 | 4 | judul kolom |
 | 5 dst. | satu baris per periode, urut tanggal awal |
 
-Kolom: Periode (id), Tanggal awal, Tanggal akhir, Tanggal bayar, Versi baca tap (nomor kode), Versi hitung gaji (nomor kode), Orang, Total pendapatan, Total potongan, Total gaji bersih, Total dibayar, Total sisa pembulatan, Transfer, Tunai, PPh tertahan (orang), Bisa diajukan (YA/TIDAK).
+Kolom: Periode (id), Tanggal awal, Tanggal akhir, Tanggal bayar, Versi baca tap (versi kode dari versi baca tap yang menjadi sumber versi gaji), Versi hitung gaji (versi kode), Orang, Total pendapatan, Total potongan, Total gaji bersih, Total dibayar, Total sisa pembulatan, Transfer, Tunai, PPh tertahan (orang), Bisa diajukan (YA/TIDAK).
 
 Angka sama dengan halaman demo (keduanya dari gudang dengan cara hitung yang sama; uji simulasi memeriksa demo = gudang dan Sheets = gudang). Totals mencakup karyawan rahasia, sama dengan halaman demo; angka per orangnya tetap tidak terlihat.
 

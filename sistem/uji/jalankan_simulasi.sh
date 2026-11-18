@@ -6,6 +6,7 @@
 #   Sidik: dua kali hitung dengan masukan sama menghasilkan sidik yang sama
 #   U5  Pabrik B dengan kode yang sama: U1, U2 (pembanding), U3
 #   U10 anomali gaji yang ditanam di salinan data uji tertangkap
+#   6a  rekap Sheets: isi ke Sheets tiruan, pemeriksa "isi Sheets sama dengan gudang" (sistem/uji/uji_sheets.py)
 # Setiap uji memakai database baru. Pemakaian:
 #   ADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres sistem/uji/jalankan_simulasi.sh
 set -euo pipefail
@@ -62,6 +63,14 @@ python3 web/buat_data.py "$DEMO" > /dev/null
 if python3 web/periksa_data.py "$DEMO"; then cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" lulus lulus;
 else cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" gagal lulus; fi
 rm -rf "$DEMO"
+echo "== Rekap Sheets (paket 6a, Sheets tiruan tanpa internet)"
+KODE_SHEETS=0
+KELUAR_SHEETS="$(python3 sistem/uji/uji_sheets.py 2>&1)" || KODE_SHEETS=$?
+echo "$KELUAR_SHEETS"
+LULUS=$((LULUS + $(echo "$KELUAR_SHEETS" | grep -c "^  LULUS" || true)))
+GAGAL_SHEETS="$(echo "$KELUAR_SHEETS" | grep -c "^  GAGAL" || true)"
+GAGAL=$((GAGAL + GAGAL_SHEETS))
+if [ "$KODE_SHEETS" -ne 0 ] && [ "$GAGAL_SHEETS" -eq 0 ]; then cek "uji Sheets berjalan sampai selesai" "kode $KODE_SHEETS" "kode 0"; fi
 P1G="$(nilai "select min(id) from fakta.periode")"
 nilai "select hitung.hitung_gaji($P1G)" > /dev/null
 cek "dua kali hitung gaji menghasilkan sidik yang sama" \

@@ -1,0 +1,72 @@
+name: Isi Sheets
+
+# Rekap Google Sheets (paket 6a, docs/rekap-sheets.md): membaca gudang (hanya membaca), menimpa tab milik
+# sistem di spreadsheet, lalu memeriksa "isi Sheets sama dengan gudang". Pemeriksaan lulus -> status SELESAI;
+# langkah mana pun gagal -> status GAGAL (bila Google bisa dihubungi).
+# Berjalan sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus, atau lewat tombol.
+on:
+  workflow_run:
+    workflows: ["Pasang ke Supabase", "Reset Supabase"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: isi-sheets
+  cancel-in-progress: false
+
+jobs:
+  isi:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      GOOGLE_SA_KEY: ${{ secrets.GOOGLE_SA_KEY }}
+      SHEETS_ID: ${{ secrets.SHEETS_ID }}
+      SHEETS_BOLEH_EDIT: ${{ secrets.PEMBANGUN_EMAIL }}
+      PEMICU: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name || 'tombol' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Periksa secret
+        run: |
+          kurang=""
+          [ -n "$DB_URL" ] || kurang="$kurang SUPABASE_DB_URL"
+          [ -n "$GOOGLE_SA_KEY" ] || kurang="$kurang GOOGLE_SA_KEY"
+          [ -n "$SHEETS_ID" ] || kurang="$kurang SHEETS_ID"
+          if [ -n "$kurang" ]; then
+            echo "GAGAL: secret belum diisi:$kurang (lihat docs/rekap-sheets.md bagian 7)" >&2
+            exit 1
+          fi
+
+      - name: Pasang klien Postgres 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS --retry 3 -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Isi Sheets dari gudang
+        run: |
+          mulai=$(date +%s%N)
+          python3 web/isi_sheets.py isi
+          echo "Lama langkah isi (termasuk baca gudang): $(( ($(date +%s%N) - mulai) / 1000000 )) ms"
+
+      - name: Periksa isi Sheets sama dengan gudang
+        run: python3 web/periksa_sheets.py
+
+      - name: Tandai SELESAI
+        run: |
+          python3 web/isi_sheets.py status SELESAI
+          awal="${{ github.event.workflow_run.run_started_at }}"
+          if [ -n "$awal" ]; then
+            echo "Lama dari awal workflow pemicu ($PEMICU) sampai SELESAI: $(( $(date +%s) - $(date -d "$awal" +%s) )) detik"
+          fi
+
+      - name: Tandai GAGAL
+        if: failure()
+        run: python3 web/isi_sheets.py status GAGAL || echo "Status GAGAL tidak bisa ditulis; Sheets tetap SEDANG DIISI (jangan dipakai)."
