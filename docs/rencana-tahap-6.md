@@ -59,6 +59,33 @@
 - Tab anomali tidak ada di PRD v2 bagian 10, jadi tidak ikut 6a.
 - Kolom "rincian lembur/telat/alpha" ditulis sebagai jumlah (jam/kali/hari) + nominal; bentuk rincian lain belum ditetapkan.
 
+## Daftar paket 6a-2 (menunggu "buat", 18 Nov 2026)
+
+Cara bayar berpola (permintaan perubahan 03) dan daftar transfer/tunai dipisah di Sheets. Keputusan pemilik 18 Nov 2026: tidak acak; tampilan dipisah; Pabrik A hanya Gudang tunai. File bank (6c) dan lembar cetak (6b) **ditunda** (tidak untuk portofolio sekarang); isi amplop per orang masuk paket ini.
+
+**Urutan dan isi**
+
+1. `docs/permintaan-perubahan-03.md` (sudah ditulis) dan `docs/rekap-sheets.md` versi 2 di-commit **sebelum kode**.
+2. Generator: isian `divisi_tunai` (A: GDG; B: PRD, GDG) menggantikan `cara_bayar_tunai`; `self.r.random()` tetap dipanggil. Data simulasi dibuat ulang. **Syarat lanjut:** di `sidik_isi.txt` hanya baris `A/induk/karyawan.csv` dan `B/induk/karyawan.csv` yang berubah, dan di kedua file itu hanya kolom `cara_bayar`. Bila ada file lain berubah → berhenti dan lapor. `docs/data-simulasi.md` dan `docs/laporan-kewajaran-data.md` diperbarui.
+3. Sheets: tab per periode dipecah menjadi `Gaji <awal> sd <akhir> transfer` dan `Gaji <awal> sd <akhir> tunai` (4 periode × 2 = 8 tab). Kolom sama dengan 6a; tab tunai ditambah **isi amplop per orang** (lembar per pecahan, pecahan mengikuti pengaturan `pembulatan_tunai`). Tab Ringkasan dan Riwayat isi tetap. Tab lama `Gaji <awal> sd <akhir>` (tanpa akhiran) dihapus otomatis oleh aturan "tab Gaji yang tidak dipakai dihapus".
+4. Pemeriksa: setiap orang tepat di satu tab sesuai cara bayar di gudang; isi amplop per orang = dibayar; jumlah lembar semua amplop per pecahan = `hitung.pecahan_tunai` (perintah SQL gudang); orang tanpa cara bayar → GAGAL.
+5. Uji Sheets tiruan diperbarui (8 tab; amplop diubah 1 lembar → GAGAL; orang dipindah ke tab yang salah → GAGAL).
+6. Uji GitHub harus lulus semua (uji database, U1, U2, U5, U10, halaman demo = gudang, Sheets).
+7. **Supabase** (sesudah uji lulus): Claude memicu **Reset Supabase** (cabang `reset`), lalu **Pasang ke Supabase** (cabang `pasang`) supaya pintu Telegram, akun pembangun, dan jadwal pengingat terpasang ulang (Reset tidak menjalankan `pasang_pintu.sh`; dicek 18 Nov 2026). Terbitkan demo dan Isi Sheets berjalan otomatis sesudah Pasang.
+8. Dicek langsung di Supabase: karyawan 1.044; cara bayar per divisi (GDG semua tunai, lainnya transfer); **total gaji bersih tiap periode sama dengan sebelum paket** (5.183.058.029 · 8.216.773.882 · 5.706.405.590 · 4.999.870.485); jumlah hasil harian sama; akses tanpa login tetap ditolak (Cadangan malam).
+9. Dicek langsung di Sheets: 8 tab Gaji + Ringkasan + Riwayat isi; contoh 3 orang (1 transfer, 1 tunai dengan isi amplop, 1 rahasia).
+10. Uji nyata bot oleh pemilik: kirim satu pesan ke bot "Abaensi" sesudah Pasang → bot membalas (akun pembangun terdaftar ulang).
+11. Laporan `docs/laporan-tahap-6a-2.md` dan serah-terima.
+
+**Tidak diubah:** kasus jebakan, migrasi database (tidak ada migrasi baru), mesin hitung, halaman demo (angkanya ikut berubah sendiri dari gudang; tampilan dipisah di halaman demo menyusul bersama paket grafik).
+
+**Akibat Reset yang perlu diketahui pemilik:** riwayat kiriman Telegram (no. 19–22), catatan pemberitahuan, kode email, dan catatan pengingat 22-12-2026 untuk MA2 terhapus (data demo). Jejak perubahan ikut terhapus (sifat Reset, hanya demo).
+
+**Belum pasti**
+- [Kemungkinan Besar] Hanya kolom `cara_bayar` yang berubah di data simulasi (dibuktikan di langkah 2 sebelum lanjut).
+- [Kemungkinan Besar] Reset lalu Pasang memulihkan bot sepenuhnya; dibuktikan di langkah 10.
+- [Kemungkinan Besar] Uji U10 (anomali gaji Pabrik B) tetap lulus walau angka dibayar Pabrik B berubah; dibuktikan di langkah 6.
+
 ## Yang belum pasti (diputuskan pemilik, satu per satu)
 
 1. ~~**(a) atau (b)**~~ **Diputuskan pemilik 18 Nov 2026: (a)**, Sheets hanya rekap satu baris per orang (sesuai PRD v2 celah D4 dan bagian 10). Rincian tap: (a) Sheets hanya rekap sesuai PRD celah D4; (b) tambah tab "rincian tap per orang" seperti file 2 rekap HRD. Saran: (a), karena D4 melarang log tap mentah di Sheets dan rincian sudah ada di halaman demo/rincian gaji.
