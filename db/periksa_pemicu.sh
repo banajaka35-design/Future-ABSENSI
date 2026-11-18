@@ -29,11 +29,39 @@ if [ "$GITHUB_SHA" != "$MAIN" ]; then
   echo "GAGAL: cabang $GITHUB_REF_NAME menunjuk $GITHUB_SHA, bukan commit terbaru main ($MAIN). Tidak ada yang diubah." >&2
   exit 1
 fi
-# Dorongan ke cabang khusus juga memicu uji otomatis baru; cukup satu yang lulus dan tidak boleh ada yang gagal.
-HASIL="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" \
-  --jq '[.check_runs[] | select(.name == "uji") | .conclusion] | if any(. == "failure" or . == "cancelled") then "gagal" elif any(. == "success") then "success" else "belum" end')"
-if [ "$HASIL" != "success" ]; then
-  echo "GAGAL: uji otomatis untuk commit ini belum lulus (hasil: $HASIL). Tidak ada yang diubah." >&2
-  exit 1
-fi
+# Paket H1 (hemat menit GitHub): uji otomatis hanya jalan untuk push ke main dan dilewati bila yang berubah hanya
+# docs/. Maka syaratnya: telusuri dari commit ini ke belakang (paling jauh BATAS commit) sampai commit yang uji
+# otomatisnya lulus. Commit yang dilewati di tengah jalan harus hanya mengubah docs/ dan tidak boleh punya uji
+# yang gagal, dibatalkan, atau belum selesai.
+BATAS="${BATAS_TELUSUR:-30}"
+hasil_uji() {
+  gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs" \
+    --jq '[.check_runs[] | select(.name == "uji") | .conclusion] | if length == 0 then "tidak_ada" elif any(. == "failure" or . == "cancelled" or . == "timed_out") then "gagal" elif any(. == null) then "belum" elif any(. == "success") then "success" else "lain" end'
+}
+c="$GITHUB_SHA"; n=0
+while :; do
+  n=$((n + 1))
+  if [ "$n" -gt "$BATAS" ]; then
+    echo "GAGAL: tidak ditemukan commit dengan uji lulus dalam $BATAS commit terakhir. Tidak ada yang diubah." >&2
+    exit 1
+  fi
+  h="$(hasil_uji "$c")"
+  case "$h" in
+    success)
+      [ "$c" = "$GITHUB_SHA" ] && echo "Uji otomatis commit ini lulus." \
+        || echo "Uji otomatis lulus di commit $c; commit sesudahnya hanya mengubah docs/."
+      break ;;
+    tidak_ada)
+      INFO="$(gh api "repos/$GITHUB_REPOSITORY/commits/$c" --jq '(.parents | length | tostring) + " " + (.parents[0].sha // "-") + " " + ([.files[].filename] | map(select(startswith("docs/") | not)) | length | tostring) + " " + (.files | length | tostring)')"
+      read -r JML_INDUK INDUK DI_LUAR JML_BERKAS <<< "$INFO"
+      if [ "$JML_INDUK" != "1" ] || [ "$DI_LUAR" != "0" ] || [ "$JML_BERKAS" = "0" ] || [ "$JML_BERKAS" -ge 300 ]; then
+        echo "GAGAL: commit $c belum diuji dan bukan perubahan docs/ saja (induk $JML_INDUK, berkas di luar docs/ $DI_LUAR). Tidak ada yang diubah." >&2
+        exit 1
+      fi
+      c="$INDUK" ;;
+    *)
+      echo "GAGAL: uji otomatis untuk commit $c belum lulus (hasil: $h). Tidak ada yang diubah." >&2
+      exit 1 ;;
+  esac
+done
 echo "Dorongan ke cabang $GITHUB_REF_NAME sah: commit terbaru main, uji otomatis lulus."

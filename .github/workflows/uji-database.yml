@@ -1,8 +1,13 @@
 name: Uji database
 
+# Paket H1 (hemat menit GitHub, repo private = 2.000 menit/bulan): hanya push ke main, dan dilewati bila yang
+# berubah hanya docs/ (tidak ada kode yang membaca isi docs/). Cabang pasang/reset tidak diuji ulang;
+# db/periksa_pemicu.sh mencari commit main terdekat yang ujinya lulus (sesudahnya hanya boleh docs/).
 on:
   push:
-  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
 
 jobs:
   uji:
@@ -31,6 +36,8 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
       - name: Uji pembaca file (kasus jebakan bentuk file)
         run: node --test sistem/urai/uji_urai.ts
+      - name: Uji pemeriksa pemicu Pasang/Reset (paket H1)
+        run: sistem/uji/uji_pemicu.sh
       - name: Uji penghitung ukuran grafik halaman demo (paket G1)
         run: node --test sistem/uji/uji_grafik.ts
       - name: Jalankan semua migrasi dari nol lalu semua uji
