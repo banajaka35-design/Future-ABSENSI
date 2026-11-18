@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 17 November 2026, cabang `main` (paket 5e masuk lewat kode email selesai dan terpasang).
+Terakhir diperbarui: 18 November 2026, cabang `main` (Tahap 6: acuan PRD v2, keputusan 1 = (a)).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -14,6 +14,8 @@ Terakhir diperbarui: 17 November 2026, cabang `main` (paket 5e masuk lewat kode 
 Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–0004 dipasang ke Supabase oleh sesi Claude lain, dan file 0004 tidak dikirim ke GitHub. Pemilik proyek tidak tahu perubahan itu terjadi. File asli ditemukan kembali dan sidiknya cocok (lihat di bawah).
 
 ## Posisi sekarang: Tahap 5 selesai (5a–5e, 5d-2, 5e-2); berikutnya Tahap 6 (tulis daftar paket dulu)
+
+**18 Nov 2026:** PRD v3.1 tidak tersedia; pemilik memutuskan memakai PRD v2 (rangkuman dan bagian yang mungkin berbeda di `docs/rencana-tahap-6.md` bagian "Acuan PRD"). **Keputusan 1 = (a)**: Sheets hanya rekap. Berikutnya: keputusan 2 (cara menulis ke Sheets).
 
 **Mulai 18 Nov 2026 dari sini:** draf daftar paket Tahap 6 ada di `docs/rencana-tahap-6.md` (belum di-"buat"). Langkah pertama: pemilik menempelkan teks PRD v3.1 yang diminta di bagian "Yang dibutuhkan dari PRD", lalu keputusan (a)/(b) dan cara menulis ke Sheets. Kalimat pembuka untuk chat baru:
 

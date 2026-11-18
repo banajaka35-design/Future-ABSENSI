@@ -38,13 +38,30 @@
 
 ## Yang belum pasti (diputuskan pemilik, satu per satu)
 
-1. **(a) atau (b)** untuk rincian tap: (a) Sheets hanya rekap sesuai PRD celah D4; (b) tambah tab "rincian tap per orang" seperti file 2 rekap HRD. Saran: (a), karena D4 melarang log tap mentah di Sheets dan rincian sudah ada di halaman demo/rincian gaji.
+1. ~~**(a) atau (b)**~~ **Diputuskan pemilik 18 Nov 2026: (a)**, Sheets hanya rekap satu baris per orang (sesuai PRD v2 celah D4 dan bagian 10). Rincian tap: (a) Sheets hanya rekap sesuai PRD celah D4; (b) tambah tab "rincian tap per orang" seperti file 2 rekap HRD. Saran: (a), karena D4 melarang log tap mentah di Sheets dan rincian sudah ada di halaman demo/rincian gaji.
 2. **Cara sistem menulis ke Sheets.** Usulan: akun layanan Google (service account) yang diberi akses edit ke satu spreadsheet saja; kuncinya di secret GitHub. Pemilik perlu membuat akun layanan di Google Cloud (langkah dipandu satu per satu). [Kemungkinan Besar] ini cara paling sederhana tanpa membuka database; belum dicek ke dokumen resmi Google.
 3. **Bank yang dipakai perusahaan sasaran** dan bentuk file unggah massalnya (setiap bank berbeda). Untuk demo bisa satu bentuk CSV umum dulu.
 4. **Cara file bank sampai ke HRD** tanpa melanggar aturan rekening: misalnya dikirim sebagai dokumen ke Telegram HRD, atau diunduh dari halaman unggah dengan tautan 15 menit (5d/5e). Belum diputuskan.
 5. **Bentuk lembar cetak** yang biasa dipakai HRD sasaran (contoh lembar dari perusahaan nyata akan sangat membantu; isi pribadinya tidak dicatat di repo).
 
-## Yang dibutuhkan dari PRD v3.1 (salinan teks oleh pemilik)
+## Acuan PRD (18 Nov 2026)
+
+Teks PRD v3.1 tidak tersedia; pemilik memutuskan memakai **PRD v2** (dokumen Claude "PRD v2 — Sistem Absensi & Payroll Otomatis"). Isi v2 yang dipakai:
+
+| Hal | Isi PRD v2 | Bagian |
+| --- | --- | --- |
+| Tahap 6 | "Rekap ke Google Sheets"; selesai kalau "Isi Sheets sama dengan gudang" | 13 |
+| Isi Sheets | Rekap gaji bulanan, satu baris per karyawan; kolom ID, nama, divisi, hari hadir, gaji pokok, uang makan, lembur, telat/lupa tap, alpha (rincian dan nominal), kasbon, BPJS, PPh 21, gaji bersih | 10 |
+| D3 / D4 | Sheets hanya salinan yang ditimpa tiap hitung; hanya rekap, log tap mentah dan rincian harian tetap di gudang | 7, 10 |
+| K3 / K7 | Pintu Sheets memakai kunci rahasia; Sheets dibagikan hanya ke akun HRD yang disebut satu per satu | 9 |
+| U3 | Sheets dibandingkan dengan gudang, selisih nol | 12 |
+| Target | Rekap selesai di Sheets paling lama 60 detik | 11 |
+| Alat | "Google Sheets dan Apps Script" | 4 |
+| File bank, slip PDF | Tahap lanjutan sesudah Tahap 9 | 10, 13 |
+
+**Mungkin berbeda dari v3.1:** (1) [Kemungkinan Besar] lembar cetak, bahan tunai, dan file bank tidak ada di Tahap 6 v2 (kata "cetak" dan "tunai" tidak ada sama sekali; file bank = tahap lanjutan), jadi 6b dan 6c kemungkinan berasal dari v3.1 atau dari chat; (2) [Menebak] bunyi gerbang Tahap 6 bisa berubah di v3.1; dipakai bunyi v2; (3) [Kemungkinan Besar] v2 menyebut Apps Script, sedangkan sistem sekarang berjalan di Supabase dan GitHub (dibahas di keputusan 2).
+
+## Yang dulu dibutuhkan dari PRD v3.1 (tidak tersedia, diganti v2)
 
 - Bagian 17, baris Tahap 6: bunyi gerbangnya persis.
 - Celah D4 (log tap mentah di Sheets) dan bagian lain yang menyebut Sheets.
