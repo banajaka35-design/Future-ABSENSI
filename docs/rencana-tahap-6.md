@@ -86,6 +86,25 @@ Cara bayar berpola (permintaan perubahan 03) dan daftar transfer/tunai dipisah d
 - [Kemungkinan Besar] Reset lalu Pasang memulihkan bot sepenuhnya; dibuktikan di langkah 10.
 - [Kemungkinan Besar] Uji U10 (anomali gaji Pabrik B) tetap lulus walau angka dibayar Pabrik B berubah; dibuktikan di langkah 6.
 
+## Daftar paket 6a-3 (menunggu "buat", 18 Nov 2026): total HRD tanpa orang rahasia
+
+Permintaan perubahan 04 (kasus F15b). Dikerjakan sebelum paket G1 (grafik); G1 ditulis ulang sesudahnya dengan temuan 2–5 analisa ulang.
+
+1. **Dokumen dulu**: `docs/kasus-jebakan.md` + F15b, `docs/rekap-sheets.md` versi 3, `docs/halaman-demo.md` versi 2 (bagian rahasia), di-commit sebelum kode.
+2. **Sheets Ringkasan**: Orang, semua total rupiah, Transfer, Tunai, PPh tertahan dihitung **tanpa orang rahasia**; kolom baru "Orang rahasia (tidak termasuk)"; catatan di baris atas Ringkasan. Tab Gaji tidak berubah (baris rahasia tetap tanpa angka).
+3. **Halaman demo**: Ringkasan per periode, transfer/tunai, dan pecahan uang tunai tanpa orang rahasia, dengan keterangan "tidak termasuk N orang rahasia; amplop orang rahasia disiapkan terpisah". Tanda anomali atas nama orang rahasia ditampilkan tanpa keterangan berangka (sekarang tidak ada, dijaga untuk perusahaan lain).
+4. **Pemeriksa Sheets dan demo**: total = jumlah orang bukan rahasia dari gudang (SQL sendiri), **dan uji kebocoran: total dikurangi jumlah semua baris yang terlihat = 0** untuk setiap angka. Pecahan tunai demo = amplop orang tunai bukan rahasia; dan amplop bukan rahasia + amplop rahasia = `hitung.pecahan_tunai` (gudang tetap utuh).
+5. **Uji**: Sheets tiruan dan uji demo Pabrik A diperbarui; **uji kebocoran juga di Pabrik B** (1 orang rahasia) untuk halaman demo dan Sheets tiruan; satu uji: total dikembalikan ke cara lama → pemeriksa GAGAL. Semua uji GitHub harus lulus.
+6. **Terbit**: "Isi Sheets" dan "Terbitkan demo" dijalankan lewat tombol (tanpa Reset atau Pasang; Supabase tidak diubah).
+7. **Dicek langsung**: Ringkasan Sheets dan halaman demo: total = jumlah yang terlihat (selisih 0), keterangan "tidak termasuk 3 orang rahasia".
+8. Laporan `docs/laporan-tahap-6a-3.md` dan serah-terima.
+
+**Tidak diubah:** gudang, mesin hitung (`hitung.pecahan_tunai` tetap menghitung semua orang), bot, data simulasi.
+
+**Belum pasti**
+- [Kemungkinan Besar] Tanda anomali tingkat divisi (bila ada di perusahaan lain) masih memasukkan orang rahasia dalam angka divisinya; risikonya kecil karena tidak bisa dipisah per orang tanpa total lengkap. Dicatat, tidak diubah di paket ini.
+- Total lengkap untuk bos baru ada saat akun bos dibangun (Tahap 9).
+
 ## Yang belum pasti (diputuskan pemilik, satu per satu)
 
 1. ~~**(a) atau (b)**~~ **Diputuskan pemilik 18 Nov 2026: (a)**, Sheets hanya rekap satu baris per orang (sesuai PRD v2 celah D4 dan bagian 10). Rincian tap: (a) Sheets hanya rekap sesuai PRD celah D4; (b) tambah tab "rincian tap per orang" seperti file 2 rekap HRD. Saran: (a), karena D4 melarang log tap mentah di Sheets dan rincian sudah ada di halaman demo/rincian gaji.
