@@ -105,6 +105,26 @@ Permintaan perubahan 04 (kasus F15b). Dikerjakan sebelum paket G1 (grafik); G1 d
 - [Kemungkinan Besar] Tanda anomali tingkat divisi (bila ada di perusahaan lain) masih memasukkan orang rahasia dalam angka divisinya; risikonya kecil karena tidak bisa dipisah per orang tanpa total lengkap. Dicatat, tidak diubah di paket ini.
 - Total lengkap untuk bos baru ada saat akun bos dibangun (Tahap 9).
 
+## Daftar paket 6a-4 (menunggu "buat", 18 Nov 2026): tanda anomali divisi tidak boleh membuka gaji orang rahasia
+
+Temuan analisa ulang sesudah 6a-3 (18 Nov 2026), [Pasti], **sudah tayang di halaman demo**: tanda "Lembur divisi KTR naik dari Rp14.780.776 menjadi Rp20.159.394" (periode Nov–Des) memakai jumlah lembur seluruh divisi, termasuk orang rahasia. Lembur orang KTR yang bukan rahasia tampil per orang (19.921.677), sehingga 20.159.394 − 19.921.677 = **237.717 = lembur gabungan 3 orang rahasia** (dicek di Supabase). Penilaian "risiko kecil" di laporan 6a-3 salah. Ini kasus F15b juga (total − jumlah yang terlihat).
+
+1. **Dokumen dulu**: `docs/halaman-demo.md` versi 3 (aturan tanda anomali) dan catatan ralat di `docs/laporan-tahap-6a-3.md`, sebelum kode.
+2. **Halaman demo**: tanda anomali tingkat divisi untuk divisi yang punya orang rahasia di periode itu ditampilkan **tanpa angka rupiah** ("Lembur divisi KTR naik lebih dari 30% (angka tidak ditampilkan: divisi ini memuat gaji rahasia)"). Divisi tanpa orang rahasia tetap dengan angka. Tanda per orang rahasia tetap tanpa keterangan (6a-3).
+3. **Pemeriksa demo**: setiap keterangan anomali yang memuat angka rupiah tidak boleh menyangkut orang rahasia atau divisi yang memuat orang rahasia; jumlah tanda per jenis tetap sama dengan gudang.
+4. **Uji**: uji simulasi Pabrik A (tanda KTR periode Nov–Des ada di data) dan uji kebocoran Pabrik B; satu uji: keterangan berangka untuk divisi berahasia dikembalikan → pemeriksa GAGAL.
+5. **Terbit** lewat tombol "Terbitkan demo"; dicek langsung di halaman: tanda KTR tanpa angka. Sheets tidak memuat tanda anomali, jadi tidak berubah. Supabase tidak diubah.
+6. Laporan `docs/laporan-tahap-6a-4.md` dan serah-terima.
+
+**Diperiksa dan tidak merugikan (tidak diubah)**
+- Repo GitHub **privat** (dicek); cadangan berisi gaji lengkap hanya bisa diunduh pemilik akses repo (untuk perusahaan sungguhan sudah dicatat: cadangan tidak boleh di GitHub).
+- Sheets: tab Gaji orang rahasia hanya berisi hadir/telat/alpha; Ringkasan tanpa rahasia; tidak ada tanda anomali; Riwayat isi hanya jumlah orang.
+- Tanda anomali per orang lain (`aktif_tanpa_tap`, `gaji_berubah`) untuk orang bukan rahasia: angka orang itu sendiri, yang memang tampil di rinciannya.
+
+**Dicatat, diusulkan paket lain**
+- Sheets tidak ikut diperbarui sesudah file masuk lewat Telegram; status tetap "SELESAI <waktu lama>", HRD bisa memakai angka lama tanpa sadar. Ditutup oleh paket "isi Sheets otomatis sesudah file Telegram" (urutan berikutnya sesudah G1; diusulkan dimajukan sebelum G1).
+- Nama orang rahasia tetap muncul di daftar tanda `gaji_berubah` (tanpa angka): HRD tahu gajinya berubah lebih dari 15%. Informasi kecil; keputusan pemilik apakah disembunyikan juga.
+
 ## Yang belum pasti (diputuskan pemilik, satu per satu)
 
 1. ~~**(a) atau (b)**~~ **Diputuskan pemilik 18 Nov 2026: (a)**, Sheets hanya rekap satu baris per orang (sesuai PRD v2 celah D4 dan bagian 10). Rincian tap: (a) Sheets hanya rekap sesuai PRD celah D4; (b) tambah tab "rincian tap per orang" seperti file 2 rekap HRD. Saran: (a), karena D4 melarang log tap mentah di Sheets dan rincian sudah ada di halaman demo/rincian gaji.
