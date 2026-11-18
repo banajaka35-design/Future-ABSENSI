@@ -23,10 +23,11 @@ Commit 7fcd6cc dan a2dab26: pembaca file 17, database 453, simulasi 96, pintu 40
 
 - Pasang (44284088746) lulus; Terbitkan demo (44284807601) lulus, pemeriksa demo 0 beda; Isi Sheets (44284807750) lulus.
 
-## Belum dicek langsung
+## Dicek langsung (18 Nov 2026, 17.3x WIB)
 
-- Header di halaman yang sudah terbit: browser aplikasi Claude tidak terjangkau saat dicek (komputer pemilik tidak terhubung) dan jaringan kerja Claude menolak alamat halaman. [Kemungkinan Besar] header aktif, karena `_headers` ditulis di folder yang diunggah (log terbit). Dicek begitu browser terjangkau.
-- Bot sesudah Pasang: pemilik mengirim `/unggah`.
+- Bot: pemilik mengirim `/unggah` 17.32; `fakta.tautan_unggah` baris 2 dibuat 17.32.37 WIB oleh pengguna 1. Bot sehat sesudah Pasang.
+- Halaman terbit (browser aplikasi Claude): `/` dan `/unggah/` keduanya HTTP 200 dengan `Content-Security-Policy` (2 sidik skrip, `connect-src 'self' https://orfkxznhfsalhznbummc.supabase.co`, `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
+- Halaman tetap berjalan di bawah CSP: demo menampilkan angka ringkasan dan keterangan rahasia; unggah menampilkan "Belum masuk…" dan bagian email; tidak ada galat di konsol.
 
 ## Risiko yang diterima
 
