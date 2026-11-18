@@ -1,4 +1,4 @@
-# Halaman demo (Tahap 4, paket 4c; versi 2: paket 6a-3; versi 3: paket 6a-4)
+# Halaman demo (Tahap 4, paket 4c; versi 2: paket 6a-3; versi 3: paket 6a-4; versi 4: paket 6f)
 
 17 November 2026 · ditulis sebelum kode · acuan: PRD v3.1 bagian 14 ("halaman demo sederhana di Tahap 4, hanya membaca hasil yang lulus uji, bertanda data simulasi") dan gerbang Tahap 4 ("angka demo sama dengan gudang").
 
@@ -19,6 +19,7 @@
 5. **Daftar karyawan** dengan pencarian ID atau nama: divisi dan gaji bersih per periode. Klik satu orang: rincian per komponen, dibayar, sisa, peringatan, saldo cuti. Karyawan dengan `gaji_rahasia` di riwayat terakhirnya: angka tidak ditampilkan ("rahasia").
 6. Tidak ada tombol aksi, tidak ada formulir yang mengirim data.
 7. **Versi 2 (paket 6a-3, F15b)**: Ringkasan per periode (orang, total pendapatan, potongan, gaji bersih, dibayar, sisa, transfer, tunai, PPh tertahan) dan pecahan uang tunai dihitung **tanpa orang rahasia**, dengan keterangan "tidak termasuk N orang rahasia; amplop orang rahasia disiapkan terpisah". Total = jumlah gaji per orang yang tampil di daftar (selisih 0). Tanda anomali atas nama orang rahasia ditampilkan tanpa keterangan (keterangannya bisa berisi angka).
+9. **Versi 4 (paket 6f, celah S3)**: file `web/demo/_headers` (Cloudflare Pages) memberi header keamanan untuk semua halaman (demo dan unggah): `Content-Security-Policy` (skrip, gaya, gambar hanya dari halaman sendiri; sambungan hanya ke halaman sendiri dan alamat Edge Function `https://orfkxznhfsalhznbummc.supabase.co`; `frame-ancestors 'none'`; `form-action 'self'`; `base-uri 'none'`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`. Skrip dan gaya yang tertulis langsung di halaman diizinkan dengan sidik SHA-256 masing-masing, bukan `unsafe-inline`; sidik dihitung ulang dan diperiksa oleh uji otomatis setiap kali halaman berubah.
 8. **Versi 3 (paket 6a-4, F15b)**: tanda anomali tingkat divisi (tanpa ID karyawan) untuk divisi yang memuat orang rahasia di periode itu (divisi = divisi di hari terakhir periode, sama dengan daftar karyawan) ditampilkan **tanpa angka**: keterangan diganti "Divisi <kode>: angka tidak ditampilkan karena divisi ini memuat gaji rahasia". Alasan: angka divisi memuat orang rahasia, sedangkan angka orang lain di divisi itu tampil per orang, sehingga selisihnya membuka angka orang rahasia (contoh nyata 18 Nov 2026: lembur KTR 20.159.394 − 19.921.677 = 237.717).
 
 ## Pemeriksaan "angka demo sama dengan gudang"

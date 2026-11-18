@@ -53,6 +53,7 @@ HRD bisa mengunggah file mesin walau Telegram mati total: tautan unggah tidak la
 | E6 | Kode dipakai dua kali | Kedua kali ditolak |
 | E7 | Kode lama sesudah minta kode baru | Ditolak; kode baru berlaku |
 | E8 | Lebih dari 3 permintaan dalam 15 menit | Permintaan ke-4 tidak membuat kode dan tidak mengirim email; jawaban halaman tetap sama |
+| E8b (paket 6f, celah S1) | Lebih dari 10 kode untuk satu email dalam 24 jam (kode yang gagal dikirim tidak dihitung), atau lebih dari 100 kode untuk semua email dalam 24 jam (termasuk yang gagal dikirim) | Tidak membuat kode dan tidak mengirim email; jawaban halaman tetap sama. Alasan: paket gratis Brevo 300 email/hari untuk semua; tanpa batas harian, orang yang tahu satu email HRD bisa memicu 288 email/hari |
 | E9 | Akun dinonaktifkan sesudah kode dikirim | Kode ditolak |
 | E10 | Permintaan dari alamat lain | 403 |
 | E11 | Akun tanpa ID Telegram masuk lewat email dan mengunggah | File diterima atas nama akun itu; tidak ada pesan Telegram |
