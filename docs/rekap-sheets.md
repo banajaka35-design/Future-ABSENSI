@@ -141,6 +141,7 @@ Workflow "Isi Sheets": sesudah "Pasang ke Supabase" atau "Reset Supabase" lulus,
 
 ## 8. Belum pasti
 
-- [Kemungkinan Besar] Kunci akun layanan boleh dibuat dari Gmail pribadi; ada satu laporan forum yang ditolak. Cadangan: Workload Identity Federation (lebih rumit, paket tersendiri).
-- [Kemungkinan Besar] `RAW` menyimpan teks angka sebagai teks; dibuktikan di uji nyata lewat kolom uji `Riwayat isi`.
-- [Kemungkinan Besar] Kunci tab tidak menghalangi akun layanan yang memasangnya; dibuktikan di uji nyata (isi kedua harus lulus).
+- ~~Kunci akun layanan boleh dibuat dari Gmail pribadi~~: terbukti 18 Nov 2026 (proyek tanpa organisasi).
+- ~~`RAW` menyimpan teks angka sebagai teks~~: terbukti di uji nyata 18 Nov 2026 (kolom uji `Riwayat isi` kembali persis).
+- [Kemungkinan Besar] Kunci tab tidak menghalangi akun layanan yang memasangnya; isi kedua di Google sungguhan belum dijalankan (terbukti pada Pasang berikutnya).
+- [Pasti, 18 Nov 2026] Google menambahkan pemilik file ke daftar pengubah kunci tab; pemeriksa mengizinkan email di `PEMBANGUN_EMAIL`.

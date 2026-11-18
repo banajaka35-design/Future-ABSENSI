@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 18 November 2026, cabang `main` (Tahap 6: paket 6a dibuat, menunggu akun layanan Google untuk uji nyata).
+Terakhir diperbarui: 18 November 2026, cabang `main` (Tahap 6: paket 6a selesai, uji nyata ke Google Sheets lulus).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -15,7 +15,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 ## Posisi sekarang: Tahap 5 selesai (5a–5e, 5d-2, 5e-2); berikutnya Tahap 6 (tulis daftar paket dulu)
 
-**18 Nov 2026:** PRD v3.1 tidak tersedia; pemilik memutuskan memakai PRD v2 (rangkuman dan bagian yang mungkin berbeda di `docs/rencana-tahap-6.md` bagian "Acuan PRD"). **Keputusan 1 = (a)**: Sheets hanya rekap. **Keputusan 2 = (1)**: akun layanan Google + workflow GitHub. Aturan gaji rahasia (F15) tetap. **Paket 6a di-"buat" 18 Nov 2026 dan dibuat** (rancangan `docs/rekap-sheets.md`, laporan `docs/laporan-tahap-6a.md`): penulis, pemeriksa, Sheets tiruan, workflow "Isi Sheets"; uji lokal 30 lulus 0 gagal; Supabase tidak diubah. **Berikutnya:** pemilik menyiapkan akun layanan Google (`docs/rekap-sheets.md` bagian 7), lalu uji nyata ke "PROJECT ABSENSI".
+**18 Nov 2026:** PRD v3.1 tidak tersedia; pemilik memutuskan memakai PRD v2 (rangkuman dan bagian yang mungkin berbeda di `docs/rencana-tahap-6.md` bagian "Acuan PRD"). **Keputusan 1 = (a)**: Sheets hanya rekap. **Keputusan 2 = (1)**: akun layanan Google + workflow GitHub. Aturan gaji rahasia (F15) tetap. **Paket 6a di-"buat" 18 Nov 2026 dan dibuat** (rancangan `docs/rekap-sheets.md`, laporan `docs/laporan-tahap-6a.md`): penulis, pemeriksa, Sheets tiruan, workflow "Isi Sheets"; uji lokal 30 lulus 0 gagal; Supabase tidak diubah. **Uji nyata lulus 18 Nov 2026** (run 44232081983): Sheets "PROJECT ABSENSI" terisi, pemeriksa 0 beda, dicek langsung di Sheets dan Supabase (3 contoh orang di laporan). Akun layanan `isi-sheets@future-absensi.iam.gserviceaccount.com` di proyek Google Cloud ID `future-absensi` (ada proyek kedua bernama sama, ID `future-absensi-515103`, tidak dipakai; boleh dihapus pemilik). Spreadsheet juga punya editor `jakabuana444@gmail.com` (konektor Drive/Sheets Claude); tab milik sistem dikunci untuk akun layanan + pemilik. **Gerbang Tahap 6 versi PRD v2 terpenuhi untuk 6a.** Berikutnya: putuskan 6b/6c (lembar cetak, bahan tunai, file bank; di PRD v2 file bank = tahap lanjutan) dan paket kecil isi otomatis sesudah file Telegram.
 
 **Mulai 18 Nov 2026 dari sini:** draf daftar paket Tahap 6 ada di `docs/rencana-tahap-6.md` (belum di-"buat"). Langkah pertama: pemilik menempelkan teks PRD v3.1 yang diminta di bagian "Yang dibutuhkan dari PRD", lalu keputusan (a)/(b) dan cara menulis ke Sheets. Kalimat pembuka untuk chat baru:
 
