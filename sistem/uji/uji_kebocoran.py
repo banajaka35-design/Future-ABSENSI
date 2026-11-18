@@ -66,6 +66,20 @@ try:
     r = subprocess.run([sys.executable, "web/periksa_data.py", demo], cwd=AKAR, capture_output=True, text=True)
     cek("pemeriksa halaman demo lulus (termasuk uji kebocoran)", r.returncode == 0, (r.stdout + r.stderr)[-600:])
     print("    " + r.stdout.strip().splitlines()[-1])
+    # 6a-4: tanda anomali divisi yang memuat orang rahasia tanpa angka; dikembalikan berangka -> pemeriksa GAGAL.
+    jalur = os.path.join(demo, "data.json")
+    data = json.load(open(jalur, encoding="utf-8"))
+    samar = [(p, a) for p in data["periode"] for a in p["anomali"] if "tidak ditampilkan karena" in (a.get("ket") or "")]
+    cek(f"tanda divisi berahasia tanpa angka: {len(samar)} tanda", all("Rp" not in a["ket"] for _, a in samar))
+    if samar:
+        _, a = samar[0]
+        a["ket"] = f"Lembur divisi {a['divisi']} naik dari Rp1 menjadi Rp2"
+        json.dump(data, open(jalur, "w", encoding="utf-8"))
+        r = subprocess.run([sys.executable, "web/periksa_data.py", demo], cwd=AKAR, capture_output=True, text=True)
+        cek("tanda divisi berahasia dikembalikan berangka -> pemeriksa GAGAL",
+            r.returncode == 1 and "gaji rahasia" in r.stdout, r.stdout[-300:])
+    else:
+        print(f"    (tidak ada tanda divisi berahasia di data {nama}; uji kebalikan dilewati)")
 finally:
     tiruan.terminate()
 sys.exit(1 if gagal else 0)

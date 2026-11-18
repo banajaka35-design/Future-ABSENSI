@@ -64,6 +64,13 @@ select json_build_object(
                    and 'pph_masa_terakhir_tertahan' = any(g.peringatan)),
       'anomali', coalesce((select json_agg(json_build_object('jenis', a.jenis, 'id', a.id_karyawan, 'divisi', a.divisi,
                                                              'ket', case when coalesce(s.gaji_rahasia, false) then null
+                                                                         -- 6a-4: divisi yang memuat orang rahasia tanpa angka
+                                                                         when a.id_karyawan is null and exists (
+                                                                           select 1 from divisi d join rahasia r2 on r2.id_karyawan = d.id_karyawan
+                                                                           where d.versi_gaji = v.versi_gaji and d.divisi = a.divisi
+                                                                             and r2.gaji_rahasia)
+                                                                         then format('Divisi %s: angka tidak ditampilkan karena divisi ini memuat gaji rahasia',
+                                                                                     a.divisi)
                                                                          else a.keterangan end)
                                            order by a.jenis, a.id_karyawan, a.divisi)
                            from hitung.anomali_gaji(v.periode_id) a left join rahasia s on s.id_karyawan = a.id_karyawan),

@@ -85,6 +85,18 @@ def main():
         for a in p["anomali"]:
             if a.get("id") in rahasia and a.get("ket") is not None:
                 salah.append(f"periode {pid}: tanda anomali orang rahasia {a['id']} masih berketerangan")
+        # 6a-4: divisi orang rahasia di periode ini (hari terakhir yang punya hasil harian), perintah SQL sendiri.
+        div_rahasia = set()
+        if rahasia:
+            daftar_r = ",".join("'" + x.replace("'", "''") + "'" for x in sorted(rahasia))
+            div_rahasia = {r["divisi"] for r in q(
+                f"select distinct on (h.id_karyawan) h.divisi from hitung.hasil_harian h "
+                f"join hitung.versi_hitung x on x.id = {v} where h.versi_id = x.versi_sumber "
+                f"and h.id_karyawan in ({daftar_r}) order by h.id_karyawan, h.tanggal desc")}
+        for a in p["anomali"]:
+            ket = a.get("ket") or ""
+            if "Rp" in ket and (a.get("id") in rahasia or (a.get("id") is None and a.get("divisi") in div_rahasia)):
+                salah.append(f"periode {pid}: tanda anomali berangka menyangkut gaji rahasia ({a.get('id') or a.get('divisi')}): {ket}")
         banding(f"periode {pid} anomali per jenis", dict(Counter(a["jenis"] for a in p["anomali"])),
                 {r["jenis"]: int(r["n"]) for r in q(f"select jenis, count(*) n from hitung.anomali_gaji({pid}) group by jenis")})
 

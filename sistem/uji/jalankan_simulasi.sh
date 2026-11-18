@@ -64,6 +64,14 @@ python3 web/buat_data.py "$DEMO" > /dev/null
 if python3 web/periksa_data.py "$DEMO"; then cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" lulus lulus;
 else cek "halaman demo: angka demo sama dengan gudang (Pabrik A)" gagal lulus; fi
 rm -rf "$DEMO"
+echo "== F15b: kebocoran gaji rahasia Pabrik A (3 orang rahasia; tanda lembur divisi KTR periode Nov-Des)"
+KODE_BOCOR_A=0
+KELUAR_BOCOR_A="$(python3 sistem/uji/uji_kebocoran.py A 2>&1)" || KODE_BOCOR_A=$?
+echo "$KELUAR_BOCOR_A"
+LULUS=$((LULUS + $(echo "$KELUAR_BOCOR_A" | grep -c "^  LULUS" || true)))
+GAGAL_BOCOR_A="$(echo "$KELUAR_BOCOR_A" | grep -c "^  GAGAL" || true)"
+GAGAL=$((GAGAL + GAGAL_BOCOR_A))
+if [ "$KODE_BOCOR_A" -ne 0 ] && [ "$GAGAL_BOCOR_A" -eq 0 ]; then cek "uji kebocoran Pabrik A berjalan sampai selesai" "kode $KODE_BOCOR_A" "kode 0"; fi
 echo "== Rekap Sheets (paket 6a, Sheets tiruan tanpa internet)"
 KODE_SHEETS=0
 KELUAR_SHEETS="$(python3 sistem/uji/uji_sheets.py 2>&1)" || KODE_SHEETS=$?
