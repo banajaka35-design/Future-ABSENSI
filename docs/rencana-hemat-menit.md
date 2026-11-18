@@ -33,3 +33,11 @@ Supabase, mesin hitung, Sheets, bot, Cadangan malam, Isi Sheets, Terbitkan demo.
 
 - [Kemungkinan Besar] Hemat ±570 menit per 18 hari dengan pola kerja yang sama.
 - [Menebak] Pemakaian akhir ±850–950 menit per bulan. Angka ini baru bisa diukur seminggu sesudah terpasang (target cek: 25 Nov 2026).
+
+## Hasil (18 Nov 2026) [Pasti]
+
+| Cek | Hasil |
+| --- | --- |
+| Push kode (127de2c) | "Uji database" jalan sekali dan lulus: uji pemicu 12/12, database 453/453 |
+| Push dokumen saja (cc87fe4) | 0 run |
+| Dorong ke `pasang` (cc87fe4) | Tidak ada uji ulang. Pasang menulis "Uji otomatis lulus di commit 127de2c; commit sesudahnya hanya mengubah docs/" lalu lulus: pemeriksaan 31/31, migrasi 23 (tidak ada yang baru). Isi Sheets, Terbitkan demo dan Cadangan malam sesudahnya lulus. |
