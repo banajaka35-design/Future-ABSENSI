@@ -82,7 +82,6 @@
   let kode = new URLSearchParams(location.hash.slice(1)).get("kode") || "";
   let fungsi = "";
   const teks = (t) => document.createTextNode(t == null ? "" : String(t));
-  const rp = (n) => "Rp" + Number(n).toLocaleString("id-ID");
 
   function pesan(el, jenis, isi) {
     el.className = "pesan " + jenis;
@@ -111,9 +110,9 @@
       td(p.awal + " s.d. " + p.akhir);
       td(p.status === "menunggu" ? "menunggu dihitung" : p.status);
       if (p.galat) td("Gagal: " + p.galat);
-      else if (p.hasil) td(Number(p.hasil.orang).toLocaleString("id-ID") + " orang, gaji bersih " + rp(p.hasil.bersih) +
-                          (p.hasil.bisa_diajukan ? ", bisa diajukan" : ", belum bisa diajukan") +
-                          (p.hasil.segera > 0 ? ", " + p.hasil.segera + " pemberitahuan penting" : ""));
+      // Paket G1-3: kalimat disusun server (sama dengan bot), angka sudah tanpa orang rahasia.
+      else if (p.ringkasan) td(p.ringkasan);
+      else if (p.hasil) td("angka gaji tidak ditampilkan");
       else td("");
       b.appendChild(tr);
     }

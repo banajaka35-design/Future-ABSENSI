@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
-  apiBoleh, BATAS_PESAN, JENIS_SEGERA, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  apiBoleh, BATAS_PESAN, JENIS_SEGERA, PESAN_HANYA_PRIBADI, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -139,7 +139,8 @@ test("T1: file sah diterima, disimpan, dan periode terkena dihitung", async () =
   assert.ok(Number(nilai("select count(*) from fakta.antrean_kerja where status = 'selesai'")) >= 1);
   assert.equal(nilai(`select count(*) from hitung.versi_terakhir v join fakta.periode p on p.id = v.periode_id
                       where p.tanggal_awal = '2026-01-21' and v.jenis in ('baca_tap', 'hitung_gaji')`), "2");
-  assert.ok(r.pesan.some((p) => /Periode 2026-01-21 s\.d\. 2026-02-20: [\d.]+ orang, gaji bersih Rp/.test(p.text)), JSON.stringify(r.pesan));
+  assert.ok(r.pesan.some((p) => /Periode 2026-01-21 s\.d\. 2026-02-20: [\d.]+ orang, gaji bersih Rp[\d.]+ \(tidak termasuk 3 orang rahasia\)\./.test(p.text)), JSON.stringify(r.pesan));
+  pesanT1 = r.pesan;
   console.log(`  T1 selesai dalam ${Date.now() - mulai} ms; ${r.pesan.length} pesan: ${r.pesan.map((p) => p.text.slice(0, 80)).join(" | ")}`);
   // N6 / U14: anomali segera dari file ini terkirim ke HRD dan pembangun dalam proses yang sama.
   const keHrd = segera(r.pesan, HRD);
@@ -148,6 +149,86 @@ test("T1: file sah diterima, disimpan, dan periode terkena dihitung", async () =
   assert.equal(r.pesan.filter((p) => p.chat_id === BUKAN || p.chat_id === NONAKTIF).length, 0);
   assert.equal(belumTerkirim(), "0");
   console.log(`  N6: ${catatBaris(keHrd)} kejadian segera terkirim ke 2 akun`);
+});
+
+// ---------------------------------------------------------------------------
+// Paket G1-3 (docs/rencana-g1-3.md): total di bot dan halaman unggah tanpa orang rahasia (F15b, F15c), chat pribadi (C2)
+// ---------------------------------------------------------------------------
+
+let pesanT1: any[] = [];
+// Daftar rahasia dibaca dari file induk simulasi, bukan dari database, supaya pembandingnya tidak memakai rumus yang diuji.
+const RAHASIA_CSV = new Set(
+  readFileSync("data/simulasi/A/induk/karyawan.csv", "utf8").split("\n").slice(1).filter(Boolean)
+    .map((b) => b.split(",")).filter((k) => k[12] === "ya").map((k) => k[0]),
+);
+const rupiah = (t: string) => Number(t.replace(/\./g, ""));
+// Gaji bersih per orang dari versi gaji terakhir satu periode (dibaca sebagai pemilik database, seperti Sheets).
+function gajiPeriode(awal: string): Map<string, number> {
+  const keluar = nilai(`select string_agg(g.id_karyawan || ':' || g.gaji_bersih, ',')
+                        from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id and v.jenis = 'hitung_gaji'
+                        join fakta.periode p on p.id = v.periode_id where p.tanggal_awal = '${awal}'`);
+  return new Map(keluar.split(",").map((x) => x.split(":")).map(([i, b]) => [i, Number(b)]));
+}
+
+test("G1-3 (T1): total bot - jumlah gaji yang terlihat = 0; orang rahasia tidak ikut; antrean tanpa rupiah", () => {
+  assert.equal(RAHASIA_CSV.size, 3);
+  const teks = pesanT1.map((p) => p.text).find((t: string) => t.startsWith("Periode 2026-01-21 s.d. 2026-02-20:"));
+  const m = /: ([\d.]+) orang, gaji bersih Rp([\d.]+) \(tidak termasuk (\d+) orang rahasia\)/.exec(teks);
+  assert.ok(m, teks);
+  const gaji = gajiPeriode("2026-01-21");
+  const terlihat = [...gaji].filter(([i]) => !RAHASIA_CSV.has(i));
+  const jumlahTerlihat = terlihat.reduce((a, [, b]) => a + b, 0);
+  const semua = [...gaji.values()].reduce((a, b) => a + b, 0);
+  assert.equal(rupiah(m[2]) - jumlahTerlihat, 0, "total bot - jumlah yang terlihat harus 0");
+  assert.equal(rupiah(m[1]), terlihat.length);
+  assert.equal(Number(m[3]), gaji.size - terlihat.length);
+  assert.notEqual(rupiah(m[2]), semua, "aturan lama (semua orang) tidak boleh dipakai");
+  // C1: kolom hasil antrean hanya menyimpan nomor versi, tanpa rupiah dan jumlah orang.
+  assert.equal(nilai(`select count(*) from fakta.antrean_kerja where hasil ? 'bersih' or hasil ? 'orang' or hasil ? 'rahasia'`), "0");
+  assert.equal(nilai(`select count(*) from fakta.antrean_kerja where status = 'selesai' and not hasil ? 'versi_gaji'`), "0");
+  console.log(`  G1-3: bot ${m[2]} = terlihat ${jumlahTerlihat}; semua orang ${semua}; rahasia ${m[3]}`);
+});
+
+test("G1-3 (C3): peran pintu tidak bisa memanggil fungsi hitungan rahasia", () => {
+  for (const f of ["hitung.ringkasan_terlihat(1)", "fakta.hasil_antrean_tampil('{}'::jsonb)"]) {
+    assert.throws(() => psql(`select ${f};`, true), /permission denied/, f);
+  }
+});
+
+const grup = -1001234567890;
+test("G1-3 (C2): file di grup tidak diproses dan tidak diunduh; dijawab satu kalimat", async () => {
+  const unduhSebelum = diunduh.length;
+  const kiriman = nilai("select count(*) from fakta.kiriman_file");
+  const r = await kirimUpdate(JSON.stringify({
+    update_id: 9701,
+    message: { message_id: 9701, date: 1771635600, chat: { id: grup, type: "supergroup" }, from: { id: HRD },
+               document: { file_id: "F_MA2", file_name: "di_grup.csv", file_size: BERKAS.F_MA2.length }, caption: "MA2" },
+  }));
+  assert.deepEqual(r.pesan.map((p) => [p.chat_id, p.text]), [[grup, PESAN_HANYA_PRIBADI]]);
+  assert.equal(diunduh.length, unduhSebelum);
+  assert.equal(nilai("select count(*) from fakta.kiriman_file"), kiriman);
+});
+
+test("G1-3 (C2): /unggah di grup tidak membuat tautan", async () => {
+  const tautan = nilai("select count(*) from fakta.tautan_unggah");
+  const r = await kirimUpdate(JSON.stringify({
+    update_id: 9702, message: { message_id: 9702, chat: { id: grup, type: "group" }, from: { id: HRD }, text: "/unggah" },
+  }));
+  assert.deepEqual(r.pesan.map((p) => [p.chat_id, p.text]), [[grup, PESAN_HANYA_PRIBADI]]);
+  assert.equal(nilai("select count(*) from fakta.tautan_unggah"), tautan);
+});
+
+test("G1-3 (C2): tombol di grup dan chat yang bukan milik pengirim tidak diproses", async () => {
+  const kiriman = nilai("select count(*) from fakta.kiriman_file");
+  const r = await kirimUpdate(JSON.stringify({
+    update_id: 9703, callback_query: { id: "cb9703", data: "m|6|MA2", from: { id: HRD }, message: { chat: { id: grup, type: "group" } } },
+  }));
+  assert.deepEqual(r.pesan.map((p) => p.text), [PESAN_HANYA_PRIBADI]);
+  const r2 = await kirimUpdate(JSON.stringify({
+    update_id: 9704, message: { message_id: 9704, chat: { id: PEMBANGUN, type: "private" }, from: { id: HRD }, text: "/unggah" },
+  }));
+  assert.deepEqual(r2.pesan.map((p) => p.text), [PESAN_HANYA_PRIBADI]);
+  assert.equal(nilai("select count(*) from fakta.kiriman_file"), kiriman);
 });
 
 test("T3: update_id yang sama diabaikan tanpa balasan", async () => {
@@ -226,6 +307,18 @@ test("T7: tanpa kode mesin -> tombol pilihan; tombol ditekan -> diproses; tekan 
   const r3 = await kirimUpdate(tekan(8));
   assert.match(r3.pesan[0].text, /sudah diproses sebelumnya/);
   assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'A_p1_MA2.csv'"), "1");
+});
+
+test("G1-3: tombol pilihan mesin milik HRD ditekan akun lain (pembangun) -> file tidak diproses", async () => {
+  const r = await kirimUpdate(dokumen(9705, HRD, "F_TEKS", "tunda_hrd.txt"));
+  assert.match(r.pesan[0].text, /dari mesin mana/);
+  const r2 = await kirimUpdate(JSON.stringify({
+    update_id: 9706, callback_query: { id: "cb9706", data: "m|9705|MA1", from: { id: PEMBANGUN },
+                                       message: { chat: { id: PEMBANGUN, type: "private" } } },
+  }));
+  assert.match(r2.pesan[0].text, /sudah diproses sebelumnya/);
+  assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'tunda_hrd.txt'"), "0");
+  assert.equal(nilai("select count(*) from fakta.file_tertunda where update_id = 9705"), "1");
 });
 
 test("akun pembangun boleh mengirim file seperti HRD (keputusan pemilik)", async () => {
@@ -372,8 +465,44 @@ test("W6, W9: file sah lewat web (tautan yang sama) diterima, dihitung, status t
   assert.equal(s.isi.selesai, true);
   assert.ok(s.isi.periode.length >= 1 && s.isi.periode.every((p: any) => p.status === "selesai" && p.hasil.orang > 0));
   assert.ok(r.pesan.some((p) => p.chat_id === HRD && /diunggah lewat web \(mesin MA1\)/.test(p.text)));
-  assert.ok(r.pesan.some((p) => p.chat_id === HRD && /^Periode .*gaji bersih Rp/.test(p.text)));
+  assert.ok(r.pesan.some((p) => p.chat_id === HRD && /^Periode .*gaji bersih Rp.*\(tidak termasuk 3 orang rahasia\)/.test(p.text)));
   assert.equal(belumTerkirim(), "0");
+  // G1-3: halaman unggah memakai kalimat yang sama dengan bot.
+  for (const p of s.isi.periode) {
+    assert.ok(r.pesan.some((x) => x.text === `Periode ${p.awal} s.d. ${p.akhir}: ${p.ringkasan}`), p.ringkasan);
+  }
+  kirimanW6 = r.isi.kiriman_id;
+});
+
+let kirimanW6 = 0;
+test("G1-3 (C1): orang yang dijadikan rahasia SESUDAH file diproses ikut disembunyikan di halaman unggah", async () => {
+  const sebelum = (await webStatus(alat, KODE, kirimanW6)).isi.periode;
+  const p2 = sebelum.find((p: any) => p.awal === "2026-02-21");
+  const gaji = gajiPeriode("2026-02-21");
+  const target = "10001";
+  assert.ok(!RAHASIA_CSV.has(target) && gaji.has(target));
+  psql(`update induk.karyawan_riwayat set berlaku_sampai = current_date where id_karyawan = '${target}' and berlaku_sampai is null;
+        insert into induk.karyawan_riwayat (id_karyawan, berlaku_dari, divisi, jabatan, tipe_upah, gaji_pokok, tunjangan_tetap,
+          ptkp, cara_bayar, rekening_terenkripsi, wajib_tap, gaji_rahasia, bpjs_kesehatan, bpjs_ketenagakerjaan)
+        select id_karyawan, current_date, divisi, jabatan, tipe_upah, gaji_pokok, tunjangan_tetap, ptkp, cara_bayar,
+               rekening_terenkripsi, wajib_tap, true, bpjs_kesehatan, bpjs_ketenagakerjaan
+        from induk.karyawan_riwayat where id_karyawan = '${target}' and berlaku_sampai = current_date;`);
+  const sesudah = (await webStatus(alat, KODE, kirimanW6)).isi.periode.find((p: any) => p.awal === "2026-02-21");
+  assert.equal(p2.hasil.bersih - sesudah.hasil.bersih, gaji.get(target), "gaji orang itu harus keluar dari total");
+  assert.equal(p2.hasil.orang - sesudah.hasil.orang, 1);
+  assert.equal(sesudah.hasil.rahasia, p2.hasil.rahasia + 1);
+  assert.match(sesudah.ringkasan, /tidak termasuk 4 orang rahasia/);
+  const terlihat = [...gaji].filter(([i]) => !RAHASIA_CSV.has(i) && i !== target).reduce((a, [, b]) => a + b, 0);
+  assert.equal(sesudah.hasil.bersih - terlihat, 0);
+});
+
+test("G1-3 (C1b): baris antrean lama yang menyimpan rupiah tampil tanpa angka", async () => {
+  const a = nilai(`select id from fakta.antrean_kerja where kiriman_id = ${kirimanW6} order by id limit 1`);
+  psql(`update fakta.antrean_kerja set hasil = '{"orang": 1010, "bersih": 123456789, "bisa_diajukan": false, "segera": 0}' where id = ${a}`);
+  const s = await webStatus(alat, KODE, kirimanW6);
+  const teks = JSON.stringify(s.isi);
+  assert.ok(!teks.includes("123456789") && !teks.includes(`"orang":1010`), teks);
+  assert.ok(s.isi.periode.some((p: any) => p.hasil.angka_dihapus && /^angka gaji tidak ditampilkan\./.test(p.ringkasan)));
 });
 
 test("cadangan: Telegram gagal total -> file web tetap diterima dan dihitung", async () => {

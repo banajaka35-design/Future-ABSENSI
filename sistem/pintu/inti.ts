@@ -43,6 +43,25 @@ export function apiBoleh(nama: string): boolean {
 const rp = (n: number) => "Rp" + Number(n).toLocaleString("id-ID");
 const angka = (n: number) => Number(n).toLocaleString("id-ID");
 
+// Paket G1-3 (T1, F15b/F15c): kalimat hasil hitung satu periode, dipakai bot dan halaman unggah. Angka dari database
+// sudah tanpa orang rahasia (hitung.ringkasan_terlihat); baris lama tanpa angka ditulis apa adanya.
+export function teksHasil(x: any): string {
+  const dasar = x?.angka_dihapus || x?.bersih === undefined || x?.bersih === null
+    ? "angka gaji tidak ditampilkan"
+    : `${angka(x.orang)} orang, gaji bersih ${rp(x.bersih)}` +
+      (Number(x.rahasia) > 0 ? ` (tidak termasuk ${angka(x.rahasia)} orang rahasia)` : "");
+  return dasar + "." + (x?.bisa_diajukan ? " Bisa diajukan." : " Belum bisa diajukan.") +
+    (Number(x?.segera) > 0 ? ` ${angka(x.segera)} pemberitahuan penting perlu diperiksa.` : "");
+}
+
+// Paket G1-3 (C2): bot hanya melayani chat pribadi. Izin diperiksa dari pengirim, tetapi balasan (tautan unggah,
+// angka gaji, pemberitahuan) dikirim ke chat asal; di grup semua anggota ikut membacanya.
+export const PESAN_HANYA_PRIBADI = "Bot ini hanya melayani chat pribadi. Kirim file atau /unggah lewat chat pribadi dengan bot.";
+function chatPribadi(chat: any, dari: any): boolean {
+  return chat?.id !== undefined && chat?.id !== null && chat.id === dari?.id &&
+    (chat.type === undefined || chat.type === "private");
+}
+
 function tanggalWib(detikUnix: number): string {
   return new Date((detikUnix + 7 * 3600) * 1000).toISOString().slice(0, 10);
 }
@@ -102,6 +121,18 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
 
   const pesan = update.message;
   const tombol = update.callback_query;
+  if (pesan && !chatPribadi(pesan.chat, pesan.from)) {
+    const info = await alat.api("pintu_pesan", { update_id: updateId, telegram_id: pesan.from?.id, jenis: "lain" });
+    if (info.baru && pesan.chat?.id !== undefined) await kirim(alat, pesan.chat.id, PESAN_HANYA_PRIBADI);
+    return null;
+  }
+  if (tombol && !chatPribadi(tombol.message?.chat, tombol.from)) {
+    const info = await alat.api("pintu_pesan", { update_id: updateId, telegram_id: tombol.from?.id, jenis: "lain" });
+    await alat.telegram("answerCallbackQuery", { callback_query_id: tombol.id });
+    if (info.baru && tombol.message?.chat?.id !== undefined) await kirim(alat, tombol.message.chat.id, PESAN_HANYA_PRIBADI);
+    return null;
+  }
+
   if (pesan?.document) {
     const chat = pesan.chat.id;
     const tg = pesan.from?.id;
@@ -278,14 +309,7 @@ async function kerjakanSemua(alat: Alat, chat: number | null, mulai: number): Pr
       await kirimAman(alat, chat, `Periode ${p.awal} s.d. ${p.akhir} gagal dihitung: ${r.hasil.galat}`);
     } else {
       berhasil++;
-      const x = r.hasil;
-      await kirimAman(
-        alat,
-        chat,
-        `Periode ${p.awal} s.d. ${p.akhir}: ${angka(x.orang)} orang, gaji bersih ${rp(x.bersih)}. ` +
-          (x.bisa_diajukan ? "Bisa diajukan." : "Belum bisa diajukan.") +
-          (x.segera > 0 ? ` ${angka(x.segera)} pemberitahuan penting perlu diperiksa.` : ""),
-      );
+      await kirimAman(alat, chat, `Periode ${p.awal} s.d. ${p.akhir}: ${teksHasil(r.hasil)}`);
     }
     await kirimPemberitahuan(alat, chat); // sesudah setiap periode, bukan menunggu seluruh antrean (U14)
     if (r.sisa === 0) return berhasil;
@@ -554,6 +578,7 @@ export async function webStatus(alat: Alat, kode: string, kirimanId: number): Pr
   const r = await alat.api("pintu_status_kiriman", { kode_sidik: await sidikTeks(kode), kiriman_id: kirimanId });
   if (r.tautan === false) return { status: 401, isi: { alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
   if (!r.kiriman) return { status: 404, isi: { alasan: "Kiriman tidak ditemukan." }, latar: null };
+  for (const p of r.periode ?? []) if (p.hasil && !p.galat) p.ringkasan = teksHasil(p.hasil); // kalimat sama dengan bot
   return { status: 200, isi: r, latar: null };
 }
 
