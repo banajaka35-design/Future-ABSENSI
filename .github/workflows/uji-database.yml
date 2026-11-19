@@ -38,6 +38,8 @@ jobs:
         run: node --test sistem/urai/uji_urai.ts
       - name: Uji pemeriksa pemicu Pasang/Reset (paket H1)
         run: sistem/uji/uji_pemicu.sh
+      - name: Uji kunci cadangan (paket E1)
+        run: sistem/uji/uji_cadangan.sh
       - name: Uji penghitung ukuran grafik halaman demo (paket G1)
         run: node --test sistem/uji/uji_grafik.ts
       - name: Jalankan semua migrasi dari nol lalu semua uji

@@ -52,8 +52,12 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Cadangan dulu
+      # Paket E1 (docs/rencana-e1.md): cadangan hanya diunggah terenkripsi; kunci kosong -> berhenti sebelum Supabase diubah.
+      - name: Cadangan dulu (terenkripsi)
+        env:
+          CADANGAN_KUNCI: ${{ secrets.CADANGAN_KUNCI }}
         run: |
+          db/kunci_cadangan.sh periksa
           mkdir -p cadangan
           FILE="cadangan/sebelum-reset-$(date -u +%Y%m%d-%H%M%S).dump"
           db/pasang_supabase.sh cadangan "$FILE"
@@ -61,8 +65,9 @@ jobs:
             echo "GAGAL: cadangan tidak terbentuk; reset tidak dilanjutkan." >&2
             exit 1
           fi
+          db/kunci_cadangan.sh kunci "$FILE"
 
-      - name: Simpan cadangan (30 hari)
+      - name: Simpan cadangan terenkripsi (30 hari)
         uses: actions/upload-artifact@v4
         with:
           name: cadangan-sebelum-reset-${{ github.run_number }}

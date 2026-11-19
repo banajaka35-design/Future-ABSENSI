@@ -55,8 +55,12 @@ jobs:
           sudo apt-get install -y -q postgresql-client-17
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
-      - name: Cadangan
+      # Paket E1 (docs/rencana-e1.md): hanya file terenkripsi yang diunggah; kunci kosong -> GAGAL sebelum mengunggah.
+      - name: Cadangan (terenkripsi)
+        env:
+          CADANGAN_KUNCI: ${{ secrets.CADANGAN_KUNCI }}
         run: |
+          db/kunci_cadangan.sh periksa
           mkdir -p cadangan
           FILE="cadangan/malam-$(date -u +%Y%m%d-%H%M%S).dump"
           db/pasang_supabase.sh cadangan "$FILE"
@@ -64,9 +68,10 @@ jobs:
             echo "GAGAL: file cadangan tidak terbentuk (Supabase tidak berisi skema proyek?)." >&2
             exit 1
           fi
-          echo "FILE_CADANGAN=$FILE" >> "$GITHUB_ENV"
+          db/kunci_cadangan.sh kunci "$FILE"
+          echo "FILE_CADANGAN=$FILE.gpg" >> "$GITHUB_ENV"
 
-      - name: Simpan cadangan (14 hari)
+      - name: Simpan cadangan terenkripsi (14 hari)
         uses: actions/upload-artifact@v4
         with:
           name: cadangan-malam-${{ github.run_number }}
@@ -74,13 +79,21 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      - name: Uji pemulihan ke Postgres 17 kosong
+      # Memakai file terenkripsi yang diunggah: buka kunci lalu pulihkan (bukti cadangan bisa dibuka dan dipulihkan).
+      - name: Uji pemulihan dari cadangan terenkripsi ke Postgres 17 kosong
         env:
           SUMBER_URL: ${{ secrets.SUPABASE_DB_URL }}
           TUJUAN_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        run: db/uji_pemulihan.sh "$FILE_CADANGAN"
+          CADANGAN_KUNCI: ${{ secrets.CADANGAN_KUNCI }}
+        run: |
+          BUKA="$RUNNER_TEMP/pulih.dump"
+          db/kunci_cadangan.sh buka "$FILE_CADANGAN" "$BUKA"
+          db/uji_pemulihan.sh "$BUKA"
+          rm -f "$BUKA"
 
+      # Tetap jalan walau langkah cadangan gagal: proyek gratis tidak boleh dijeda (gerbang "demo hidup").
       - name: Sentuhan lewat jalur API Supabase
+        if: ${{ !cancelled() }}
         env:
           KUNCI: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
@@ -104,6 +117,7 @@ jobs:
           echo "Kunci publik diterima; proyek hidup."
 
       - name: Uji akses tanpa login (database dan internet)
+        if: ${{ !cancelled() }}
         env:
           KUNCI: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: db/uji_akses_supabase.sh
