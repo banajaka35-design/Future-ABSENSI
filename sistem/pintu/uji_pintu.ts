@@ -716,3 +716,85 @@ test("6f (E8b): 100 kode semua email dalam 24 jam -> email lain pun tidak dikiri
   assert.deepEqual(r, await webMintaKode(alatHitung, "tidak.terdaftar@contoh.id"));
   psql("delete from fakta.kode_email where email like 'banjir%@contoh.id'");
 });
+
+// ---------------------------------------------------------------------------
+// Paket 8a: pendaftaran karyawan lewat bot (docs/rencana-8a.md; PRD v2 celah K1, K8)
+// ---------------------------------------------------------------------------
+
+const teksPribadi = (u: number, dari: number, text: string) =>
+  JSON.stringify({ update_id: u, message: { message_id: u, chat: { id: dari, type: "private" }, from: { id: dari }, text } });
+const KARYAWAN_BARU = 7001;
+let kodeDaftar = "";
+let kodeIdDaftar = 0;
+
+test("8a: HRD /kode 10001 -> kode 10 huruf, nama dan divisi, tanpa angka gaji; database hanya menyimpan sidik", async () => {
+  const r = await kirimUpdate(teksPribadi(9801, HRD, "/kode 10001"));
+  assert.equal(r.pesan.length, 1);
+  const m = /^Kode daftar untuk 10001 Eka Susanto \((.+)\): ([A-HJKMNP-Z2-9]{10})\n/.exec(r.pesan[0].text);
+  assert.ok(m, r.pesan[0].text);
+  kodeDaftar = m[2];
+  assert.ok(!/Rp/.test(r.pesan[0].text));
+  assert.equal(nilai(`select count(*) from fakta.kode_daftar where sidik = '${sha256(kodeDaftar)}'`), "1");
+  assert.equal(nilai(`select count(*) from fakta.kode_daftar where sidik = '${kodeDaftar}'`), "0");
+});
+
+test("8a: /kode tanpa ID, ID tak ada, dan dari akun bukan HRD", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9802, HRD, "/kode"))).pesan[0].text, /^Cara pakai: \/kode/);
+  assert.match((await kirimUpdate(teksPribadi(9803, HRD, "/kode 99999"))).pesan[0].text, /^ID 99999 tidak ditemukan/);
+  assert.match((await kirimUpdate(teksPribadi(9804, BUKAN, "/kode 10002"))).pesan[0].text, /hanya untuk HRD/);
+});
+
+test("8a (K8): /daftar kode (huruf kecil, tanda hubung) -> nama dan divisi + tombol Ya/Bukan", async () => {
+  const ketik = `${kodeDaftar.slice(0, 5).toLowerCase()}-${kodeDaftar.slice(5)}`;
+  const r = await kirimUpdate(teksPribadi(9805, KARYAWAN_BARU, `/daftar ${ketik}`));
+  assert.match(r.pesan[0].text, /^Kode cocok untuk:\nEka Susanto, divisi .+ \(ID 10001\)\.\nApakah ini Anda\?$/);
+  const tombol = r.pesan[0].reply_markup.inline_keyboard[0];
+  assert.deepEqual(tombol.map((t: any) => t.text), ["Ya, ini saya", "Bukan"]);
+  kodeIdDaftar = Number(/^d\|y\|(\d+)$/.exec(tombol[0].callback_data)![1]);
+  assert.equal(nilai(`select count(*) from induk.pengguna where telegram_id = ${KARYAWAN_BARU}`), "0", "belum terdaftar sebelum Ya");
+});
+
+test("8a: tombol Ya -> terdaftar sebagai karyawan 10001; ditekan lagi -> tidak berlaku", async () => {
+  const tekan = (u: number) => JSON.stringify({ update_id: u, callback_query: { id: `cb${u}`, data: `d|y|${kodeIdDaftar}`,
+    from: { id: KARYAWAN_BARU }, message: { chat: { id: KARYAWAN_BARU, type: "private" } } } });
+  const r = await kirimUpdate(tekan(9806));
+  assert.match(r.pesan[0].text, /^Terdaftar: Eka Susanto \(ID 10001\)/);
+  assert.equal(nilai(`select peran || '/' || id_karyawan || '/' || aktif from induk.pengguna where telegram_id = ${KARYAWAN_BARU}`),
+               "karyawan/10001/true");
+  assert.match((await kirimUpdate(tekan(9807))).pesan[0].text, /tidak berlaku lagi/);
+});
+
+test("8a: akun karyawan tidak bisa /unggah, /kode, atau mengirim file; teks dijawab sebagai karyawan", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9808, KARYAWAN_BARU, "halo"))).pesan[0].text,
+               /^Akun ini terdaftar sebagai karyawan Eka Susanto\./);
+  const t = await kirimUpdate(teksPribadi(9809, KARYAWAN_BARU, "/unggah"));
+  assert.ok(!/unggah\/#kode=/.test(t.pesan[0].text) && /belum terdaftar untuk mengirim file/.test(t.pesan[0].text), t.pesan[0].text);
+  assert.match((await kirimUpdate(teksPribadi(9810, KARYAWAN_BARU, "/kode 10002"))).pesan[0].text, /hanya untuk HRD/);
+  const unduh = diunduh.length;
+  const f = await kirimUpdate(dokumen(9811, KARYAWAN_BARU, "F_MA2", "dari_karyawan.csv", "MA2"));
+  assert.match(f.pesan[0].text, /belum terdaftar untuk mengirim file/);
+  assert.equal(diunduh.length, unduh);
+});
+
+test("8a (K1): /kode untuk ID yang sudah punya akun ditolak tanpa 'ganti'; akun Telegram yang terdaftar tidak bisa /daftar", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9812, HRD, "/kode 10001"))).pesan[0].text, /sudah punya akun aktif.*\/kode 10001 ganti/);
+  assert.match((await kirimUpdate(teksPribadi(9813, HRD, "/daftar ABCDE23456"))).pesan[0].text, /sudah terdaftar/);
+});
+
+test("8a: kode salah ditolak (gerbang Tahap 8); 5 kali salah dalam 1 jam -> terkunci", async () => {
+  for (let i = 0; i < 5; i++) {
+    const r = await kirimUpdate(teksPribadi(9820 + i, 7002, "/daftar SALAH23456"));
+    assert.match(r.pesan[0].text, new RegExp(`^Kode tidak berlaku .*Sisa percobaan dalam 1 jam: ${4 - i}\\.$`));
+  }
+  assert.match((await kirimUpdate(teksPribadi(9825, 7002, "/daftar SALAH23456"))).pesan[0].text, /^Terlalu banyak kode salah/);
+  assert.equal(nilai("select count(*) from induk.pengguna where telegram_id = 7002"), "0");
+  assert.match((await kirimUpdate(teksPribadi(9826, 7003, "/daftar"))).pesan[0].text, /^Cara pakai: \/daftar KODE/);
+  assert.match((await kirimUpdate(teksPribadi(9827, 7003, "halo"))).pesan[0].text, /minta kode daftar ke HRD, lalu ketik \/daftar KODE/);
+});
+
+test("8a: /daftar di grup tidak diproses (aturan G1-3)", async () => {
+  const r = await kirimUpdate(JSON.stringify({ update_id: 9828, message: { message_id: 9828,
+    chat: { id: -100777, type: "group" }, from: { id: 7004 }, text: "/daftar ABCDE23456" } }));
+  assert.deepEqual(r.pesan.map((p) => p.text), [PESAN_HANYA_PRIBADI]);
+  assert.equal(nilai("select count(*) from fakta.percobaan_daftar where telegram_id = 7004"), "0");
+});

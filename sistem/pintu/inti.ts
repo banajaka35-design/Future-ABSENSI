@@ -35,6 +35,7 @@ const API_BOLEH = new Set([
   "pintu_pemberitahuan_ambil", "pintu_pengingat", "pintu_pemberitahuan_hasil",
   "pintu_buat_tautan", "pintu_periksa_tautan", "pintu_terima_web", "pintu_status_kiriman",
   "pintu_minta_kode_email", "pintu_tukar_kode_email", "pintu_kode_email_gagal", "pintu_catat_picu",
+  "pintu_buat_kode", "pintu_daftar", "pintu_daftar_jawab", "pintu_akun",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -170,6 +171,10 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     await alat.telegram("answerCallbackQuery", { callback_query_id: tombol.id });
     if (!info.baru) return null;
     const [jenis, asal, mesin] = String(tombol.data ?? "").split("|");
+    if (jenis === "d" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
+      await kirim(alat, chat, await jawabDaftar(alat, tg, Number(mesin), asal === "y"));
+      return null;
+    }
     if (jenis !== "m" || !asal || !mesin) return null;
     if (!info.hrd) {
       await kirim(alat, chat, "Akun Anda belum terdaftar untuk mengirim file.");
@@ -188,19 +193,35 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
   if (pesan?.text !== undefined) {
     const info = await alat.api("pintu_pesan", { update_id: updateId, telegram_id: pesan.from?.id, jenis: "teks" });
     if (!info.baru) return null;
-    if (/^\/unggah(@\w+)?\s*$/i.test(String(pesan.text).trim())) {
+    const teks = String(pesan.text).trim();
+    const kode = /^\/kode(?:@\w+)?(?:\s+(\S+))?(?:\s+(\S+))?\s*$/i.exec(teks);
+    if (kode) {
+      await kirim(alat, pesan.chat.id, await buatKodeDaftar(alat, pesan.from?.id, info.hrd, kode[1], kode[2]));
+      return null;
+    }
+    const daftar = /^\/daftar(?:@\w+)?(?:\s+(.*))?$/i.exec(teks);
+    if (daftar) {
+      const [isi, tambahan] = await mintaDaftar(alat, pesan.from?.id, daftar[1] ?? "");
+      await kirim(alat, pesan.chat.id, isi, tambahan);
+      return null;
+    }
+    if (/^\/unggah(@\w+)?\s*$/i.test(teks)) {
       await kirim(alat, pesan.chat.id, await buatTautan(alat, pesan.from?.id, info.hrd), {
         link_preview_options: { is_disabled: true },
       });
       return null;
     }
-    await kirim(
-      alat,
-      pesan.chat.id,
-      info.hrd
-        ? "Kirim file ekspor dari aplikasi mesin finger sebagai dokumen. Tulis kode mesin di keterangan bila perlu."
-        : "Akun Anda belum terdaftar untuk mengirim file.",
-    );
+    if (info.hrd) {
+      await kirim(alat, pesan.chat.id,
+        "Kirim file ekspor dari aplikasi mesin finger sebagai dokumen. Tulis kode mesin di keterangan bila perlu.");
+      return null;
+    }
+    const akun = await alat.api("pintu_akun", { telegram_id: pesan.from?.id });
+    await kirim(alat, pesan.chat.id, akun.peran === "karyawan" && akun.nama
+      ? `Akun ini terdaftar sebagai karyawan ${akun.nama}. Rincian gaji akan dikirim lewat chat ini setelah gaji dirilis.`
+      : akun.peran
+        ? "Akun Anda belum terdaftar untuk mengirim file."
+        : "Akun Anda belum terdaftar. Karyawan: minta kode daftar ke HRD, lalu ketik /daftar KODE di chat ini.");
   }
   return null;
 }
@@ -499,6 +520,95 @@ export async function tanganiPengingat(
 // ---------------------------------------------------------------------------
 
 // Perintah /unggah: kode acak, database menyimpan sidiknya saja, tautan berlaku 15 menit.
+// ---------------------------------------------------------------------------
+// Pendaftaran karyawan (paket 8a, docs/rencana-8a.md; PRD v2 celah K1, K8)
+// ---------------------------------------------------------------------------
+
+export const HURUF_KODE_DAFTAR = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // tanpa O, 0, I, 1, L
+export const PANJANG_KODE_DAFTAR = 10;
+
+export function kodeDaftarAcak(): string {
+  const n = HURUF_KODE_DAFTAR.length;
+  const batas = 256 - (256 % n); // penolakan supaya setiap huruf sama peluangnya
+  let kode = "";
+  while (kode.length < PANJANG_KODE_DAFTAR) {
+    const b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    for (const x of b) if (x < batas && kode.length < PANJANG_KODE_DAFTAR) kode += HURUF_KODE_DAFTAR[x % n];
+  }
+  return kode;
+}
+
+// Kode yang diketik karyawan: huruf besar, tanpa spasi atau tanda hubung.
+export const rapikanKodeDaftar = (t: string) => t.toUpperCase().replace(/[^0-9A-Z]/g, "");
+
+const jamWib = (iso: string) =>
+  new Date(new Date(iso).getTime() + 7 * 3600 * 1000).toISOString().slice(11, 16) + " WIB";
+
+async function buatKodeDaftar(alat: Alat, tg: number, hrd: boolean, id?: string, tambahan?: string): Promise<string> {
+  if (!hrd) return "Perintah /kode hanya untuk HRD.";
+  const ganti = String(tambahan ?? "").toLowerCase() === "ganti";
+  if (!id || !/^[0-9A-Za-z]+$/.test(id) || (tambahan !== undefined && !ganti)) {
+    return "Cara pakai: /kode <ID karyawan>, misalnya /kode 10001. Untuk ganti HP karyawan: /kode 10001 ganti.";
+  }
+  const kode = kodeDaftarAcak();
+  const r = await alat.api("pintu_buat_kode", { telegram_id: tg, id_karyawan: id, ganti, sidik: await sidikTeks(kode) });
+  const siapa = r.nama ? `${r.id} ${r.nama} (${r.divisi ?? "divisi tidak tercatat"})` : id;
+  switch (r.hasil) {
+    case "dibuat":
+      return `Kode daftar untuk ${siapa}: ${kode}\n` +
+        `Berlaku sampai ${jamWib(r.berlaku_sampai)} (60 menit), sekali pakai. Berikan langsung ke karyawannya, jangan lewat grup. ` +
+        `Karyawan mengetik /daftar ${kode} di chat pribadi dengan bot.` +
+        (r.ganti ? " Akun lama orang ini dinonaktifkan setelah akun baru selesai mendaftar." : "");
+    case "sudah_punya_akun":
+      return `${siapa} sudah punya akun aktif. Untuk ganti HP, ketik /kode ${r.id} ganti.`;
+    case "berhenti":
+      return `${siapa} sudah berhenti bekerja; kode tidak dibuat.`;
+    case "tidak_ada":
+      return `ID ${id} tidak ditemukan.`;
+    default:
+      return "Perintah /kode hanya untuk HRD.";
+  }
+}
+
+async function mintaDaftar(alat: Alat, tg: number, ketik: string): Promise<[string, Record<string, unknown>]> {
+  const kode = rapikanKodeDaftar(ketik);
+  if (!kode) return ["Cara pakai: /daftar KODE (kode 10 huruf/angka dari HRD).", {}];
+  const r = await alat.api("pintu_daftar", { telegram_id: tg, sidik: await sidikTeks(kode) });
+  switch (r.hasil) {
+    case "konfirmasi":
+      return [`Kode cocok untuk:\n${r.nama}, divisi ${r.divisi ?? "-"} (ID ${r.id}).\nApakah ini Anda?`, {
+        reply_markup: { inline_keyboard: [[
+          { text: "Ya, ini saya", callback_data: `d|y|${r.kode_id}` },
+          { text: "Bukan", callback_data: `d|n|${r.kode_id}` },
+        ]] },
+      }];
+    case "sudah_terdaftar":
+      return ["Akun Telegram ini sudah terdaftar. Bila perlu diubah, hubungi HRD.", {}];
+    case "terkunci":
+      return [`Terlalu banyak kode salah. Coba lagi setelah ${jamWib(r.sampai)}.`, {}];
+    default:
+      return [`Kode tidak berlaku (salah, sudah dipakai, atau lewat 60 menit). Minta kode baru ke HRD. ` +
+        `Sisa percobaan dalam 1 jam: ${angka(r.sisa ?? 0)}.`, {}];
+  }
+}
+
+async function jawabDaftar(alat: Alat, tg: number, kodeId: number, ya: boolean): Promise<string> {
+  const r = await alat.api("pintu_daftar_jawab", { telegram_id: tg, kode_id: kodeId, jawab: ya ? "ya" : "bukan" });
+  switch (r.hasil) {
+    case "terdaftar":
+      return `Terdaftar: ${r.nama} (ID ${r.id}). Rincian gaji akan dikirim lewat chat ini setelah gaji dirilis.`;
+    case "dibatalkan":
+      return "Kode dibatalkan. Minta kode baru ke HRD.";
+    case "sudah_terdaftar":
+      return "Akun Telegram ini sudah terdaftar. Bila perlu diubah, hubungi HRD.";
+    case "sudah_punya_akun":
+      return "ID ini sudah punya akun aktif. Untuk ganti HP, minta HRD membuat kode ganti.";
+    default:
+      return "Pilihan ini tidak berlaku lagi. Minta kode baru ke HRD bila perlu.";
+  }
+}
+
 async function buatTautan(alat: Alat, telegramId: number, hrd: boolean): Promise<string> {
   if (!hrd) return "Akun Anda belum terdaftar untuk mengirim file.";
   if (!alat.alamatUnggah) return "Unggah lewat web belum disiapkan.";
