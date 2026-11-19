@@ -141,6 +141,8 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | F16 | HRD mengirim "tambah libur tgl 27 Nov" setelah semua orang terbaca alpha | Hari itu menjadi libur; alpha batal setelah hitung ulang | PRD O5 |
 | F17 | Pengaturan "uang makan di luar sistem" | Komponen uang makan Rp0 di rincian gaji | PRD G1 |
 
+Catatan cakupan F15b dan F15c (paket G1-3, 19 Nov 2026; isi kasus tidak diubah): berlaku untuk **semua** tempat yang menampilkan total ke HRD, termasuk balasan bot Telegram sesudah file diproses dan halaman unggah web (`docs/laporan-g1-3.md`).
+
 ## Keputusan yang sudah ditutup (v1.1)
 
 1. **Tap tunggal di tengah shift:** diperlakukan seperti lupa tap pulang, ditandai ambigu, masuk rekap harian HRD (kasus B08).
