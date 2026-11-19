@@ -49,6 +49,11 @@ jobs:
           sudo apt-get install -y -q postgresql-client-17
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
+      # Paket D1 (docs/rencana-d1.md): halaman ini publik. Hanya terbit bila semua karyawan di Supabase adalah data
+      # simulasi; satu saja karyawan asli -> GAGAL, tidak ada yang dibuat atau diunggah, halaman lama tetap.
+      - name: Pengaman - hanya data simulasi yang boleh terbit
+        run: db/cek_hanya_simulasi.sh
+
       - name: Buat data halaman dari gudang
         run: |
           mulai=$(date +%s%N)

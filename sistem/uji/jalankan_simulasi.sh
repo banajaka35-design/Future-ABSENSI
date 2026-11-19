@@ -8,6 +8,7 @@
 #   U10 anomali gaji yang ditanam di salinan data uji tertangkap
 #   F15b uji kebocoran gaji rahasia Pabrik B (sistem/uji/uji_kebocoran.py)
 #   6a  rekap Sheets: isi ke Sheets tiruan, pemeriksa "isi Sheets sama dengan gudang" (sistem/uji/uji_sheets.py)
+#   D1  pengaman halaman demo publik: hanya data simulasi yang boleh terbit (db/cek_hanya_simulasi.sh)
 # Setiap uji memakai database baru. Pemakaian:
 #   ADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres sistem/uji/jalankan_simulasi.sh
 set -euo pipefail
@@ -208,6 +209,18 @@ echo "  Isi tanda: $(nilai "select string_agg(a.keterangan, ' | ') from hitung.a
   where tanggal_awal = '2026-04-01')) a join public.tanam_anomali t on t.jenis = a.jenis and (a.id_karyawan = t.kunci or a.divisi = t.kunci)")"
 if python3 sistem/uji/u2_pembanding.py > /dev/null; then cek "U10: sesudah ditanam, pembanding tetap sama dengan sistem" lulus lulus;
 else cek "U10: sesudah ditanam, pembanding tetap sama dengan sistem" gagal lulus; fi
+
+echo "== D1: pengaman halaman demo publik (db/cek_hanya_simulasi.sh; database simulasi Pabrik B)"
+cek_d1() { if db/cek_hanya_simulasi.sh > /dev/null 2>&1; then echo terbit; else echo ditolak; fi; }
+cek "D1: data simulasi -> boleh terbit" "$(cek_d1)" terbit
+nilai "insert into induk.karyawan (id, nama) values ('D1ASLI', 'Bukan Simulasi')" > /dev/null
+cek "D1: satu karyawan asing -> ditolak" "$(cek_d1)" ditolak
+nilai "delete from induk.karyawan where id = 'D1ASLI'" > /dev/null
+D1_ID="$(nilai "select min(id) from induk.karyawan")"
+nilai "update induk.karyawan set nama = nama || 'x' where id = '$D1_ID'" > /dev/null
+cek "D1: nama karyawan simulasi beda satu huruf -> ditolak" "$(cek_d1)" ditolak
+nilai "update induk.karyawan set nama = left(nama, -1) where id = '$D1_ID'" > /dev/null
+cek "D1: keadaan dikembalikan -> boleh terbit lagi" "$(cek_d1)" terbit
 
 for db in uji_sim_a uji_sim_tanpa_koreksi uji_sim_ekspor uji_sim_attlog uji_sim_b; do
   psql "$ADMIN_URL" -X -q -c "drop database if exists $db"
