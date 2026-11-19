@@ -51,6 +51,8 @@ const BERKAS: Record<string, Uint8Array> = {
   // Paket 6e: file MA1 periode 1 dengan satu baris dibuang (sidik berbeda, semua tap sudah ada di gudang).
   F_KURANG_1: kurangiBaris(fileSim("A_p1_MA1.csv"), 2),
   F_KURANG_2: kurangiBaris(fileSim("A_p1_MA1.csv"), 3),
+  // Paket 8b: file MA1 periode 1 lain lagi (sidik berbeda) untuk periode yang sudah dirilis.
+  F_KURANG_3: kurangiBaris(fileSim("A_p1_MA1.csv"), 4),
 };
 function kurangiBaris(isi: Uint8Array, ke: number): Uint8Array {
   const baris = new TextDecoder().decode(isi).split("\r\n");
@@ -797,4 +799,111 @@ test("8a: /daftar di grup tidak diproses (aturan G1-3)", async () => {
     chat: { id: -100777, type: "group" }, from: { id: 7004 }, text: "/daftar ABCDE23456" } }));
   assert.deepEqual(r.pesan.map((p) => p.text), [PESAN_HANYA_PRIBADI]);
   assert.equal(nilai("select count(*) from fakta.percobaan_daftar where telegram_id = 7004"), "0");
+});
+
+// ---------------------------------------------------------------------------
+// Paket 8b: rilis gaji dengan PIN (docs/rencana-8b.md; PRD v2 celah K5). Pengaturan demo Pabrik A: HRD lalu bos.
+// ---------------------------------------------------------------------------
+
+const BOS = 6001;
+const PIN_UJI = "530817";
+let periodeRilis = 0;
+const tekanTombol = (u: number, dari: number, data: string) => JSON.stringify({ update_id: u, callback_query: {
+  id: `cb${u}`, data, from: { id: dari }, message: { chat: { id: dari, type: "private" } } } });
+const dihapus = (awal: number) => terkirim.slice(awal).filter((t) => t.metode === "deleteMessage").map((t) => t.isi.message_id);
+
+test("8b (persiapan): isian pajak Januari karangan dimuat, periode 1 dihitung ulang dan bisa diajukan; akun bos", () => {
+  psql(`insert into induk.pengguna (telegram_id, peran) values (${BOS}, 'bos');`);
+  const r = spawnSync("psql", [DB, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", "db/data_awal/pajak_awal_tahun_simulasi.sql"], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  periodeRilis = Number(nilai("select id from fakta.periode where tanggal_awal = '2026-01-21'"));
+  psql(`select hitung.hitung_gaji(${periodeRilis});`);
+  assert.equal(nilai(`select status || '/' || hitung.periode_bisa_diajukan(id) from fakta.periode where id = ${periodeRilis}`), "dihitung/true");
+  assert.equal(nilai("select aturan.pengaturan_pada('persetujuan_rilis', null, current_date)"), "hrd_lalu_bos");
+});
+
+test("8b: /pin dari karyawan ditolak; /pin lemah ditolak; /pin dibuat; pesan berisi PIN dihapus; PIN tidak tersimpan", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9901, KARYAWAN_BARU, "/pin 482913"))).pesan[0].text, /hanya untuk HRD/);
+  const awal = terkirim.length;
+  assert.match((await kirimUpdate(teksPribadi(9902, HRD, "/pin 123456"))).pesan[0].text, /tidak boleh angka sama semua atau berurutan/);
+  const r = await kirimUpdate(teksPribadi(9903, HRD, `/pin ${PIN_UJI}`));
+  assert.match(r.pesan[0].text, /^PIN dibuat/);
+  assert.ok(!r.pesan.some((p) => p.text.includes(PIN_UJI)));
+  assert.deepEqual(dihapus(awal), [9902, 9903]);
+  assert.equal(nilai(`select pin_tersamar like '$2a$10$%' and position('${PIN_UJI}' in pin_tersamar) = 0
+                      from induk.pengguna where telegram_id = ${HRD}`), "t");
+  assert.match((await kirimUpdate(teksPribadi(9904, HRD, "/pin"))).pesan[0].text, /^Cara pakai: \/pin/);
+});
+
+let versiAjukan = 0;
+test("8b (K5): /ajukan -> ringkasan tanpa orang rahasia + tombol Ajukan/Batal; karyawan dan grup ditolak", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9905, KARYAWAN_BARU, "/ajukan"))).pesan[0].text, /hanya untuk HRD/);
+  const r = await kirimUpdate(teksPribadi(9906, HRD, "/ajukan"));
+  const m = r.pesan.find((p) => p.text.startsWith(`Periode no. ${periodeRilis}: 2026-01-21 s.d. 2026-02-20`));
+  assert.ok(m, JSON.stringify(r.pesan.map((p) => p.text)));
+  assert.match(m.text, /orang, gaji bersih Rp[\d.]+ \(tidak termasuk \d+ orang rahasia\)\.\nTransfer Rp[\d.]+, tunai Rp[\d.]+\.\nAjukan/);
+  const tombol = m.reply_markup.inline_keyboard[0];
+  assert.deepEqual(tombol.map((t: any) => t.text), ["Ajukan", "Batal"]);
+  versiAjukan = Number(tombol[0].callback_data.split("|")[3]);
+  const g = await kirimUpdate(JSON.stringify({ update_id: 9907, message: { message_id: 9907, chat: { id: -100555, type: "group" },
+    from: { id: HRD }, text: "/ajukan" } }));
+  assert.deepEqual(g.pesan.map((p) => p.text), [PESAN_HANYA_PRIBADI]);
+  assert.match((await kirimUpdate(tekanTombol(9908, HRD, `a|n|${periodeRilis}|${versiAjukan}`))).pesan[0].text, /Tidak jadi diajukan/);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periodeRilis}`), "dihitung");
+});
+
+test("8b: Ajukan -> bos menerima ringkasan + Setujui/Tolak; rilis sebelum disetujui ditolak", async () => {
+  const r = await kirimUpdate(tekanTombol(9909, HRD, `a|y|${periodeRilis}|${versiAjukan}`));
+  assert.match(r.pesan.find((p) => p.chat_id === HRD).text, /^Diajukan\.[\s\S]*Menunggu persetujuan bos\./);
+  const keBos = r.pesan.find((p) => p.chat_id === BOS);
+  assert.match(keBos.text, /^Pengajuan rilis gaji:\nPeriode no\./);
+  assert.deepEqual(keBos.reply_markup.inline_keyboard[0].map((t: any) => t.text), ["Setujui", "Tolak"]);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periodeRilis}`), "diajukan");
+  const awal = terkirim.length;
+  const x = await kirimUpdate(teksPribadi(9910, HRD, `/rilis ${periodeRilis} ${PIN_UJI}`));
+  assert.match(x.pesan[0].text, /belum disetujui bos/);
+  assert.deepEqual(dihapus(awal), [9910]);
+  const d = await kirimUpdate(teksPribadi(9911, HRD, "/rilis"));
+  assert.match(d.pesan.find((p) => p.text.startsWith(`Periode no. ${periodeRilis}`)).text, /Status: diajukan\. Menunggu persetujuan bos\./);
+  // tombol bos ditekan akun HRD -> ditolak
+  const sd = keBos.reply_markup.inline_keyboard[0][0].callback_data;
+  assert.match((await kirimUpdate(tekanTombol(9912, HRD, sd))).pesan[0].text, /hanya untuk akun bos/);
+  bosSetujui = sd;
+});
+let bosSetujui = "";
+
+test("8b: bos menyetujui -> HRD diberi tahu; PIN salah ditolak (pesan dihapus); PIN benar -> dirilis", async () => {
+  const r = await kirimUpdate(tekanTombol(9913, BOS, bosSetujui));
+  assert.match(r.pesan.find((p) => p.chat_id === BOS).text, /^Pengajuan disetujui\./);
+  assert.match(r.pesan.find((p) => p.chat_id === HRD).text, /^Bos menyetujui pengajuan rilis:[\s\S]*\/rilis \d+ <PIN>/);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periodeRilis}`), "disetujui");
+  const awal = terkirim.length;
+  assert.match((await kirimUpdate(teksPribadi(9914, HRD, `/rilis ${periodeRilis} 000001`))).pesan[0].text, /^PIN salah/);
+  const ok = await kirimUpdate(teksPribadi(9915, HRD, `/rilis ${periodeRilis} ${PIN_UJI}`));
+  assert.match(ok.pesan[0].text, /^Gaji DIRILIS\.\nPeriode no\./);
+  assert.deepEqual(dihapus(awal), [9914, 9915]);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periodeRilis}`), "dirilis");
+  assert.equal(nilai(`select string_agg(status_baru || '/' || oleh, ',' order by id) from fakta.riwayat_status_periode
+                      where periode_id = ${periodeRilis} and status_baru in ('diajukan', 'disetujui', 'dirilis')`),
+               `diajukan/pengguna ${nilai(`select id from induk.pengguna where telegram_id = ${HRD}`)},` +
+               `disetujui/pengguna ${nilai(`select id from induk.pengguna where telegram_id = ${BOS}`)},` +
+               `dirilis/pengguna ${nilai(`select id from induk.pengguna where telegram_id = ${HRD}`)}`);
+  // tombol bos ditekan lagi -> tidak berlaku
+  assert.match((await kirimUpdate(tekanTombol(9916, BOS, bosSetujui))).pesan[0].text, /tidak berlaku lagi/);
+});
+
+test("8b: file baru untuk periode yang sudah dirilis -> tap disimpan, periode tidak dihitung ulang, pemberitahuan segera", async () => {
+  const versi = nilai(`select count(*) from hitung.versi_hitung where periode_id = ${periodeRilis}`);
+  const r = await kirimUpdate(dokumen(9917, HRD, "F_KURANG_3", "A_p1_MA1_kurang3.csv", "MA1"));
+  assert.ok(r.pesan.some((p) => p.chat_id === HRD &&
+    p.text === "Periode 2026-01-21 s.d. 2026-02-20: sudah dirilis; tidak dihitung ulang. Tap baru tetap tersimpan."),
+    JSON.stringify(r.pesan.map((p) => p.text)));
+  assert.equal(nilai(`select count(*) from hitung.versi_hitung where periode_id = ${periodeRilis}`), versi);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periodeRilis}`), "dirilis");
+  for (const tg of [HRD, PEMBANGUN]) {
+    assert.ok(segera(r.pesan, tg).some((t) => /SUDAH DIRILIS[\s\S]*Periode 2026-01-21 s\.d\. 2026-02-20: file A_p1_MA1_kurang3\.csv/.test(t)), tg.toString());
+  }
+  // Hanya kejadian dari file ini (uji "Telegram gagal total" di atas sengaja meninggalkan pemberitahuan gagal).
+  assert.equal(nilai(`select count(*) from fakta.kejadian_segera() k where k.jenis = 'periode_dirilis_kena_file'
+                      and not exists (select 1 from fakta.pemberitahuan b where b.kunci = k.kunci and b.status = 'terkirim')`), "0");
 });

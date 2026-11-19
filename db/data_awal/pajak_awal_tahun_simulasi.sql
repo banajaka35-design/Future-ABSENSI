@@ -1,0 +1,45 @@
+-- Isian pajak awal tahun 2026 KARANGAN untuk demo (paket 8b, docs/rencana-8b.md). Bukan data asli dan bukan dari generator.
+-- Untuk 38 karyawan simulasi Pabrik A yang berhenti di periode 1-3 (dibayar Feb-Apr 2026): PPh masa terakhir mereka
+-- tertahan karena gaji Januari 2026 tidak ada di sistem (aturan L2, docs/aturan-hitung-gaji.md). Isian "sistem lama":
+-- sampai_bulan 1, bulan_kerja 1, bruto = gaji pokok + tunjangan tetap yang berlaku 15 Jan 2026, iuran 0, PPh 0.
+-- Periode Desember tetap tertahan (Mei-November tidak ada). Aman dijalankan berulang (baris yang ada tidak diubah).
+insert into induk.pajak_awal_tahun (id_karyawan, tahun, sampai_bulan, bulan_kerja, bruto, iuran, pph, catatan) values
+  ('10007', 2026, 1, 1, 4100000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10033', 2026, 1, 1, 4400000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10051', 2026, 1, 1, 4400000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10059', 2026, 1, 1, 4050000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10071', 2026, 1, 1, 3750000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10080', 2026, 1, 1, 4400000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10104', 2026, 1, 1, 4050000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10112', 2026, 1, 1, 4400000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10205', 2026, 1, 1, 3850000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10238', 2026, 1, 1, 4700000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10281', 2026, 1, 1, 3950000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10296', 2026, 1, 1, 3950000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10317', 2026, 1, 1, 4550000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10370', 2026, 1, 1, 4250000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10377', 2026, 1, 1, 4450000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10395', 2026, 1, 1, 4050000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10437', 2026, 1, 1, 4350000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10441', 2026, 1, 1, 4400000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10469', 2026, 1, 1, 4000000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10470', 2026, 1, 1, 4650000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10506', 2026, 1, 1, 4450000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10546', 2026, 1, 1, 3950000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10555', 2026, 1, 1, 4350000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10578', 2026, 1, 1, 4050000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10584', 2026, 1, 1, 3750000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10586', 2026, 1, 1, 4250000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10598', 2026, 1, 1, 3900000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10648', 2026, 1, 1, 4950000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10686', 2026, 1, 1, 4150000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10711', 2026, 1, 1, 4050000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10717', 2026, 1, 1, 4350000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10767', 2026, 1, 1, 3700000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10793', 2026, 1, 1, 4200000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10847', 2026, 1, 1, 3900000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10869', 2026, 1, 1, 3900000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10925', 2026, 1, 1, 6200000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10940', 2026, 1, 1, 5600000, 0, 0, 'karangan untuk demo (paket 8b)'),
+  ('10978', 2026, 1, 1, 7300000, 0, 0, 'karangan untuk demo (paket 8b)')
+on conflict (id_karyawan, tahun) do nothing;

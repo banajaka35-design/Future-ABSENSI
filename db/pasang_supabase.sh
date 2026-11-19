@@ -79,6 +79,13 @@ pasang() {
   echo "== Data aturan resmi (kalender, batas JP; aman dijalankan berulang)"
   "${PSQL[@]}" -o /dev/null -f db/data_awal/aturan_resmi.sql
 
+  echo "== Isian pajak awal tahun 2026 KARANGAN untuk demo (paket 8b; aman dijalankan berulang)"
+  local isian_sebelum isian_sesudah
+  isian_sebelum="$(nilai "select count(*) from induk.pajak_awal_tahun")"
+  "${PSQL[@]}" -o /dev/null -f db/data_awal/pajak_awal_tahun_simulasi.sql
+  isian_sesudah="$(nilai "select count(*) from induk.pajak_awal_tahun")"
+  echo "  isian: $isian_sebelum -> $isian_sesudah baris"
+
   echo "== Data simulasi Tahap 3 Pabrik A"
   muat_bila_kosong "periode uji" \
     '"${PSQL[@]}" -o /dev/null -f db/data_awal/pabrik_a_tahap3.sql' \
@@ -95,11 +102,12 @@ pasang() {
 
   echo "== Baca tap (periode yang belum punya hasil, atau hasil terakhirnya dari versi kode pembaca tap lama)"
   local p mulai daftar_baca
+  # Paket 8b: periode dirilis/dikunci tidak pernah dihitung ulang (dijaga juga oleh pemicu di database).
   daftar_baca="$(nilai "select p.id from fakta.periode p
-                        where not exists (select 1 from hitung.versi_hitung v where v.periode_id = p.id and v.jenis = 'baca_tap'
+                        where p.status not in ('dirilis', 'dikunci') and (not exists (select 1 from hitung.versi_hitung v where v.periode_id = p.id and v.jenis = 'baca_tap'
                                             and v.sidik_hasil is not null)
                            or exists (select 1 from hitung.versi_terakhir v where v.periode_id = p.id and v.jenis = 'baca_tap'
-                                        and v.versi_kode <> hitung.versi_kode_baca())
+                                        and v.versi_kode <> hitung.versi_kode_baca()))
                         order by p.id")"
   for p in $daftar_baca; do
     mulai=$(date +%s%N)
@@ -108,14 +116,18 @@ pasang() {
 $(nilai "select lama_ms from hitung.versi_hitung where periode_id = $p and jenis = 'baca_tap' order by nomor desc limit 1") ms di database"
   done
 
-  echo "== Hitung gaji (periode tanpa hasil gaji dari baca tap terakhir dan versi kode terbaru; urut tanggal)"
+  echo "== Hitung gaji (periode tanpa hasil gaji dari baca tap terakhir dan versi kode terbaru, atau tahun bayarnya mendapat"
+  echo "   isian pajak awal tahun baru; urut tanggal; periode dirilis/dikunci dilewati)"
   # Daftar diambil dulu ke variabel: galat di dalam "for ... in $(...)" tidak menghentikan skrip.
   local daftar_gaji
   daftar_gaji="$(nilai "select p.id from fakta.periode p
                         join hitung.versi_terakhir b on b.periode_id = p.id and b.jenis = 'baca_tap'
-                        where not exists (select 1 from hitung.versi_terakhir g
+                        where p.status not in ('dirilis', 'dikunci')
+                          and (not exists (select 1 from hitung.versi_terakhir g
                                           where g.periode_id = p.id and g.jenis = 'hitung_gaji' and g.versi_sumber = b.id
                                             and g.versi_kode = hitung.versi_kode_gaji())
+                               or $([ "$isian_sesudah" != "$isian_sebelum" ] && echo true || echo false)
+                                  and extract(year from p.tanggal_bayar) in (select tahun from induk.pajak_awal_tahun))
                         order by p.tanggal_awal")"
   for p in $daftar_gaji; do
     mulai=$(date +%s%N)

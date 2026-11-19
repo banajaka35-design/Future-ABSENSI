@@ -8,6 +8,7 @@
 #   U10 anomali gaji yang ditanam di salinan data uji tertangkap
 #   F15b uji kebocoran gaji rahasia Pabrik B (sistem/uji/uji_kebocoran.py)
 #   6a  rekap Sheets: isi ke Sheets tiruan, pemeriksa "isi Sheets sama dengan gudang" (sistem/uji/uji_sheets.py)
+#   8b  isian pajak awal tahun karangan: periode 1-3 bisa diajukan, pembanding tetap sama
 #   D1  pengaman halaman demo publik: hanya data simulasi yang boleh terbit (db/cek_hanya_simulasi.sh)
 # Setiap uji memakai database baru. Pemakaian:
 #   ADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres sistem/uji/jalankan_simulasi.sh
@@ -105,6 +106,18 @@ P1G="$(nilai "select min(id) from fakta.periode")"
 nilai "select hitung.hitung_gaji($P1G)" > /dev/null
 cek "dua kali hitung gaji menghasilkan sidik yang sama" \
   "$(nilai "select count(distinct sidik_hasil) from hitung.versi_hitung where periode_id = $P1G and jenis = 'hitung_gaji'")" 1
+
+echo "== 8b: isian pajak awal tahun karangan (db/data_awal/pajak_awal_tahun_simulasi.sql) membebaskan periode 1-3"
+cek "8b: sebelum isian, periode 1-3 tidak bisa diajukan" \
+  "$(nilai "select string_agg(hitung.periode_bisa_diajukan(id)::text, ',' order by tanggal_awal) from fakta.periode")" "false,false,false,false"
+psql "$DB_URL" -X -q -o /dev/null -v ON_ERROR_STOP=1 -f db/data_awal/pajak_awal_tahun_simulasi.sql
+for p in $(nilai "select id from fakta.periode order by tanggal_awal"); do nilai "select hitung.hitung_gaji($p)" > /dev/null; done
+cek "8b: sesudah isian Januari, periode 1-3 bisa diajukan; periode Desember tetap tertahan" \
+  "$(nilai "select string_agg(hitung.periode_bisa_diajukan(id)::text, ',' order by tanggal_awal) from fakta.periode")" "true,true,true,false"
+cek "8b: sesudah hitung, semua periode berstatus dihitung" \
+  "$(nilai "select string_agg(status, ',' order by tanggal_awal) from fakta.periode")" "dihitung,dihitung,dihitung,dihitung"
+if python3 sistem/uji/u2_pembanding.py > /dev/null; then cek "8b: dengan isian Januari, pembanding tetap sama dengan sistem sampai rupiah" lulus lulus;
+else cek "8b: dengan isian Januari, pembanding tetap sama dengan sistem sampai rupiah" gagal lulus; fi
 
 echo "== Sidik"
 P1="$(nilai "select min(id) from fakta.periode")"
