@@ -13,7 +13,7 @@ import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
-  TOMBOL_TETAP, susunPesanGaji, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  TOMBOL_TETAP, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -827,7 +827,8 @@ test("8b (persiapan): isian pajak Januari karangan dimuat, periode 1 dihitung ul
 });
 
 test("8b: /pin dari karyawan ditolak; /pin lemah ditolak; /pin dibuat; pesan berisi PIN dihapus; PIN tidak tersimpan", async () => {
-  assert.match((await kirimUpdate(teksPribadi(9901, KARYAWAN_BARU, "/pin 482913"))).pesan[0].text, /hanya untuk HRD/);
+  // Paket 8d: bos juga boleh punya PIN, jadi teks penolakan menyebut HRD, bos, dan pembangun.
+  assert.match((await kirimUpdate(teksPribadi(9901, KARYAWAN_BARU, "/pin 482913"))).pesan[0].text, /PIN hanya untuk akun HRD, bos, dan pembangun/);
   const awal = terkirim.length;
   assert.match((await kirimUpdate(teksPribadi(9902, HRD, "/pin 123456"))).pesan[0].text, /tidak boleh angka sama semua atau berurutan/);
   const r = await kirimUpdate(teksPribadi(9903, HRD, `/pin ${PIN_UJI}`));
@@ -1087,7 +1088,7 @@ test("8b-3: bos setuju -> HRD dapat tombol Rilis -> PIN salah lalu PIN benar (pe
 test("8b-3: 6 angka tanpa perintah yang menunggu -> dihapus; 'pin' tanpa garis miring dari karyawan -> dihapus dan ditolak", async () => {
   const awal = terkirim.length;
   assert.match((await kirimUpdate(teksPribadi(9961, HRD, "123123"))).pesan[0].text, /Tidak ada perintah yang sedang menunggu PIN/);
-  assert.match((await kirimUpdate(teksPribadi(9962, KARYAWAN_BARU, "pin 482913"))).pesan[0].text, /hanya untuk HRD/);
+  assert.match((await kirimUpdate(teksPribadi(9962, KARYAWAN_BARU, "pin 482913"))).pesan[0].text, /PIN hanya untuk akun HRD, bos, dan pembangun/);
   assert.deepEqual(dihapus(awal), [9961, 9962]);
 });
 
@@ -1327,4 +1328,59 @@ test("8c-2: pesan gaji menulis sisa pembulatan lalu bila ada; angka di pesan bis
   assert.ok(p.includes("Sisa pembulatan Rp663 dibawa ke periode berikutnya."));
   assert.equal(isi.bersih + isi.sisa_lalu - isi.dibayar - isi.sisa, 0);
   assert.ok(!susunPesanGaji(contohIsi())[0].includes("periode lalu"));
+});
+
+// ---------------------------------------------------------------------------
+// Paket 8d: total lengkap untuk bos dan pembangun (dengan PIN), orang rahasia wajib transfer.
+// ---------------------------------------------------------------------------
+
+test("8d: susun total lengkap: total, yang terlihat HRD, selisih = jumlah gaji orang rahasia, daftar orang rahasia", () => {
+  const [p] = susunTotalLengkap({ periode_id: 2, awal: "2026-02-21", akhir: "2026-03-20", bayar: "2026-03-25", status: "dikunci",
+    lengkap: { orang: 1010, bersih: 8216972265, dibayar: 8216958000, transfer: 7085500000, tunai: 1131458000 },
+    terlihat: { orang: 1007, bersih: 8191433902 },
+    daftar_rahasia: [{ id: "R1", nama: "Rahasia Satu", bersih: 25538363, dibayar: 25538363, cara_bayar: "transfer" }] });
+  for (const bagian of ["1.010 orang, gaji bersih Rp8.216.972.265", "Yang terlihat HRD: 1.007 orang, gaji bersih Rp8.191.433.902.",
+    "Selisih: 1 orang rahasia, gaji bersih Rp25.538.363.", "- Rahasia Satu (ID R1): bersih Rp25.538.363, dibayar Rp25.538.363 (transfer)"]) {
+    assert.ok(p.includes(bagian), bagian);
+  }
+});
+
+test("8d: HRD dan karyawan tidak bisa melihat total lengkap; bos tidak punya tombol HRD", async () => {
+  assert.match((await kirimUpdate(teksPribadi(10201, HRD, "/lengkap"))).pesan[0].text, /hanya untuk akun bos dan pembangun/);
+  assert.match((await kirimUpdate(teksPribadi(10202, KARYAWAN_BARU, `/lengkap ${periode3}`))).pesan[0].text, /hanya untuk akun bos dan pembangun/);
+  assert.deepEqual(TOMBOL_TETAP.bos, [["Total lengkap", "PIN"], ["Bantuan"]]);
+});
+
+test("8d: bos membuat PIN, tombol Total lengkap -> pilih periode -> PIN -> total lengkap (selisih = orang rahasia); tercatat", async () => {
+  assert.match((await kirimUpdate(teksPribadi(10203, BOS, "/pin 581374"))).pesan[0].text, /^PIN dibuat/);
+  const pilih = await kirimUpdate(teksPribadi(10204, BOS, "Total lengkap"));
+  const tombol = pilih.pesan[0].reply_markup.inline_keyboard.flat().map((t: any) => t.callback_data);
+  assert.ok(tombol.includes(`l|y|${periode3}`), JSON.stringify(tombol));
+  const minta = await kirimUpdate(tekanTombol(10205, BOS, `l|y|${periode3}`));
+  assert.match(minta.pesan[0].text, new RegExp(`^Ketik PIN 6 angka untuk melihat total lengkap periode no\\. ${periode3}\\.`));
+  const awal = terkirim.length;
+  const r = await kirimUpdate(teksPribadi(10206, BOS, "581374"));
+  assert.deepEqual(dihapus(awal), [10206]);
+  const teks = r.pesan.map((p) => p.text).join("\n");
+  assert.match(teks, /^TOTAL LENGKAP \(termasuk orang rahasia/);
+  const versi = nilai(`select versi_gaji from fakta.rilis_gaji where periode_id = ${periode3}`);
+  const rahasia = Number(nilai(`select count(*) from hitung.ringkasan_gaji g where g.versi_id = ${versi}
+                                and fakta.rahasia_di_periode(g.id_karyawan, ${periode3})`));
+  const selisih = nilai(`select coalesce(sum(g.gaji_bersih), 0) from hitung.ringkasan_gaji g where g.versi_id = ${versi}
+                         and fakta.rahasia_di_periode(g.id_karyawan, ${periode3})`);
+  assert.ok(rahasia > 0);
+  assert.ok(teks.includes(`Selisih: ${rahasia.toLocaleString("id-ID")} orang rahasia, gaji bersih Rp${Number(selisih).toLocaleString("id-ID")}.`), teks);
+  assert.equal(nilai(`select count(*) from fakta.lihat_rahasia l join induk.pengguna u on u.id = l.pengguna where u.telegram_id = ${BOS}`), "1");
+});
+
+test("8d: /lengkap <nomor> <PIN> salah -> ditolak; pembangun bisa; /bantuan bos memasang tombol Total lengkap", async () => {
+  assert.match((await kirimUpdate(teksPribadi(10207, BOS, `/lengkap ${periode3} 000001`))).pesan[0].text, /^PIN salah/);
+  assert.match((await kirimUpdate(teksPribadi(10208, PEMBANGUN, `/lengkap ${periode3} ${PIN_PEMBANGUN}`))).pesan[0].text, /^TOTAL LENGKAP/);
+  assert.deepEqual(papan((await kirimUpdate(teksPribadi(10209, BOS, "/bantuan"))).pesan[0]), TOMBOL_TETAP.bos);
+});
+
+test("8d (i): orang rahasia tidak bisa dicatat dibayar tunai", () => {
+  assert.throws(() => psql(`set app.pengguna = 'uji'; insert into induk.karyawan_riwayat (id_karyawan, berlaku_dari, divisi, gaji_pokok,
+    ptkp, cara_bayar, gaji_rahasia) select '10001', '2031-01-01', divisi, 1, 'TK/0', 'tunai', true from induk.karyawan_riwayat
+    where id_karyawan = '10001' limit 1;`), /rahasia_wajib_transfer/);
 });

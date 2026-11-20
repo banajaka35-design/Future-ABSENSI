@@ -165,10 +165,11 @@ reset role;
 select uji.sama('8b-3: 5 PIN salah -> terkunci', pg_temp.k('terkunci') ->> 'hasil', 'terkunci');
 select uji.sama('8b-3: hanya pembangun yang bisa melihat daftar dan menghapus PIN',
   pg_temp.k('daftar_pin_hrd') ->> 'hasil' || '/' || (pg_temp.k('hapus_hrd') ->> 'hasil'), 'bukan_pembangun/bukan_pembangun');
-select uji.sama('8b-3: daftar PIN berisi akun HRD dan pembangun aktif',
+select uji.sama('8b-3: daftar PIN berisi akun HRD, bos, dan pembangun aktif',
   (select string_agg((x ->> 'peran') || ':' || (x ->> 'punya_pin'), ',' order by (x ->> 'id')::bigint)
    from jsonb_array_elements(pg_temp.k('daftar_pin') -> 'akun') x),
-  'hrd:true,pembangun:false,hrd:false');
+  -- Paket 8d: akun bos ikut daftar (bos yang lupa PIN bisa ditolong pembangun).
+  'hrd:true,bos:false,pembangun:false,hrd:false');
 select uji.sama('8b-3: akun karyawan dan akun tanpa PIN tidak bisa dihapus PIN-nya',
   pg_temp.k('hapus_karyawan') ->> 'hasil' || '/' || (pg_temp.k('hapus_tanpa_pin') ->> 'hasil'), 'tidak_ada/belum_ada_pin');
 select uji.sama('8b-3: pembangun menghapus PIN; pemilik diberi tahu; PIN baru langsung bisa dipakai (hitungan salah mulai lagi)',
