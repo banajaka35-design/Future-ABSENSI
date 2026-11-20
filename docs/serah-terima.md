@@ -2,7 +2,7 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 19 November 2026 sore, cabang `main` (Tahap 6: 6a, 6a-2, 6a-3, 6a-4, 6e, 6f selesai; G1, H1, G1-2 selesai; **G1-3 selesai dan terpasang**, `docs/laporan-g1-3.md`; **D1 pengaman halaman demo publik selesai**, `docs/laporan-d1.md`; **E1 enkripsi cadangan selesai**, `docs/laporan-e1.md`; **Tahap 8: 8a selesai**, `docs/laporan-8a.md`; **8b terpasang, uji nyata belum**, `docs/laporan-8b.md`; berikutnya paket 8b-2 menunggu "buat").
+Terakhir diperbarui: 20 November 2026 pagi, cabang `main` (Tahap 6: 6a, 6a-2, 6a-3, 6a-4, 6e, 6f selesai; G1, H1, G1-2 selesai; **G1-3 selesai dan terpasang**, `docs/laporan-g1-3.md`; **D1 pengaman halaman demo publik selesai**, `docs/laporan-d1.md`; **E1 enkripsi cadangan selesai**, `docs/laporan-e1.md`; **Tahap 8: 8a selesai**, `docs/laporan-8a.md`; **8b terpasang**, `docs/laporan-8b.md`; **8b-2 terpasang 20 Nov 2026**, `docs/laporan-8b-2.md`; uji nyata 8b + 8b-2 berjalan).
 
 ## Aturan sebelum mengubah apa pun
 
@@ -19,7 +19,7 @@ Alasan aturan 2–4: pada 12 Nov 2026 pukul 21.14–21.16 WIB, migrasi 0001–00
 
 **KEPUTUSAN PEMILIK (19 Nov 2026 16.43 WIB): akun pembangun (akun pemilik) harus bisa melakukan semua yang bisa dilakukan akun lain**, supaya pemilik bisa langsung bertindak saat ada kendala. Pembatasan apa pun pada akun pembangun ditanyakan dulu ke pemilik, tidak dipasang sendiri. Untuk perusahaan sungguhan diputuskan ulang (tabel "Sebelum dipasang").
 
-**Langkah berikutnya: paket 8b-2** (usulan sudah ditulis di chat 19 Nov 2026, menunggu "buat"): migrasi 0027, pembangun boleh Setujui/Tolak seperti bos dengan PIN, tercatat "oleh pembangun", perintah `/setujui <nomor> <PIN>`, pembangun ikut menerima pesan pengajuan; uji; Pasang; uji nyata penuh oleh pemilik (`/pin` → `/ajukan` 21 Feb–20 Mar → `/setujui` → `/rilis`; periode itu lalu terkunci permanen di demo). Sesudah itu 8c (pesan rincian gaji ke karyawan), 8d (jalur bos/pembangun melihat gaji orang rahasia; tanyakan apakah termasuk "bisa semua"), 8e (keberatan, ikut atau ditunda).
+**8b-2 selesai dan terpasang 20 Nov 2026** (`docs/rencana-8b-2.md`, `docs/laporan-8b-2.md`, migrasi 0027, commit 49492f8; uji GitHub database 567, pintu 67; Pasang run 44660004407; sidik 0027 `dfeb1fd7075d` cocok di Supabase): `/setujui <nomor> <PIN>` dan `/tolak <nomor> <PIN>` untuk pembangun (keputusan pemilik A dan B, 20 Nov 2026). **Langkah berikutnya: uji nyata penuh oleh pemilik.** Usulan awal 8b-2 (19 Nov 2026): migrasi 0027, pembangun boleh Setujui/Tolak seperti bos dengan PIN, tercatat "oleh pembangun", perintah `/setujui <nomor> <PIN>`, pembangun ikut menerima pesan pengajuan; uji; Pasang; uji nyata penuh oleh pemilik (`/pin` → `/ajukan` 21 Feb–20 Mar → `/setujui` → `/rilis`; periode itu lalu terkunci permanen di demo). Sesudah itu 8c (pesan rincian gaji ke karyawan), 8d (jalur bos/pembangun melihat gaji orang rahasia; tanyakan apakah termasuk "bisa semua"), 8e (keberatan, ikut atau ditunda).
 
 Kalimat pembuka untuk chat baru:
 
