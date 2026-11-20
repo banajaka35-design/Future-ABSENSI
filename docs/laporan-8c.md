@@ -40,3 +40,8 @@
 - Uji nyata `/contohgaji 10001 2` (14.56 WIB): angka pesan sama dengan Supabase dan Sheets. Temuan: "Sisa pembulatan lalu" tidak ada di pesan (132 baris rilis bukan nol).
 - Migrasi 0030 + baris pesan "Sisa pembulatan periode lalu (ditambahkan)". Uji: database 629, pintu 93; bukti gagal: kolom dihapus → 2 uji 220 GAGAL. GitHub run 44699699796 lulus; Pasang run 44701633167 lulus (sidik 0030 `a4ae29a6326d` = repo).
 - Supabase: `sisa_lalu` di isi pesan sama dengan gudang untuk 2.021/2.021 baris rilis. Contoh 10735 periode 2: bersih 6.798.540 + sisa lalu 942 = dibayar 6.799.000 + sisa 482.
+
+## Gerbang Tahap 8 dan paket 8c-3 (20 Nov 2026)
+
+- Uji nyata 15.31 WIB: akun Telegram kedua pemilik → `/daftar` kode 10735 → Ya → "Terdaftar" + rincian periode 2 otomatis; `fakta.kirim_gaji` periode 2 = terkirim. Gerbang "pesan sampai ke akun uji" LULUS.
+- 8c-3 (`docs/rencana-8c-3.md`, commit 971b078): kalimat "Terdaftar" diganti bila rincian terakhir ada. Uji pintu 93 (2 pemeriksaan baru); bukti gagal: pengganti dimatikan → 1 uji GAGAL. GitHub run 44705045194 lulus (database 629, simulasi 128, pintu 93, penyambung 23); Pasang run 44706864223 lulus, tanpa migrasi (terakhir tetap 0030). Uji nyata 8c-3 butuh akun yang belum terdaftar.
