@@ -34,3 +34,9 @@
 - Uji nyata `/contohgaji` oleh pemilik.
 - Gerbang Tahap 8 "pesan sampai ke akun uji": butuh akun Telegram kedua sebagai karyawan.
 - Kecepatan kirim belum diukur (belum ada antrean nyata).
+
+## Paket 8c-2 (20 Nov 2026, `docs/rencana-8c-2.md`, commit de493fd)
+
+- Uji nyata `/contohgaji 10001 2` (14.56 WIB): angka pesan sama dengan Supabase dan Sheets. Temuan: "Sisa pembulatan lalu" tidak ada di pesan (132 baris rilis bukan nol).
+- Migrasi 0030 + baris pesan "Sisa pembulatan periode lalu (ditambahkan)". Uji: database 629, pintu 93; bukti gagal: kolom dihapus → 2 uji 220 GAGAL. GitHub run 44699699796 lulus; Pasang run 44701633167 lulus (sidik 0030 `a4ae29a6326d` = repo).
+- Supabase: `sisa_lalu` di isi pesan sama dengan gudang untuk 2.021/2.021 baris rilis. Contoh 10735 periode 2: bersih 6.798.540 + sisa lalu 942 = dibayar 6.799.000 + sisa 482.
