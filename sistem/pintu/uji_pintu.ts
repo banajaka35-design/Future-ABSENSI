@@ -1313,3 +1313,13 @@ test("8c: karyawan yang baru daftar sesudah rilis langsung menerima rincian gaji
 test("8c: tombol 'menu' dikenali sebagai /bantuan", async () => {
   assert.match((await kirimUpdate(teksPribadi(10113, HRD, "menu"))).pesan[0].text, /^Perintah HRD:/);
 });
+
+// Paket 8c-2: sisa pembulatan periode lalu ditulis bila bukan nol (bersih + sisa lalu = dibayar + sisa baru).
+test("8c-2: pesan gaji menulis sisa pembulatan lalu bila ada; angka di pesan bisa dicocokkan", () => {
+  const isi = { ...contohIsi(), bersih: 3847263, sisa_lalu: 400, dibayar: 3847000, sisa: 663 };
+  const p = susunPesanGaji(isi)[0];
+  assert.ok(p.includes("GAJI BERSIH: Rp3.847.263\nSisa pembulatan periode lalu (ditambahkan): Rp400\nDibayar tunai: Rp3.847.000"), p);
+  assert.ok(p.includes("Sisa pembulatan Rp663 dibawa ke periode berikutnya."));
+  assert.equal(isi.bersih + isi.sisa_lalu - isi.dibayar - isi.sisa, 0);
+  assert.ok(!susunPesanGaji(contohIsi())[0].includes("periode lalu"));
+});

@@ -1183,8 +1183,10 @@ export function susunPesanGaji(x: any, judul = "RINCIAN GAJI"): string[] {
   tulis(kelompok("pendapatan"));
   baris.push(`Total pendapatan: ${rupiah(x.pendapatan)}`, "", "Potongan:");
   tulis(kelompok("potongan"));
-  baris.push(`Total potongan: ${rupiah(x.potongan)}`, "", `GAJI BERSIH: ${rupiah(x.bersih)}`,
-    `Dibayar ${x.cara_bayar === "tunai" ? "tunai" : "lewat transfer"}: ${rupiah(x.dibayar)}`);
+  baris.push(`Total potongan: ${rupiah(x.potongan)}`, "", `GAJI BERSIH: ${rupiah(x.bersih)}`);
+  // Paket 8c-2: sisa pembulatan periode lalu ikut ditulis supaya bersih + sisa lalu = dibayar + sisa baru bisa dicocokkan.
+  if (Number(x.sisa_lalu ?? 0) !== 0) baris.push(`Sisa pembulatan periode lalu (ditambahkan): ${rupiah(x.sisa_lalu)}`);
+  baris.push(`Dibayar ${x.cara_bayar === "tunai" ? "tunai" : "lewat transfer"}: ${rupiah(x.dibayar)}`);
   if (Number(x.sisa) !== 0) baris.push(`Sisa pembulatan ${rupiah(x.sisa)} dibawa ke periode berikutnya.`);
   const perusahaan = kelompok("perusahaan");
   if (perusahaan.length) {
