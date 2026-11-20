@@ -907,3 +907,73 @@ test("8b: file baru untuk periode yang sudah dirilis -> tap disimpan, periode ti
   assert.equal(nilai(`select count(*) from fakta.kejadian_segera() k where k.jenis = 'periode_dirilis_kena_file'
                       and not exists (select 1 from fakta.pemberitahuan b where b.kunci = k.kunci and b.status = 'terkirim')`), "0");
 });
+
+// ---------------------------------------------------------------------------
+// Paket 8b-2: akun pembangun menyetujui atau menolak dengan PIN (docs/rencana-8b-2.md; keputusan pemilik 19 Nov 2026).
+// ---------------------------------------------------------------------------
+
+const PIN_PEMBANGUN = "640295";
+let periode2 = 0;
+const pembangunId = () => nilai(`select id from induk.pengguna where telegram_id = ${PEMBANGUN}`);
+async function ajukanLewatTombol(u: number, dari: number) {
+  const daftar = await kirimUpdate(teksPribadi(u, dari, "/ajukan"));
+  const m = daftar.pesan.find((p) => p.text.startsWith(`Periode no. ${periode2}:`));
+  assert.ok(m, JSON.stringify(daftar.pesan.map((p) => p.text)));
+  return kirimUpdate(tekanTombol(u + 1, dari, m.reply_markup.inline_keyboard[0][0].callback_data));
+}
+
+test("8b-2 (persiapan): periode 21 Feb-20 Mar dihitung dan bisa diajukan; pembangun membuat PIN", async () => {
+  periode2 = Number(nilai("select id from fakta.periode where tanggal_awal = '2026-02-21'"));
+  psql(`select hitung.hitung_gaji(${periode2});`);
+  assert.equal(nilai(`select status || '/' || hitung.periode_bisa_diajukan(id) from fakta.periode where id = ${periode2}`), "dihitung/true");
+  assert.match((await kirimUpdate(teksPribadi(9930, PEMBANGUN, `/pin ${PIN_PEMBANGUN}`))).pesan[0].text, /^PIN dibuat/);
+});
+
+test("8b-2: HRD mengajukan -> bos dapat tombol, pembangun dapat teks /setujui dan /tolak tanpa tombol", async () => {
+  const r = await ajukanLewatTombol(9931, HRD);
+  assert.match(r.pesan.find((p) => p.chat_id === HRD).text, /Menunggu persetujuan bos\.$/);
+  assert.ok(r.pesan.find((p) => p.chat_id === BOS).reply_markup);
+  const ke = r.pesan.filter((p) => p.chat_id === PEMBANGUN);
+  assert.equal(ke.length, 1);
+  assert.match(ke[0].text, new RegExp(`^Pengajuan rilis gaji:\\nPeriode no\\. ${periode2}:[\\s\\S]*\\/setujui ${periode2} <PIN>[\\s\\S]*\\/tolak ${periode2} <PIN>`));
+  assert.equal(ke[0].reply_markup, undefined);
+});
+
+test("8b-2: PIN salah dan cara pakai salah ditolak; bos diminta pakai tombol; HRD ditolak; pesan berisi PIN dihapus", async () => {
+  const awal = terkirim.length;
+  assert.match((await kirimUpdate(teksPribadi(9933, PEMBANGUN, `/setujui ${periode2} 000001`))).pesan[0].text, /^PIN salah/);
+  assert.match((await kirimUpdate(teksPribadi(9934, PEMBANGUN, `/setujui ${periode2}`))).pesan[0].text, /^Cara pakai: \/setujui/);
+  assert.match((await kirimUpdate(teksPribadi(9935, BOS, `/setujui ${periode2} ${PIN_PEMBANGUN}`))).pesan[0].text, /lewat tombol/);
+  assert.match((await kirimUpdate(teksPribadi(9936, HRD, `/tolak ${periode2} ${PIN_UJI}`))).pesan[0].text, /hanya untuk akun bos atau pembangun/);
+  assert.deepEqual(dihapus(awal), [9933, 9935, 9936]);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periode2}`), "diajukan");
+});
+
+test("8b-2: pembangun menolak dengan PIN -> kembali dihitung; HRD diberi tahu 'Pembangun menolak'", async () => {
+  const r = await kirimUpdate(teksPribadi(9937, PEMBANGUN, `/tolak ${periode2} ${PIN_PEMBANGUN}`));
+  assert.match(r.pesan.find((p) => p.chat_id === PEMBANGUN).text, /^Pengajuan ditolak \(kembali ke dihitung\)\./);
+  assert.match(r.pesan.find((p) => p.chat_id === HRD).text, /^Pembangun menolak pengajuan rilis:/);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periode2}`), "dihitung");
+});
+
+test("8b-2: pembangun mengajukan, menyetujui, dan merilis sendiri; tercatat 'oleh pembangun'", async () => {
+  const a = await ajukanLewatTombol(9938, PEMBANGUN);
+  const sendiri = a.pesan.filter((p) => p.chat_id === PEMBANGUN);
+  assert.equal(sendiri.length, 1, JSON.stringify(sendiri.map((p) => p.text)));
+  assert.match(sendiri[0].text, new RegExp(`^Diajukan\\.[\\s\\S]*Menunggu persetujuan bos\\.\\nSebagai pembangun: \\/setujui ${periode2} <PIN>`));
+  const d = await kirimUpdate(teksPribadi(9940, PEMBANGUN, "/rilis"));
+  assert.match(d.pesan.find((p) => p.text.startsWith(`Periode no. ${periode2}`)).text, /Menunggu persetujuan bos\.\nSebagai pembangun: \/setujui/);
+  const s = await kirimUpdate(teksPribadi(9941, PEMBANGUN, `/setujui ${periode2} ${PIN_PEMBANGUN}`));
+  assert.equal(s.pesan.length, 1);
+  assert.match(s.pesan[0].text, new RegExp(`^Pengajuan disetujui\\.[\\s\\S]*\\/rilis ${periode2} <PIN>\\.$`));
+  const rl = await kirimUpdate(teksPribadi(9942, PEMBANGUN, `/rilis ${periode2} ${PIN_PEMBANGUN}`));
+  assert.match(rl.pesan[0].text, /^Gaji DIRILIS\./);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periode2}`), "dirilis");
+  assert.equal(nilai(`select string_agg(r.status_baru || '/' || r.oleh || '/' || coalesce(r.alasan, '-'), ',' order by r.id)
+                      from fakta.riwayat_status_periode r where r.periode_id = ${periode2} and r.id > (select max(id) from
+                      fakta.riwayat_status_periode where periode_id = ${periode2} and alasan = 'ditolak pembangun')`),
+    `diajukan/pengguna ${pembangunId()}/diajukan lewat Telegram,disetujui/pengguna ${pembangunId()}/disetujui pembangun,` +
+    `dirilis/pengguna ${pembangunId()}/dirilis lewat Telegram dengan PIN`);
+  assert.equal(nilai(`select string_agg(keputusan || ':' || coalesce(catatan, '-'), ',' order by id) from fakta.persetujuan
+                      where perihal = 'rilis' and penyetuju = ${pembangunId()}`), "tolak:oleh pembangun,setuju:oleh pembangun");
+});
