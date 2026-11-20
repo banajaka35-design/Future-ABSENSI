@@ -37,6 +37,8 @@ const API_BOLEH = new Set([
   "pintu_minta_kode_email", "pintu_tukar_kode_email", "pintu_kode_email_gagal", "pintu_catat_picu",
   "pintu_buat_kode", "pintu_daftar", "pintu_daftar_jawab", "pintu_akun",
   "pintu_atur_pin", "pintu_daftar_periode", "pintu_ajukan", "pintu_setujui", "pintu_rilis",
+  "pintu_batal", "pintu_daftar_pin", "pintu_hapus_pin", "pintu_undang", "pintu_gabung", "pintu_minta_pin", "pintu_ambil_pin",
+  "pintu_pengingat_rilis",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -183,7 +185,15 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     const [, , , keempat] = String(tombol.data ?? "").split("|");
     if ((jenis === "a" || jenis === "s") && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "") && /^\d+$/.test(keempat ?? "")) {
       if (jenis === "a") await jawabAjukan(alat, chat, tg, Number(mesin), Number(keempat), asal === "y");
-      else await kirim(alat, chat, await putuskan(alat, tg, Number(mesin), Number(keempat), asal === "y"));
+      else await putuskan(alat, chat, tg, Number(mesin), Number(keempat), asal === "y");
+      return null;
+    }
+    if ((jenis === "r" || jenis === "p") && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
+      await mintaPin(alat, chat, tg, jenis === "r" ? "rilis" : asal === "y" ? "setujui" : "tolak", Number(mesin));
+      return null;
+    }
+    if (jenis === "h" && asal === "y" && /^\d+$/.test(mesin ?? "")) {
+      await hapusPin(alat, chat, tg, Number(mesin));
       return null;
     }
     if (jenis === "d" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
@@ -208,7 +218,17 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
   if (pesan?.text !== undefined) {
     const info = await alat.api("pintu_pesan", { update_id: updateId, telegram_id: pesan.from?.id, jenis: "teks" });
     if (!info.baru) return null;
-    const teks = String(pesan.text).trim();
+    const teks = rapikanPerintah(String(pesan.text).trim());
+    // Paket 8b-3: pesan 6 angka dianggap PIN untuk tombol/perintah yang sedang menunggu; pesannya selalu dihapus.
+    if (/^\d{6}$/.test(teks)) {
+      await hapusPesan(alat, pesan.chat.id, pesan.message_id);
+      await pakaiPin(alat, pesan.chat.id, pesan.from?.id, info.hrd, teks);
+      return null;
+    }
+    if (/^\/(?:bantuan|start)(?:@\w+)?\s*$/i.test(teks)) {
+      await bantuan(alat, pesan.chat.id, pesan.from?.id);
+      return null;
+    }
     const kode = /^\/kode(?:@\w+)?(?:\s+(\S+))?(?:\s+(\S+))?\s*$/i.exec(teks);
     if (kode) {
       await kirim(alat, pesan.chat.id, await buatKodeDaftar(alat, pesan.from?.id, info.hrd, kode[1], kode[2]));
@@ -228,15 +248,39 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     if (rilis) {
       if (rilis[2]) await hapusPesan(alat, pesan.chat.id, pesan.message_id);
       if (!rilis[1]) await daftarPeriode(alat, pesan.chat.id, pesan.from?.id, info.hrd, "rilis");
-      else await kirim(alat, pesan.chat.id, await rilisGaji(alat, pesan.from?.id, info.hrd, rilis[1], rilis[2]));
+      else if (!/^\d+$/.test(rilis[1])) {
+        await kirim(alat, pesan.chat.id, "Cara pakai: /rilis untuk melihat periode; /rilis <nomor periode> lalu ketik PIN.");
+      } else if (!rilis[2]) await mintaPin(alat, pesan.chat.id, pesan.from?.id, "rilis", Number(rilis[1]));
+      else await rilisGaji(alat, pesan.chat.id, pesan.from?.id, info.hrd, rilis[1], rilis[2]);
       return null;
     }
     const putus = /^\/(setujui|tolak)(?:@\w+)?(?:\s+(\S+))?(?:\s+(\S+))?\s*$/i.exec(teks);
     if (putus) {
       if (putus[3]) await hapusPesan(alat, pesan.chat.id, pesan.message_id);
-      await kirim(alat, pesan.chat.id, !/^\d+$/.test(putus[2] ?? "") || !putus[3]
-        ? "Cara pakai: /setujui <nomor periode> <PIN> atau /tolak <nomor periode> <PIN>. Nomor periode terlihat di /rilis."
-        : await putuskan(alat, pesan.from?.id, Number(putus[2]), null, putus[1].toLowerCase() === "setujui", putus[3]));
+      const setuju = putus[1].toLowerCase() === "setujui";
+      if (!/^\d+$/.test(putus[2] ?? "")) {
+        await kirim(alat, pesan.chat.id, "Cara pakai: /setujui <nomor periode> atau /tolak <nomor periode>, lalu ketik PIN. Nomor periode terlihat di /rilis.");
+      } else if (!putus[3]) await mintaPin(alat, pesan.chat.id, pesan.from?.id, setuju ? "setujui" : "tolak", Number(putus[2]));
+      else await putuskan(alat, pesan.chat.id, pesan.from?.id, Number(putus[2]), null, setuju, putus[3]);
+      return null;
+    }
+    const batal = /^\/batal(?:@\w+)?(?:\s+(\S+))?\s*$/i.exec(teks);
+    if (batal) {
+      await batalAjukan(alat, pesan.chat.id, pesan.from?.id, info.hrd, batal[1]);
+      return null;
+    }
+    if (/^\/hapuspin(?:@\w+)?\s*$/i.test(teks)) {
+      await daftarHapusPin(alat, pesan.chat.id, pesan.from?.id);
+      return null;
+    }
+    const undang = /^\/undang(?:@\w+)?(?:\s+(\S+))?\s*$/i.exec(teks);
+    if (undang) {
+      await undangAkun(alat, pesan.chat.id, pesan.from?.id, undang[1]);
+      return null;
+    }
+    const gab = /^\/gabung(?:@\w+)?(?:\s+(.*))?$/i.exec(teks);
+    if (gab) {
+      await gabung(alat, pesan.chat.id, pesan.from?.id, gab[1] ?? "");
       return null;
     }
     const daftar = /^\/daftar(?:@\w+)?(?:\s+(.*))?$/i.exec(teks);
@@ -556,9 +600,11 @@ export async function tanganiPengingat(
     await alat.api("pintu_pemberitahuan_hasil", { id: k.id, hasil });
     terkirim.push({ kepada: k.kepada, mesin: k.mesin, hasil });
   }
+  const pengingatRilis = await kirimPengingatRilis(alat, tanggal ? String(tanggal) : undefined);
   return {
     status: 200,
-    hasil: { tanggal: r.tanggal, tutup_buku: r.tutup_buku, hari_ke: r.hari_ke, terkirim, dilewati: r.dilewati ?? [] },
+    hasil: { tanggal: r.tanggal, tutup_buku: r.tutup_buku, hari_ke: r.hari_ke, terkirim, dilewati: r.dilewati ?? [],
+             pengingat_rilis: pengingatRilis },
   };
 }
 
@@ -568,10 +614,68 @@ export async function tanganiPengingat(
 
 // Perintah /unggah: kode acak, database menyimpan sidiknya saja, tautan berlaku 15 menit.
 // ---------------------------------------------------------------------------
-// Rilis gaji (paket 8b, docs/rencana-8b.md; PRD v2 celah K5): /pin, /ajukan, persetujuan bos, /rilis dengan PIN
+// Rilis gaji (paket 8b, docs/rencana-8b.md; PRD v2 celah K5): /pin, /ajukan, persetujuan bos, /rilis dengan PIN.
+// Paket 8b-2: pembangun menyetujui/menolak dengan PIN. Paket 8b-3 (docs/rencana-8b-3.md): urutan rilis, tombol yang
+// meminta PIN, /batal, /hapuspin, /undang, /gabung, menu perintah, kabar rilis, pengingat ke bos.
 // ---------------------------------------------------------------------------
 
 const BUKAN_HRD_RILIS = "Perintah ini hanya untuk HRD.";
+const BUKAN_PEMBANGUN = "Perintah ini hanya untuk akun pembangun.";
+
+// Menu perintah per peran (paket 8b-3). Dipasang saat Pasang (sistem/pintu/pasang_menu.ts) dan sesudah /gabung.
+type Perintah = { command: string; description: string };
+const P = (command: string, description: string): Perintah => ({ command, description });
+const MENU_HRD = [
+  P("unggah", "Tautan unggah file mesin lewat web"), P("kode", "Kode daftar karyawan: /kode <ID>"),
+  P("ajukan", "Ajukan rilis gaji"), P("rilis", "Lihat dan rilis gaji yang siap"), P("batal", "Batalkan pengajuan: /batal <nomor>"),
+  P("pin", "Buat atau ganti PIN"), P("bantuan", "Daftar perintah"),
+];
+export const MENU: Record<string, Perintah[]> = {
+  umum: [P("daftar", "Daftar karyawan dengan kode dari HRD"), P("gabung", "Gabung sebagai HRD/bos dengan kode undangan"),
+         P("bantuan", "Daftar perintah")],
+  karyawan: [P("bantuan", "Daftar perintah")],
+  hrd: MENU_HRD,
+  bos: [P("bantuan", "Daftar perintah")],
+  pembangun: [...MENU_HRD.slice(0, -1), P("setujui", "Setujui pengajuan: /setujui <nomor>"), P("tolak", "Tolak pengajuan: /tolak <nomor>"),
+              P("undang", "Undang akun: /undang hrd atau /undang bos"), P("hapuspin", "Hapus PIN akun yang lupa PIN"),
+              P("bantuan", "Daftar perintah")],
+};
+
+export async function pasangMenu(alat: Alat, chat: number, peran: string | null): Promise<void> {
+  try {
+    await alat.telegram("setMyCommands", { commands: MENU[peran ?? "umum"] ?? MENU.umum, scope: { type: "chat", chat_id: chat } });
+  } catch {
+    // menu hanya kemudahan; perintah tetap bisa diketik
+  }
+}
+
+const BANTUAN: Record<string, string> = {
+  hrd: "Perintah HRD:\n/unggah tautan unggah file\n/kode <ID> kode daftar karyawan\n/ajukan ajukan rilis gaji\n" +
+    "/rilis lihat gaji yang siap dirilis (tombol Rilis lalu ketik PIN)\n/batal <nomor> batalkan pengajuan\n/pin buat atau ganti PIN\n" +
+    "Kirim file mesin sebagai dokumen untuk menghitung gaji.",
+  bos: "Pengajuan rilis gaji dikirim ke chat ini dengan tombol Setujui dan Tolak. Bila belum dijawab, bot mengingatkan setiap pagi.",
+  pembangun: "",
+  karyawan: "Rincian gaji akan dikirim lewat chat ini setelah gaji dirilis.",
+  umum: "Karyawan: minta kode daftar ke HRD, lalu ketik /daftar KODE.\nHRD atau bos: minta kode undangan ke pembangun, lalu ketik /gabung KODE.",
+};
+BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /tolak <nomor> (lalu ketik PIN)\n" +
+  "/undang hrd atau /undang bos kode undangan akun\n/hapuspin hapus PIN akun yang lupa PIN";
+
+// Perintah yang diketik tanpa garis miring tetap dikenali (paket 8b-3, temuan 6).
+const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
+  "kode", "unggah", "bantuan"]);
+export function rapikanPerintah(teks: string): string {
+  const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
+  return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
+}
+
+const tombolRilis = (periode: number) => ({ reply_markup: { inline_keyboard: [[{ text: "Rilis (PIN)", callback_data: `r|y|${periode}` }]] } });
+const tombolPembangun = (periode: number) => ({ reply_markup: { inline_keyboard: [[
+  { text: "Setujui (PIN)", callback_data: `p|y|${periode}` }, { text: "Tolak (PIN)", callback_data: `p|n|${periode}` },
+]] } });
+const tombolBos = (periode: number, pengajuan: number) => ({ reply_markup: { inline_keyboard: [[
+  { text: "Setujui", callback_data: `s|y|${periode}|${pengajuan}` }, { text: "Tolak", callback_data: `s|n|${periode}|${pengajuan}` },
+]] } });
 
 // Pesan yang memuat PIN dihapus dari chat (bot boleh menghapus pesan masuk di chat pribadi).
 async function hapusPesan(alat: Alat, chat: number, messageId: number | undefined): Promise<void> {
@@ -599,12 +703,14 @@ async function aturPin(alat: Alat, tg: number, hrd: boolean, a?: string, b?: str
     case "dibuat": return "PIN dibuat. Simpan baik-baik; PIN dipakai untuk merilis gaji.";
     case "diganti": return "PIN diganti.";
     case "lemah": return "PIN harus 6 angka dan tidak boleh angka sama semua atau berurutan (misalnya 111111 atau 123456).";
-    case "perlu_pin_lama": return "PIN sudah ada. Untuk mengganti: /pin <PIN lama> <PIN baru>.";
+    case "perlu_pin_lama": return "PIN sudah ada. Untuk mengganti: /pin <PIN lama> <PIN baru>. Lupa PIN: minta akun pembangun menghapusnya (/hapuspin).";
     case "salah": return "PIN lama salah.";
     case "terkunci": return "Terlalu banyak PIN salah. Coba lagi 1 jam lagi.";
     default: return BUKAN_HRD_RILIS;
   }
 }
+
+const tungguUrutan = (menunggu: number) => `rilis dulu periode no. ${menunggu}`;
 
 async function daftarPeriode(alat: Alat, chat: number, tg: number, hrd: boolean, untuk: "ajukan" | "rilis"): Promise<void> {
   if (!hrd) {
@@ -613,7 +719,8 @@ async function daftarPeriode(alat: Alat, chat: number, tg: number, hrd: boolean,
   }
   const r = await alat.api("pintu_daftar_periode", { telegram_id: tg, untuk });
   const daftar: any[] = r.periode ?? [];
-  if (r.hasil !== "ada" || daftar.length === 0) {
+  const tertahan: any[] = r.tertahan_urutan ?? [];
+  if (r.hasil !== "ada" || (daftar.length === 0 && tertahan.length === 0)) {
     await kirim(alat, chat, untuk === "ajukan"
       ? "Tidak ada periode yang bisa diajukan (periode harus sudah dihitung dan tidak ada orang yang PPh-nya tertahan)."
       : "Tidak ada periode yang sedang diajukan atau disetujui.");
@@ -629,10 +736,20 @@ async function daftarPeriode(alat: Alat, chat: number, tg: number, hrd: boolean,
       });
     } else {
       const tunggu = r.perlu_bos && x.status !== "disetujui";
-      await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. ` + (tunggu
-        ? "Menunggu persetujuan bos." + (r.pembangun && x.status === "diajukan" ? `\n${caraPembangun(x.periode_id)}` : "")
-        : `Untuk merilis, ketik: /rilis ${x.periode_id} <PIN> (pesan berisi PIN dihapus otomatis).`));
+      if (tunggu) {
+        await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. Menunggu persetujuan bos.` +
+          (r.pembangun ? `\n${caraPembangun(x.periode_id)}` : ""), r.pembangun ? tombolPembangun(x.periode_id) : {});
+      } else if (x.menunggu) {
+        await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. Belum bisa dirilis: ${tungguUrutan(x.menunggu)}.`);
+      } else {
+        await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. Tekan Rilis lalu ketik PIN, ` +
+          `atau ketik: /rilis ${x.periode_id} <PIN> (pesan berisi PIN dihapus otomatis).`, tombolRilis(x.periode_id));
+      }
     }
+  }
+  if (tertahan.length) {
+    await kirim(alat, chat, "Belum bisa diajukan karena gaji harus dirilis berurutan:\n" +
+      tertahan.map((t) => `Periode no. ${t.periode_id} (${t.awal} s.d. ${t.akhir}): ${tungguUrutan(t.menunggu)}.`).join("\n"));
   }
 }
 
@@ -645,33 +762,34 @@ async function jawabAjukan(alat: Alat, chat: number, tg: number, periode: number
   switch (r.hasil) {
     case "diajukan": {
       if (!r.perlu_bos) {
-        await kirim(alat, chat, `Diajukan.\n${teksRingkasan(r)}\nUntuk merilis, ketik: /rilis ${r.periode_id} <PIN>.`);
+        await kirim(alat, chat, `Diajukan.\n${teksRingkasan(r)}\nTekan Rilis lalu ketik PIN, atau ketik: /rilis ${r.periode_id} <PIN>.`,
+          tombolRilis(r.periode_id));
         return;
       }
       const bos: number[] = r.bos ?? [];
       const pembangun: number[] = r.pembangun ?? [];
+      const sayaPembangun = pembangun.includes(tg);
       await kirim(alat, chat, `Diajukan.\n${teksRingkasan(r)}\n` + (bos.length
         ? "Menunggu persetujuan bos."
         : pembangun.length
           ? "Belum ada akun bos yang terdaftar; akun pembangun bisa menyetujui."
           : "Belum ada akun bos yang terdaftar, jadi pengajuan ini belum bisa disetujui.") +
-        (pembangun.includes(tg) ? `\n${caraPembangun(r.periode_id)}` : ""));
+        (sayaPembangun ? `\n${caraPembangun(r.periode_id)}` : ""), sayaPembangun ? tombolPembangun(r.periode_id) : {});
       for (const b of bos) {
-        await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}`, {
-          reply_markup: { inline_keyboard: [[
-            { text: "Setujui", callback_data: `s|y|${r.periode_id}|${r.pengajuan_id}` },
-            { text: "Tolak", callback_data: `s|n|${r.periode_id}|${r.pengajuan_id}` },
-          ]] },
-        });
+        await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}`, tombolBos(r.periode_id, r.pengajuan_id));
       }
-      // Pembangun (paket 8b-2): teks perintah, bukan tombol, karena persetujuan pembangun wajib PIN.
       for (const b of pembangun) {
-        if (b !== tg) await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}\n${caraPembangun(r.periode_id)}`, {});
+        if (b !== tg) {
+          await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}\n${caraPembangun(r.periode_id)}`, tombolPembangun(r.periode_id));
+        }
       }
       return;
     }
     case "versi_berubah":
       await kirim(alat, chat, "Angka periode ini sudah dihitung ulang sejak daftar ditampilkan. Ketik /ajukan lagi.");
+      return;
+    case "tunggu_periode":
+      await kirim(alat, chat, `Periode ini belum bisa diajukan: ${tungguUrutan(r.menunggu)}. Gaji harus dirilis berurutan.`);
       return;
     case "tidak_bisa":
       await kirim(alat, chat, `Periode ini tidak bisa diajukan (status: ${r.status ?? "-"}).`);
@@ -685,19 +803,18 @@ async function kirimAman2(alat: Alat, chat: number, teks: string, tambahan: Reco
   try {
     await kirim(alat, chat, teks, tambahan);
   } catch {
-    // akun bos yang tidak bisa dihubungi tidak menggagalkan pengajuan
+    // akun yang tidak bisa dihubungi tidak menggagalkan pekerjaan
   }
 }
 
-// Paket 8b-2 (docs/rencana-8b-2.md): pembangun menyetujui atau menolak dengan PIN lewat perintah.
 export function caraPembangun(periode: number): string {
-  return `Sebagai pembangun: /setujui ${periode} <PIN> untuk menyetujui, /tolak ${periode} <PIN> untuk menolak ` +
-    "(pesan berisi PIN dihapus otomatis).";
+  return `Sebagai pembangun: tekan Setujui atau Tolak lalu ketik PIN, atau ketik /setujui ${periode} <PIN> atau ` +
+    `/tolak ${periode} <PIN> (pesan berisi PIN dihapus otomatis).`;
 }
 
-// Persetujuan rilis: tombol bos (dengan nomor pengajuan, tanpa PIN) atau perintah pembangun (tanpa nomor pengajuan, dengan PIN).
-async function putuskan(alat: Alat, tg: number, periode: number, pengajuan: number | null, setuju: boolean,
-                        pin?: string): Promise<string> {
+// Persetujuan rilis: tombol bos (dengan nomor pengajuan, tanpa PIN) atau pembangun (tanpa nomor pengajuan, dengan PIN).
+async function putuskan(alat: Alat, chat: number, tg: number, periode: number, pengajuan: number | null, setuju: boolean,
+                        pin?: string): Promise<void> {
   const isi: Record<string, unknown> = { telegram_id: tg, periode_id: periode, setuju };
   if (pengajuan !== null) isi.pengajuan_id = pengajuan;
   if (pin !== undefined) isi.pin = pin;
@@ -707,38 +824,205 @@ async function putuskan(alat: Alat, tg: number, periode: number, pengajuan: numb
     case "ditolak": {
       const kata = r.hasil === "disetujui" ? "disetujui" : "ditolak (kembali ke dihitung)";
       const siapa = r.oleh === "pembangun" ? "Pembangun" : "Bos";
-      const lanjut = r.hasil === "disetujui" ? `\nUntuk merilis, ketik: /rilis ${r.periode_id} <PIN>.` : "";
+      const lanjut = r.hasil === "disetujui" ? `\nTekan Rilis lalu ketik PIN, atau ketik: /rilis ${r.periode_id} <PIN>.` : "";
+      const tombol = r.hasil === "disetujui" ? tombolRilis(r.periode_id) : {};
       if (r.pengaju && r.pengaju !== tg) {
-        await kirimAman(alat, r.pengaju, `${siapa} ${r.hasil === "disetujui" ? "menyetujui" : "menolak"} pengajuan rilis:\n` +
-          teksRingkasan(r) + lanjut);
-        return `Pengajuan ${kata}.\n${teksRingkasan(r)}`;
+        await kirimAman2(alat, r.pengaju, `${siapa} ${r.hasil === "disetujui" ? "menyetujui" : "menolak"} pengajuan rilis:\n` +
+          teksRingkasan(r) + lanjut, tombol);
+        await kirim(alat, chat, `Pengajuan ${kata}.\n${teksRingkasan(r)}`);
+        return;
       }
-      return `Pengajuan ${kata}.\n${teksRingkasan(r)}` + (r.pengaju === tg ? lanjut : "");
+      await kirim(alat, chat, `Pengajuan ${kata}.\n${teksRingkasan(r)}` + (r.pengaju === tg ? lanjut : ""),
+        r.pengaju === tg ? tombol : {});
+      return;
     }
     case "tidak_berlaku":
-      return "Pengajuan ini tidak berlaku lagi (sudah diputuskan, dihitung ulang, ada pengajuan baru, atau periode belum diajukan).";
-    case "belum_ada_pin": return "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>.";
-    case "pin_salah": return "PIN salah.";
-    case "terkunci": return "Terlalu banyak PIN salah. Coba lagi 1 jam lagi.";
-    case "pakai_tombol": return "Akun bos menyetujui lewat tombol Setujui/Tolak di pesan pengajuan.";
-    default: return "Persetujuan rilis hanya untuk akun bos atau pembangun.";
+      await kirim(alat, chat, "Pengajuan ini tidak berlaku lagi (sudah diputuskan, dihitung ulang, ada pengajuan baru, atau periode belum diajukan).");
+      return;
+    case "belum_ada_pin": await kirim(alat, chat, "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>."); return;
+    case "pin_salah": await kirim(alat, chat, "PIN salah."); return;
+    case "terkunci": await kirim(alat, chat, "Terlalu banyak PIN salah. Coba lagi 1 jam lagi."); return;
+    case "pakai_tombol": await kirim(alat, chat, "Akun bos menyetujui lewat tombol Setujui/Tolak di pesan pengajuan."); return;
+    default: await kirim(alat, chat, "Persetujuan rilis hanya untuk akun bos atau pembangun.");
   }
 }
 
-async function rilisGaji(alat: Alat, tg: number, hrd: boolean, nomor: string, pin?: string): Promise<string> {
-  if (!hrd) return BUKAN_HRD_RILIS;
-  if (!/^\d+$/.test(nomor) || !pin) return "Cara pakai: /rilis untuk melihat periode; /rilis <nomor periode> <PIN> untuk merilis.";
+async function rilisGaji(alat: Alat, chat: number, tg: number, hrd: boolean, nomor: string, pin: string): Promise<void> {
+  if (!hrd) {
+    await kirim(alat, chat, BUKAN_HRD_RILIS);
+    return;
+  }
   const r = await alat.api("pintu_rilis", { telegram_id: tg, periode_id: Number(nomor), pin });
   switch (r.hasil) {
-    case "dirilis": return `Gaji DIRILIS.\n${teksRingkasan(r)}\nPeriode ini tidak dihitung ulang lagi.`;
-    case "belum_ada_pin": return "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>.";
-    case "pin_salah": return "PIN salah.";
-    case "terkunci": return "Terlalu banyak PIN salah. Coba lagi 1 jam lagi.";
-    case "belum_disetujui": return "Periode ini belum disetujui bos.";
-    case "versi_berubah": return "Angka periode ini sudah dihitung ulang sejak diajukan. Ajukan lagi dengan /ajukan.";
-    case "tidak_bisa": return `Periode ini tidak bisa dirilis (status: ${r.status ?? "tidak ada"}).`;
-    default: return BUKAN_HRD_RILIS;
+    case "dirilis":
+      await kirim(alat, chat, `Gaji DIRILIS.\n${teksRingkasan(r)}\nPeriode ini tidak dihitung ulang lagi.`);
+      for (const t of (r.kabari ?? []) as number[]) {
+        await kirimAman2(alat, t, `Gaji periode no. ${r.periode_id} DIRILIS.\n${teksRingkasan(r)}`, {});
+      }
+      return;
+    case "belum_ada_pin": await kirim(alat, chat, "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>."); return;
+    case "pin_salah": await kirim(alat, chat, "PIN salah."); return;
+    case "terkunci": await kirim(alat, chat, "Terlalu banyak PIN salah. Coba lagi 1 jam lagi."); return;
+    case "belum_disetujui": await kirim(alat, chat, "Periode ini belum disetujui bos."); return;
+    case "tunggu_periode": await kirim(alat, chat, `Periode ini belum bisa dirilis: ${tungguUrutan(r.menunggu)}.`); return;
+    case "versi_berubah": await kirim(alat, chat, "Angka periode ini sudah dihitung ulang sejak diajukan. Ajukan lagi dengan /ajukan."); return;
+    case "tidak_bisa": await kirim(alat, chat, `Periode ini tidak bisa dirilis (status: ${r.status ?? "tidak ada"}).`); return;
+    default: await kirim(alat, chat, BUKAN_HRD_RILIS);
   }
+}
+
+// Tombol Rilis / Setujui / Tolak dan perintah tanpa PIN: bot meminta PIN, berlaku 5 menit.
+const KATA_AKSI: Record<string, string> = { rilis: "merilis gaji", setujui: "menyetujui pengajuan", tolak: "menolak pengajuan" };
+async function mintaPin(alat: Alat, chat: number, tg: number, aksi: "rilis" | "setujui" | "tolak", periode: number): Promise<void> {
+  const r = await alat.api("pintu_minta_pin", { telegram_id: tg, aksi, periode_id: periode });
+  switch (r.hasil) {
+    case "menunggu":
+      await kirim(alat, chat, `Ketik PIN 6 angka untuk ${KATA_AKSI[aksi]} periode no. ${periode}. Berlaku 5 menit; pesan PIN dihapus otomatis.`,
+        { reply_markup: { force_reply: true, input_field_placeholder: "PIN 6 angka" } });
+      return;
+    case "bukan_pembangun": await kirim(alat, chat, "Persetujuan dengan PIN hanya untuk akun pembangun; akun bos memakai tombol."); return;
+    case "tidak_ada": await kirim(alat, chat, "Periode tidak ditemukan."); return;
+    default: await kirim(alat, chat, BUKAN_HRD_RILIS);
+  }
+}
+
+// Pesan 6 angka: PIN untuk tombol/perintah yang sedang menunggu. Pesannya selalu dihapus.
+async function pakaiPin(alat: Alat, chat: number, tg: number, hrd: boolean, pin: string): Promise<void> {
+  const t = await alat.api("pintu_ambil_pin", { telegram_id: tg });
+  if (t?.aksi === "rilis") return rilisGaji(alat, chat, tg, hrd, String(t.periode_id), pin);
+  if (t?.aksi === "setujui" || t?.aksi === "tolak") return putuskan(alat, chat, tg, Number(t.periode_id), null, t.aksi === "setujui", pin);
+  await kirim(alat, chat, t?.lewat
+    ? "Waktu memasukkan PIN sudah lewat (5 menit). Tekan tombolnya lagi."
+    : "Pesan berisi 6 angka sudah dihapus. Tidak ada perintah yang sedang menunggu PIN.");
+}
+
+async function batalAjukan(alat: Alat, chat: number, tg: number, hrd: boolean, nomor?: string): Promise<void> {
+  if (!hrd) {
+    await kirim(alat, chat, BUKAN_HRD_RILIS);
+    return;
+  }
+  if (!/^\d+$/.test(nomor ?? "")) {
+    await kirim(alat, chat, "Cara pakai: /batal <nomor periode>. Nomor periode terlihat di /rilis.");
+    return;
+  }
+  const r = await alat.api("pintu_batal", { telegram_id: tg, periode_id: Number(nomor) });
+  if (r.hasil === "dibatalkan") {
+    await kirim(alat, chat, `Pengajuan dibatalkan; periode kembali ke dihitung.\n${teksRingkasan(r)}`);
+    for (const t of (r.kabari ?? []) as number[]) {
+      await kirimAman2(alat, t, `Pengajuan rilis periode no. ${r.periode_id} dibatalkan oleh ${r.oleh === "pembangun" ? "pembangun" : "HRD"}.`, {});
+    }
+  } else if (r.hasil === "tidak_bisa") {
+    await kirim(alat, chat, `Periode ini tidak sedang diajukan atau disetujui (status: ${r.status ?? "tidak ada"}).`);
+  } else {
+    await kirim(alat, chat, BUKAN_HRD_RILIS);
+  }
+}
+
+async function daftarHapusPin(alat: Alat, chat: number, tg: number): Promise<void> {
+  const r = await alat.api("pintu_daftar_pin", { telegram_id: tg });
+  if (r.hasil !== "ada") {
+    await kirim(alat, chat, BUKAN_PEMBANGUN);
+    return;
+  }
+  const punya = (r.akun as any[]).filter((a) => a.punya_pin);
+  if (!punya.length) {
+    await kirim(alat, chat, "Belum ada akun yang punya PIN.");
+    return;
+  }
+  await kirim(alat, chat, "Pilih akun yang PIN-nya dihapus. Sesudah dihapus, pemilik akun membuat PIN baru dengan /pin.", {
+    reply_markup: { inline_keyboard: punya.map((a) => [{
+      text: `Hapus PIN: ${a.peran === "hrd" ? "HRD" : "pembangun"} ${a.label}${a.sendiri ? " (akun ini)" : ""}`,
+      callback_data: `h|y|${a.id}`,
+    }]) },
+  });
+}
+
+async function hapusPin(alat: Alat, chat: number, tg: number, pengguna: number): Promise<void> {
+  const r = await alat.api("pintu_hapus_pin", { telegram_id: tg, pengguna_id: pengguna });
+  switch (r.hasil) {
+    case "dihapus":
+      await kirim(alat, chat, `PIN akun ${r.label} dihapus. Pemilik akun membuat PIN baru dengan /pin <PIN baru 6 angka>.`);
+      if (r.telegram_id !== tg) {
+        await kirimAman2(alat, r.telegram_id, "PIN Anda dihapus oleh pembangun. Buat PIN baru dengan /pin <PIN baru 6 angka>.", {});
+      }
+      return;
+    case "belum_ada_pin": await kirim(alat, chat, "Akun ini sudah tidak punya PIN."); return;
+    case "tidak_ada": await kirim(alat, chat, "Akun tidak ditemukan."); return;
+    default: await kirim(alat, chat, BUKAN_PEMBANGUN);
+  }
+}
+
+async function undangAkun(alat: Alat, chat: number, tg: number, peran?: string): Promise<void> {
+  const p = String(peran ?? "").toLowerCase();
+  if (p !== "hrd" && p !== "bos") {
+    await kirim(alat, chat, "Cara pakai: /undang hrd atau /undang bos (hanya akun pembangun).");
+    return;
+  }
+  const kode = kodeDaftarAcak();
+  const r = await alat.api("pintu_undang", { telegram_id: tg, peran: p, sidik: await sidikTeks(kode) });
+  if (r.hasil !== "dibuat") {
+    await kirim(alat, chat, BUKAN_PEMBANGUN);
+    return;
+  }
+  await kirim(alat, chat, `Kode undangan ${p === "hrd" ? "HRD" : "bos"}: ${kode}\n` +
+    `Berlaku sampai ${jamWib(r.berlaku_sampai)} (60 menit), sekali pakai. Berikan langsung ke orangnya, jangan lewat grup. ` +
+    `Ia mengetik /gabung ${kode} di chat pribadi dengan bot.`);
+}
+
+async function gabung(alat: Alat, chat: number, tg: number, ketik: string): Promise<void> {
+  const kode = rapikanKodeDaftar(ketik);
+  if (!kode) {
+    await kirim(alat, chat, "Cara pakai: /gabung KODE (kode undangan dari pembangun).");
+    return;
+  }
+  const r = await alat.api("pintu_gabung", { telegram_id: tg, sidik: await sidikTeks(kode) });
+  const nama = (p: string) => (p === "hrd" ? "HRD" : p === "bos" ? "bos" : p);
+  switch (r.hasil) {
+    case "terdaftar":
+      await pasangMenu(alat, chat, r.peran);
+      await kirim(alat, chat, `Terdaftar sebagai ${nama(r.peran)}.\n${BANTUAN[r.peran] ?? ""}`);
+      if (r.pembangun) await kirimAman2(alat, r.pembangun, `Kode undangan ${nama(r.peran)} sudah dipakai; akun baru terdaftar.`, {});
+      return;
+    case "sudah_terdaftar":
+      await kirim(alat, chat, `Akun Telegram ini sudah terdaftar sebagai ${nama(r.peran)}.`);
+      return;
+    case "terkunci":
+      await kirim(alat, chat, "Terlalu banyak kode salah. Coba lagi 1 jam lagi.");
+      return;
+    default:
+      await kirim(alat, chat, `Kode tidak berlaku (salah, sudah dipakai, atau lewat 60 menit). Minta kode baru ke pembangun. ` +
+        `Sisa percobaan dalam 1 jam: ${angka(r.sisa ?? 0)}.`);
+  }
+}
+
+async function bantuan(alat: Alat, chat: number, tg: number): Promise<void> {
+  const akun = await alat.api("pintu_akun", { telegram_id: tg });
+  await pasangMenu(alat, chat, akun.peran);
+  await kirim(alat, chat, BANTUAN[akun.peran ?? "umum"] ?? BANTUAN.umum);
+}
+
+// Pengingat harian ke bos untuk pengajuan yang belum dijawab (dipanggil bersama pengingat kirim file).
+async function kirimPengingatRilis(alat: Alat, tanggal?: string): Promise<number> {
+  const r = await alat.api("pintu_pengingat_rilis", tanggal ? { tanggal } : {});
+  let n = 0;
+  for (const k of r.kirim ?? []) {
+    const hasil: Record<string, string> = {};
+    const teks = `PENGINGAT: pengajuan rilis gaji menunggu persetujuan sejak ${k.sejak}.\n${teksRingkasan(k)}`;
+    for (const [daftar, tombol] of [[k.bos ?? [], tombolBos(k.periode_id, k.pengajuan_id)],
+                                    [k.pembangun ?? [], tombolPembangun(k.periode_id)]] as [number[], any][]) {
+      for (const t of daftar) {
+        try {
+          await kirim(alat, t, teks, tombol);
+          hasil[String(t)] = "ok";
+        } catch (e) {
+          hasil[String(t)] = `galat: ${(e as Error).message}`.slice(0, 300);
+        }
+      }
+    }
+    await alat.api("pintu_pemberitahuan_hasil", { id: [k.id], hasil });
+    n++;
+  }
+  return n;
 }
 
 // ---------------------------------------------------------------------------

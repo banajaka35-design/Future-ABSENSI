@@ -216,6 +216,8 @@ def main():
         sekarang = tab(k, "Ringkasan")["values"][4][9]
         cek("Ringkasan tanpa orang rahasia (lebih kecil dari total lengkap gudang)", int(lama) > sekarang, (lama, sekarang))
         cek("Ringkasan berketerangan rahasia di baris 3", str(tab(k, "Ringkasan")["values"][2][0]).startswith("Total tidak termasuk"))
+        cek("Ringkasan berisi kolom Status rilis (paket 8b-3)",
+            tab(k, "Ringkasan")["values"][3][-1] == "Status rilis" and all(str(b[-1]) for b in tab(k, "Ringkasan")["values"][4:]))
         admin("/uji/ubah_sel", {"tab": "Ringkasan", "baris": 4, "kolom": 9, "nilai": int(lama)})
         kode, keluar = periksa()
         cek("total cara lama (termasuk rahasia) -> pemeriksa GAGAL (F15b)", kode == 1 and "F15b" in keluar, keluar[-500:])

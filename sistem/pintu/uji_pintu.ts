@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
-  apiBoleh, BATAS_PESAN, JENIS_SEGERA, PESAN_HANYA_PRIBADI, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -929,20 +929,23 @@ test("8b-2 (persiapan): periode 21 Feb-20 Mar dihitung dan bisa diajukan; pemban
   assert.match((await kirimUpdate(teksPribadi(9930, PEMBANGUN, `/pin ${PIN_PEMBANGUN}`))).pesan[0].text, /^PIN dibuat/);
 });
 
-test("8b-2: HRD mengajukan -> bos dapat tombol, pembangun dapat teks /setujui dan /tolak tanpa tombol", async () => {
+test("8b-2/8b-3: HRD mengajukan -> bos dapat tombol; pembangun dapat cara /setujui dan /tolak + tombol yang meminta PIN", async () => {
   const r = await ajukanLewatTombol(9931, HRD);
   assert.match(r.pesan.find((p) => p.chat_id === HRD).text, /Menunggu persetujuan bos\.$/);
   assert.ok(r.pesan.find((p) => p.chat_id === BOS).reply_markup);
   const ke = r.pesan.filter((p) => p.chat_id === PEMBANGUN);
   assert.equal(ke.length, 1);
   assert.match(ke[0].text, new RegExp(`^Pengajuan rilis gaji:\\nPeriode no\\. ${periode2}:[\\s\\S]*\\/setujui ${periode2} <PIN>[\\s\\S]*\\/tolak ${periode2} <PIN>`));
-  assert.equal(ke[0].reply_markup, undefined);
+  // Paket 8b-3: pembangun juga mendapat tombol (tombol meminta PIN sesudah ditekan).
+  assert.deepEqual(ke[0].reply_markup.inline_keyboard[0].map((t: any) => t.callback_data), [`p|y|${periode2}`, `p|n|${periode2}`]);
 });
 
 test("8b-2: PIN salah dan cara pakai salah ditolak; bos diminta pakai tombol; HRD ditolak; pesan berisi PIN dihapus", async () => {
   const awal = terkirim.length;
   assert.match((await kirimUpdate(teksPribadi(9933, PEMBANGUN, `/setujui ${periode2} 000001`))).pesan[0].text, /^PIN salah/);
-  assert.match((await kirimUpdate(teksPribadi(9934, PEMBANGUN, `/setujui ${periode2}`))).pesan[0].text, /^Cara pakai: \/setujui/);
+  // Paket 8b-3: perintah tanpa PIN meminta PIN (bukan "Cara pakai").
+  assert.match((await kirimUpdate(teksPribadi(9934, PEMBANGUN, `/setujui ${periode2}`))).pesan[0].text, /^Ketik PIN 6 angka untuk menyetujui/);
+  assert.match((await kirimUpdate(teksPribadi(9929, PEMBANGUN, "/setujui"))).pesan[0].text, /^Cara pakai: \/setujui/);
   assert.match((await kirimUpdate(teksPribadi(9935, BOS, `/setujui ${periode2} ${PIN_PEMBANGUN}`))).pesan[0].text, /lewat tombol/);
   assert.match((await kirimUpdate(teksPribadi(9936, HRD, `/tolak ${periode2} ${PIN_UJI}`))).pesan[0].text, /hanya untuk akun bos atau pembangun/);
   assert.deepEqual(dihapus(awal), [9933, 9935, 9936]);
@@ -960,12 +963,13 @@ test("8b-2: pembangun mengajukan, menyetujui, dan merilis sendiri; tercatat 'ole
   const a = await ajukanLewatTombol(9938, PEMBANGUN);
   const sendiri = a.pesan.filter((p) => p.chat_id === PEMBANGUN);
   assert.equal(sendiri.length, 1, JSON.stringify(sendiri.map((p) => p.text)));
-  assert.match(sendiri[0].text, new RegExp(`^Diajukan\\.[\\s\\S]*Menunggu persetujuan bos\\.\\nSebagai pembangun: \\/setujui ${periode2} <PIN>`));
+  assert.match(sendiri[0].text, new RegExp(`^Diajukan\\.[\\s\\S]*Menunggu persetujuan bos\\.\\nSebagai pembangun: [\\s\\S]*\\/setujui ${periode2} <PIN>`));
   const d = await kirimUpdate(teksPribadi(9940, PEMBANGUN, "/rilis"));
-  assert.match(d.pesan.find((p) => p.text.startsWith(`Periode no. ${periode2}`)).text, /Menunggu persetujuan bos\.\nSebagai pembangun: \/setujui/);
+  assert.match(d.pesan.find((p) => p.text.startsWith(`Periode no. ${periode2}`)).text, /Menunggu persetujuan bos\.\nSebagai pembangun: /);
   const s = await kirimUpdate(teksPribadi(9941, PEMBANGUN, `/setujui ${periode2} ${PIN_PEMBANGUN}`));
   assert.equal(s.pesan.length, 1);
   assert.match(s.pesan[0].text, new RegExp(`^Pengajuan disetujui\\.[\\s\\S]*\\/rilis ${periode2} <PIN>\\.$`));
+  assert.equal(s.pesan[0].reply_markup.inline_keyboard[0][0].callback_data, `r|y|${periode2}`);
   const rl = await kirimUpdate(teksPribadi(9942, PEMBANGUN, `/rilis ${periode2} ${PIN_PEMBANGUN}`));
   assert.match(rl.pesan[0].text, /^Gaji DIRILIS\./);
   assert.equal(nilai(`select status from fakta.periode where id = ${periode2}`), "dirilis");
@@ -976,4 +980,137 @@ test("8b-2: pembangun mengajukan, menyetujui, dan merilis sendiri; tercatat 'ole
     `dirilis/pengguna ${pembangunId()}/dirilis lewat Telegram dengan PIN`);
   assert.equal(nilai(`select string_agg(keputusan || ':' || coalesce(catatan, '-'), ',' order by id) from fakta.persetujuan
                       where perihal = 'rilis' and penyetuju = ${pembangunId()}`), "tolak:oleh pembangun,setuju:oleh pembangun");
+});
+
+// ---------------------------------------------------------------------------
+// Paket 8b-3: urutan, tombol yang meminta PIN, /batal, /hapuspin, /undang, /gabung, kabar rilis, pengingat ke bos.
+// ---------------------------------------------------------------------------
+
+let periode3 = 0;
+let tombolAjukan3 = "";
+const pesanKe = (r: { pesan: any[] }, tg: number) => r.pesan.filter((p) => p.chat_id === tg);
+const disetel = (awal: number) => terkirim.slice(awal).filter((t) => t.metode === "setMyCommands").map((t) => t.isi);
+
+test("8b-3: perintah tanpa garis miring dikenali; kata lain tidak diubah", () => {
+  assert.equal(rapikanPerintah("pin 482913"), "/pin 482913");
+  assert.equal(rapikanPerintah("Ajukan"), "/Ajukan");
+  assert.equal(rapikanPerintah("pinjam uang"), "pinjam uang");
+  assert.equal(rapikanPerintah("/rilis"), "/rilis");
+});
+
+test("8b-3: menu perintah sah untuk Telegram (huruf kecil, maks 32 huruf, keterangan maks 256)", () => {
+  for (const [peran, daftar] of Object.entries(MENU)) {
+    assert.ok(daftar.length > 0 && daftar.length <= 100, peran);
+    for (const p of daftar) {
+      assert.match(p.command, /^[a-z0-9_]{1,32}$/, `${peran} ${p.command}`);
+      assert.ok(p.description.length >= 1 && p.description.length <= 256, `${peran} ${p.command}`);
+    }
+  }
+  assert.ok(MENU.pembangun.some((p) => p.command === "hapuspin") && !MENU.hrd.some((p) => p.command === "hapuspin"));
+});
+
+test("8b-3 (persiapan): periode 21 Mar-20 Apr dihitung dan bisa diajukan", () => {
+  periode3 = Number(nilai("select id from fakta.periode where tanggal_awal = '2026-03-21'"));
+  psql(`select hitung.hitung_gaji(${periode3});`);
+  assert.equal(nilai(`select status || '/' || hitung.periode_bisa_diajukan(id) || '/' || coalesce(fakta.periode_menunggu(id)::text, '-')
+                      from fakta.periode where id = ${periode3}`), "dihitung/true/-");
+});
+
+test("8b-3: 'ajukan' tanpa garis miring -> Ajukan -> bos dapat tombol, pembangun dapat tombol yang meminta PIN", async () => {
+  const daftar = await kirimUpdate(teksPribadi(9950, HRD, "ajukan"));
+  const m = daftar.pesan.find((p) => p.text.startsWith(`Periode no. ${periode3}:`));
+  assert.ok(m, JSON.stringify(daftar.pesan.map((p) => p.text)));
+  tombolAjukan3 = m.reply_markup.inline_keyboard[0][0].callback_data;
+  const r = await kirimUpdate(tekanTombol(9951, HRD, tombolAjukan3));
+  assert.match(pesanKe(r, HRD)[0].text, /^Diajukan\./);
+  assert.equal(pesanKe(r, BOS)[0].reply_markup.inline_keyboard[0][0].callback_data.split("|")[0], "s");
+  assert.equal(pesanKe(r, PEMBANGUN)[0].reply_markup.inline_keyboard[0][0].callback_data, `p|y|${periode3}`);
+});
+
+test("8b-3: pengingat harian -> bos diingatkan dengan tombol Setujui/Tolak (sekali per hari)", async () => {
+  const besok = new Date(Date.now() + 7 * 3600 * 1000 + 86400 * 1000).toISOString().slice(0, 10);
+  const r = await picuPengingat({ tanggal: besok });
+  assert.equal(r.hasil.pengingat_rilis, 1);
+  const ke = pesanKe(r, BOS).filter((p) => p.text.startsWith("PENGINGAT: pengajuan rilis gaji"));
+  assert.equal(ke.length, 1);
+  assert.match(ke[0].text, new RegExp(`Periode no\\. ${periode3}:`));
+  assert.equal(ke[0].reply_markup.inline_keyboard[0][0].callback_data.split("|").slice(0, 3).join("|"), `s|y|${periode3}`);
+  assert.equal(nilai(`select status from fakta.pemberitahuan where jenis = 'pengingat_rilis' order by id desc limit 1`), "terkirim");
+  assert.equal((await picuPengingat({ tanggal: besok })).hasil.pengingat_rilis, 0);
+});
+
+test("8b-3: /batal -> kembali dihitung; bos dan pembangun diberi kabar; karyawan ditolak", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9952, KARYAWAN_BARU, `/batal ${periode3}`))).pesan[0].text, /hanya untuk HRD/);
+  const r = await kirimUpdate(teksPribadi(9953, HRD, `batal ${periode3}`));
+  assert.match(pesanKe(r, HRD)[0].text, /^Pengajuan dibatalkan; periode kembali ke dihitung\./);
+  for (const tg of [BOS, PEMBANGUN]) {
+    assert.match(pesanKe(r, tg)[0].text, new RegExp(`^Pengajuan rilis periode no\\. ${periode3} dibatalkan oleh HRD\\.`));
+  }
+  assert.equal(nilai(`select status from fakta.periode where id = ${periode3}`), "dihitung");
+  assert.match((await kirimUpdate(teksPribadi(9954, HRD, `/batal ${periode3}`))).pesan[0].text, /tidak sedang diajukan/);
+});
+
+test("8b-3: bos setuju -> HRD dapat tombol Rilis -> PIN salah lalu PIN benar (pesan dihapus) -> dirilis; akun lain dikabari", async () => {
+  const a = await kirimUpdate(tekanTombol(9955, HRD, tombolAjukan3));
+  const sb = pesanKe(a, BOS)[0].reply_markup.inline_keyboard[0][0].callback_data;
+  const s = await kirimUpdate(tekanTombol(9956, BOS, sb));
+  const keHrd = pesanKe(s, HRD)[0];
+  assert.match(keHrd.text, /^Bos menyetujui pengajuan rilis:/);
+  assert.equal(keHrd.reply_markup.inline_keyboard[0][0].callback_data, `r|y|${periode3}`);
+  const minta = await kirimUpdate(tekanTombol(9957, HRD, `r|y|${periode3}`));
+  assert.match(minta.pesan[0].text, new RegExp(`^Ketik PIN 6 angka untuk merilis gaji periode no\\. ${periode3}\\.`));
+  assert.equal(minta.pesan[0].reply_markup.force_reply, true);
+  const awal = terkirim.length;
+  assert.match((await kirimUpdate(teksPribadi(9958, HRD, "000001"))).pesan[0].text, /^PIN salah/);
+  await kirimUpdate(tekanTombol(9959, HRD, `r|y|${periode3}`));
+  const ok = await kirimUpdate(teksPribadi(9960, HRD, PIN_UJI));
+  assert.deepEqual(dihapus(awal), [9958, 9960]);
+  assert.match(pesanKe(ok, HRD)[0].text, /^Gaji DIRILIS\./);
+  for (const tg of [BOS, PEMBANGUN]) {
+    assert.match(pesanKe(ok, tg)[0].text, new RegExp(`^Gaji periode no\\. ${periode3} DIRILIS\\.`));
+  }
+  assert.equal(pesanKe(ok, NONAKTIF).length, 0);
+  assert.equal(nilai(`select status from fakta.periode where id = ${periode3}`), "dirilis");
+});
+
+test("8b-3: 6 angka tanpa perintah yang menunggu -> dihapus; 'pin' tanpa garis miring dari karyawan -> dihapus dan ditolak", async () => {
+  const awal = terkirim.length;
+  assert.match((await kirimUpdate(teksPribadi(9961, HRD, "123123"))).pesan[0].text, /Tidak ada perintah yang sedang menunggu PIN/);
+  assert.match((await kirimUpdate(teksPribadi(9962, KARYAWAN_BARU, "pin 482913"))).pesan[0].text, /hanya untuk HRD/);
+  assert.deepEqual(dihapus(awal), [9961, 9962]);
+});
+
+test("8b-3: /hapuspin hanya pembangun; PIN HRD dihapus lewat tombol; HRD diberi tahu lalu membuat PIN baru", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9963, HRD, "/hapuspin"))).pesan[0].text, /hanya untuk akun pembangun/);
+  const d = await kirimUpdate(teksPribadi(9964, PEMBANGUN, "/hapuspin"));
+  const idHrd = nilai(`select id from induk.pengguna where telegram_id = ${HRD}`);
+  const tombol = d.pesan[0].reply_markup.inline_keyboard.flat();
+  assert.ok(tombol.some((t: any) => t.callback_data === `h|y|${idHrd}`), JSON.stringify(tombol));
+  const h = await kirimUpdate(tekanTombol(9965, PEMBANGUN, `h|y|${idHrd}`));
+  assert.match(pesanKe(h, PEMBANGUN)[0].text, /dihapus\. Pemilik akun membuat PIN baru/);
+  assert.match(pesanKe(h, HRD)[0].text, /^PIN Anda dihapus oleh pembangun\./);
+  assert.equal(nilai(`select pin_tersamar is null from induk.pengguna where telegram_id = ${HRD}`), "t");
+  assert.match((await kirimUpdate(teksPribadi(9966, HRD, "/pin 905172"))).pesan[0].text, /^PIN dibuat/);
+  assert.equal(nilai(`select count(*) from fakta.hapus_pin`), "1");
+});
+
+test("8b-3: /undang bos hanya pembangun; 'gabung KODE' -> akun bos terdaftar, menu dipasang, pembangun diberi tahu", async () => {
+  assert.match((await kirimUpdate(teksPribadi(9967, HRD, "/undang bos"))).pesan[0].text, /hanya untuk akun pembangun/);
+  assert.match((await kirimUpdate(teksPribadi(9968, PEMBANGUN, "/undang"))).pesan[0].text, /^Cara pakai: \/undang hrd/);
+  const u = await kirimUpdate(teksPribadi(9969, PEMBANGUN, "/undang bos"));
+  const kode = /Kode undangan bos: ([A-Z0-9]{10})/.exec(u.pesan[0].text)?.[1];
+  assert.ok(kode, u.pesan[0].text);
+  assert.equal(nilai(`select count(*) from fakta.undangan_akun where position('${kode}' in sidik) > 0`), "0");
+  const BOS_BARU = 6002;
+  const awal = terkirim.length;
+  const g = await kirimUpdate(teksPribadi(9970, BOS_BARU, `gabung ${kode.toLowerCase()}`));
+  assert.match(pesanKe(g, BOS_BARU)[0].text, /^Terdaftar sebagai bos\./);
+  assert.match(pesanKe(g, PEMBANGUN)[0].text, /Kode undangan bos sudah dipakai/);
+  const menu = disetel(awal);
+  assert.equal(menu.length, 1);
+  assert.deepEqual(menu[0].scope, { type: "chat", chat_id: BOS_BARU });
+  assert.deepEqual(menu[0].commands, MENU.bos);
+  assert.equal(nilai(`select peran from induk.pengguna where telegram_id = ${BOS_BARU}`), "bos");
+  assert.match((await kirimUpdate(teksPribadi(9971, BOS_BARU, `/gabung ${kode}`))).pesan[0].text, /sudah terdaftar sebagai bos/);
+  assert.match((await kirimUpdate(teksPribadi(9972, BOS_BARU, "/bantuan"))).pesan[0].text, /tombol Setujui dan Tolak/);
 });

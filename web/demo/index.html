@@ -147,14 +147,18 @@ function pilihPeriode(p) {
   $("ket-rahasia").textContent = p.rahasia
     ? `Semua angka di atas tidak termasuk ${p.rahasia.toLocaleString("id-ID")} orang yang gajinya rahasia; total lengkap hanya untuk bos.`
     : "";
-  const st = el("div", null, "status " + (p.bisa_diajukan ? "bisa" : "tidak"));
-  if (p.bisa_diajukan) st.textContent = "Periode ini bisa diajukan untuk rilis.";
-  else {
-    st.append(el("b", "Periode ini belum bisa diajukan. "),
+  // Paket 8b-3: status rilis dari gudang (fakta.status_rilis_teks), sama dengan kolom "Status rilis" di Sheets.
+  const belum = String(p.status_rilis || "").startsWith("Belum");
+  const st = el("div", null, "status " + (belum ? "tidak" : "bisa"));
+  st.append(el("b", `Status rilis: ${p.status_rilis}. `));
+  if (belum && !p.bisa_diajukan) {
+    st.append(
       document.createTextNode(`PPh 21 masa terakhir ${p.tertahan.toLocaleString("id-ID")} orang tertahan (dihitung 0 dan diberi tanda). ` +
         "PPh masa terakhir (Desember, atau bulan karyawan berhenti) dihitung ulang untuk setahun dan butuh data gaji semua bulan sebelumnya di tahun itu. " +
         "Data simulasi hanya punya 4 periode gajian (Februari, Maret, April, Desember), jadi bulan lain kosong. " +
         "Di perusahaan sungguhan, bulan sebelum sistem dipakai diisi HRD dari sistem lama (isian pajak awal tahun)."));
+  } else if (belum) {
+    st.append(document.createTextNode("Gaji dirilis berurutan, karena PPh masa terakhir memakai gaji periode sebelumnya."));
   }
   $("status").replaceChildren(st);
   let total = 0;

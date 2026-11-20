@@ -36,7 +36,7 @@ KET = ["Keterangan lembur", "Keterangan hari tidak dibayar", "Peringatan"]
 JUDUL_RINGKASAN = ["Periode", "Tanggal awal", "Tanggal akhir", "Tanggal bayar", "Versi baca tap", "Versi hitung gaji",
                    "Orang", "Total pendapatan", "Total potongan", "Total gaji bersih", "Total dibayar",
                    "Total sisa pembulatan", "Transfer", "Tunai", "PPh tertahan (orang)", "Bisa diajukan",
-                   "Orang rahasia (tidak termasuk)"]
+                   "Orang rahasia (tidak termasuk)", "Status rilis"]
 KETERANGAN_RAHASIA = ("Total tidak termasuk orang yang gajinya rahasia (lihat kolom terakhir); "
                       "total lengkap hanya untuk bos.")
 
@@ -273,7 +273,8 @@ def main():
             harap = [int(pid), p["tanggal_awal"], p["tanggal_akhir"], p["tanggal_bayar"], p["kode_baca"],
                      p["kode_gaji"], t.get("orang"), t.get("pendapatan"), t.get("potongan"), t.get("bersih"),
                      t.get("dibayar"), t.get("sisa"), t.get("transfer"), t.get("tunai"), t.get("tertahan"),
-                     "YA" if bisa else "TIDAK", t.get("rahasia")]
+                     "YA" if bisa else "TIDAK", t.get("rahasia"),
+                     q(f"select fakta.status_rilis_teks({pid}) s")[0]["s"]]
             for j, (a, e) in enumerate(zip(b, harap)):
                 if a != e:
                     salah.append(f"Ringkasan periode {pid} {JUDUL_RINGKASAN[j]}: Sheets {a!r}, gudang {e!r}")

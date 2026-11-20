@@ -96,6 +96,8 @@ def main():
                 [[n, a + b] for n, a, b in zip(nilai, tampil_lembar, rahasia_lembar)], gudang_pecahan)
         banding(f"periode {pid} bisa diajukan", p["bisa_diajukan"],
                 q(f"select hitung.periode_bisa_diajukan({pid}) b")[0]["b"] == "t")
+        banding(f"periode {pid} status rilis", p["status_rilis"],
+                q(f"select fakta.status_rilis_teks({pid}) s")[0]["s"])
         banding(f"periode {pid} tertahan", p["tertahan"], sum(
             1 for r in tampil if "pph_masa_terakhir_tertahan" in [x.strip('"') for x in r["peringatan"].strip("{}").split(",")]))
         for a in p["anomali"]:

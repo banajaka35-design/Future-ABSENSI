@@ -106,6 +106,7 @@ select json_build_object(
               on r.versi_id = g.versi_id and r.id_karyawan = g.id_karyawan and r.komponen = 'thr'
               where g.versi_id = v.versi_gaji),
       'bisa_diajukan', hitung.periode_bisa_diajukan(v.periode_id),
+      'status_rilis', fakta.status_rilis_teks(v.periode_id),
       'tertahan', (select count(*) from terlihat g where g.versi_id = v.versi_gaji
                    and 'pph_masa_terakhir_tertahan' = any(g.peringatan)),
       'anomali', coalesce((select json_agg(json_build_object('jenis', a.jenis, 'id', a.id_karyawan, 'divisi', a.divisi,

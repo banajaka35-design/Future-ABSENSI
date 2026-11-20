@@ -39,7 +39,7 @@ KOLOM_KET = ["Keterangan lembur", "Keterangan hari tidak dibayar", "Peringatan"]
 KOLOM_RINGKASAN = ["Periode", "Tanggal awal", "Tanggal akhir", "Tanggal bayar", "Versi baca tap", "Versi hitung gaji",
                    "Orang", "Total pendapatan", "Total potongan", "Total gaji bersih", "Total dibayar",
                    "Total sisa pembulatan", "Transfer", "Tunai", "PPh tertahan (orang)", "Bisa diajukan",
-                   "Orang rahasia (tidak termasuk)"]
+                   "Orang rahasia (tidak termasuk)", "Status rilis"]
 KETERANGAN_RAHASIA = ("Total tidak termasuk orang yang gajinya rahasia (lihat kolom terakhir); "
                       "total lengkap hanya untuk bos.")
 KOLOM_RIWAYAT = ["Waktu (WIB)", "Commit", "Pemicu", "Periode dan versi gaji", "Orang", "Lama isi (ms)",
@@ -86,6 +86,7 @@ select json_build_object(
       'id', v.periode_id, 'awal', v.tanggal_awal, 'akhir', v.tanggal_akhir, 'bayar', v.tanggal_bayar,
       'versi_gaji', v.versi_gaji, 'kode_baca', v.kode_baca, 'kode_gaji', v.kode_gaji,
       'bisa_diajukan', hitung.periode_bisa_diajukan(v.periode_id),
+      'status_rilis', fakta.status_rilis_teks(v.periode_id),
       'pecahan', (select json_agg(d order by d desc) from unnest(array[100000, 50000, 20000, 10000, 5000, 2000, 1000]::bigint[]) d
                   where d >= aturan.pengaturan_pada('pembulatan_tunai', null, v.tanggal_akhir)::bigint),
       'orang', (select coalesce(json_agg(json_build_object(
@@ -181,7 +182,7 @@ def baris_ringkasan(periode, status):
                       sum(x["dibayar"] for x in o if x["cara"] == "transfer"),
                       sum(x["dibayar"] for x in o if x["cara"] == "tunai"),
                       sum(1 for x in o if "pph_masa_terakhir_tertahan" in (x["peringatan"] or [])),
-                      "YA" if p["bisa_diajukan"] else "TIDAK", n_rahasia])
+                      "YA" if p["bisa_diajukan"] else "TIDAK", n_rahasia, p["status_rilis"]])
     return baris
 
 

@@ -68,9 +68,10 @@ insert into h values ('ajukan_tertahan', api.pintu_ajukan(jsonb_build_object('te
   'versi_gaji', (select fakta_v from (select null::bigint as fakta_v) z))));
 insert into h values ('ajukan_versi_salah', api.pintu_ajukan(jsonb_build_object('telegram_id', 8801, 'periode_id', pg_temp.pid(1), 'versi_gaji', -1)));
 reset role;
+-- Paket 8b-3 (urutan rilis): periode 3 menunggu periode 2, jadi hanya periode 1 yang muncul.
 select uji.sama('8b: daftar /ajukan hanya periode dihitung yang bisa diajukan (periode tertahan tidak muncul)',
   (select jsonb_agg(x -> 'periode_id') from jsonb_array_elements(pg_temp.k('daftar_ajukan') -> 'periode') x),
-  jsonb_build_array(pg_temp.pid(1), pg_temp.pid(3)));
+  jsonb_build_array(pg_temp.pid(1)));
 select uji.sama('8b: akun karyawan dan bos tidak bisa mengajukan',
   pg_temp.k('ajukan_karyawan') ->> 'hasil' || '/' || (pg_temp.k('ajukan_bos') ->> 'hasil'), 'bukan_hrd/bukan_hrd');
 select uji.sama('8b: periode dengan orang tertahan tidak bisa diajukan', pg_temp.k('ajukan_tertahan') ->> 'hasil', 'tidak_bisa');
@@ -175,6 +176,16 @@ select uji.sama('8b: kejadian segera "periode dirilis kena file" tercatat',
      and (k.isi ->> 'periode_id')::bigint = pg_temp.pid(1)), 1::bigint);
 select uji.sama('8b: halaman unggah menampilkan hasil "dilewati" apa adanya',
   fakta.hasil_antrean_tampil('{"dilewati": "dirilis"}'::jsonb), '{"dilewati": "dirilis"}'::jsonb);
+
+-- Paket 8b-3 (urutan rilis): periode 2 dihitung ulang tanpa orang tertahan dan dirilis sebelum periode 3.
+select pg_temp.hitung(2);
+select pg_temp.segarkan();
+set local role pintu;
+insert into h values ('ajukan_2', api.pintu_ajukan(jsonb_build_object('telegram_id', 8801, 'periode_id', pg_temp.pid(2),
+  'versi_gaji', pg_temp.vb(2))));
+insert into h values ('rilis_2', api.pintu_rilis(jsonb_build_object('telegram_id', 8801, 'periode_id', pg_temp.pid(2), 'pin', '905172')));
+reset role;
+select uji.sama('8b-3: periode 2 dirilis sebelum periode 3', pg_temp.k('rilis_2') ->> 'hasil' || '/' || pg_temp.status(2), 'dirilis/dirilis');
 
 -- HRD lalu bos (pengaturan persetujuan_rilis)
 insert into aturan.pengaturan (kunci, nilai, berlaku_dari) values ('persetujuan_rilis', 'hrd_lalu_bos', current_date);

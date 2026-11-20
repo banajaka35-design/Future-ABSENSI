@@ -142,6 +142,12 @@ curl -fsS -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 curl -fsS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getWebhookInfo" \
   | python3 -c 'import json,sys; r=json.load(sys.stdin)["result"]; print("Alamat:", r.get("url")); print("Antre:", r.get("pending_update_count")); print("Galat terakhir:", r.get("last_error_message"))'
 
+echo "== Menu perintah bot (paket 8b-3): menu umum + menu per akun HRD, bos, pembangun"
+psql "$DB_URL" -X -q -t -A -F ' ' -v ON_ERROR_STOP=1 \
+  -c "select telegram_id, peran from induk.pengguna where aktif and telegram_id is not null and peran in ('hrd', 'bos', 'pembangun')" \
+  | TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" node sistem/pintu/pasang_menu.ts \
+  || echo "Menu perintah: gagal dipasang (bot tetap jalan; perintah tetap bisa diketik)"
+
 echo "== Penjadwal pengingat kirim file (pg_cron 01.00 UTC = 08.00 WIB)"
 psql "$DB_URL" -X -q -t -v ON_ERROR_STOP=1 -v rahasia="$RAHASIA_PENGINGAT" -v alamat="$ALAMAT" <<'EOF'
 create extension if not exists pg_net with schema extensions;
