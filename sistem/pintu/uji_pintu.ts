@@ -1087,7 +1087,10 @@ test("8b-3: bos setuju -> HRD dapat tombol Rilis -> PIN salah lalu PIN benar (pe
 
 test("8b-3: 6 angka tanpa perintah yang menunggu -> dihapus; 'pin' tanpa garis miring dari karyawan -> dihapus dan ditolak", async () => {
   const awal = terkirim.length;
-  assert.match((await kirimUpdate(teksPribadi(9961, HRD, "123123"))).pesan[0].text, /Tidak ada perintah yang sedang menunggu PIN/);
+  const enam = (await kirimUpdate(teksPribadi(9961, HRD, "123123"))).pesan[0].text;
+  assert.match(enam, /Tidak ada perintah yang sedang menunggu PIN/);
+  // Paket 8d-2: pesan menunjuk langkah yang terlewat (tekan tombol dulu, baru PIN).
+  assert.match(enam, /Tekan dulu tombolnya \(misalnya Rilis, Setujui, atau salah satu periode di Total lengkap\)/);
   assert.match((await kirimUpdate(teksPribadi(9962, KARYAWAN_BARU, "pin 482913"))).pesan[0].text, /PIN hanya untuk akun HRD, bos, dan pembangun/);
   assert.deepEqual(dihapus(awal), [9961, 9962]);
 });
@@ -1354,6 +1357,8 @@ test("8d: HRD dan karyawan tidak bisa melihat total lengkap; bos tidak punya tom
 test("8d: bos membuat PIN, tombol Total lengkap -> pilih periode -> PIN -> total lengkap (selisih = orang rahasia); tercatat", async () => {
   assert.match((await kirimUpdate(teksPribadi(10203, BOS, "/pin 581374"))).pesan[0].text, /^PIN dibuat/);
   const pilih = await kirimUpdate(teksPribadi(10204, BOS, "Total lengkap"));
+  // Paket 8d-2: kalimat menyuruh menekan tombol periode dulu, PIN sesudahnya.
+  assert.match(pilih.pesan[0].text, /Tekan salah satu tombol periode di bawah dulu; bot akan meminta PIN sesudahnya\.$/);
   const tombol = pilih.pesan[0].reply_markup.inline_keyboard.flat().map((t: any) => t.callback_data);
   assert.ok(tombol.includes(`l|y|${periode3}`), JSON.stringify(tombol));
   const minta = await kirimUpdate(tekanTombol(10205, BOS, `l|y|${periode3}`));

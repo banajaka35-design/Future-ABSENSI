@@ -28,3 +28,8 @@ Migrasi `0031_jalur_bos.sql` (constraint `rahasia_wajib_transfer`, `/pin` untuk 
 ## Belum selesai
 
 - Uji nyata `/lengkap` dengan akun pembangun; jalur bos sungguhan menunggu akun ketiga (`/undang bos`).
+
+## Uji nyata 8d (20 Nov 2026 17.04 WIB) [Pasti]
+
+- Akun pembangun: Total lengkap → No. 2 → PIN. 1.010 orang, bersih Rp8.216.972.265; terlihat HRD 1.007 orang, Rp8.191.433.902; selisih 3 orang rahasia Rp25.538.363 = 9.546.454 + 9.392.875 + 6.599.034 (F15b). Transfer 7.085.503.657 + tunai 1.131.454.000 = dibayar 8.216.957.657; transfer = transfer HRD 7.059.965.294 + 3 orang rahasia (semua transfer). `fakta.lihat_rahasia`: pembangun, periode 2, 17.04, versi yang dirilis.
+- Temuan: PIN dua kali diketik sebelum tombol periode ditekan → paket 8d-2 (`docs/rencana-8d-2.md`).

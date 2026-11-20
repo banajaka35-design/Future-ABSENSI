@@ -1041,7 +1041,8 @@ async function pakaiPin(alat: Alat, chat: number, tg: number, hrd: boolean, pin:
   await kirim(alat, chat, t?.lewat
     ? "Waktu memasukkan PIN sudah lewat (5 menit). Tekan tombolnya lagi."
     : "Pesan berisi 6 angka sudah dihapus. Tidak ada perintah yang sedang menunggu PIN. " +
-      "Untuk membuat atau mengganti PIN, tekan tombol PIN lalu balas pertanyaannya.");
+      "Tekan dulu tombolnya (misalnya Rilis, Setujui, atau salah satu periode di Total lengkap); " +
+      "sesudah bot meminta PIN, baru ketik PIN. Untuk membuat atau mengganti PIN, tekan tombol PIN lalu balas pertanyaannya.");
 }
 
 async function batalAjukan(alat: Alat, chat: number, tg: number, hrd: boolean, nomor?: string): Promise<void> {
@@ -1301,7 +1302,8 @@ async function pilihPeriodeLengkap(alat: Alat, chat: number, tg: number): Promis
     await kirim(alat, chat, "Belum ada periode yang dihitung.");
     return;
   }
-  await kirim(alat, chat, "Total lengkap periode mana? Sesudah memilih, ketik PIN.", {
+  // Paket 8d-2: uji nyata 20 Nov 2026 -> PIN dua kali diketik sebelum tombol periode ditekan; kalimat diperjelas.
+  await kirim(alat, chat, "Total lengkap periode mana? Tekan salah satu tombol periode di bawah dulu; bot akan meminta PIN sesudahnya.", {
     reply_markup: { inline_keyboard: daftar.map((x) => [{
       text: `No. ${x.periode_id}: ${x.awal} s.d. ${x.akhir} (${x.status})`, callback_data: `l|y|${x.periode_id}`,
     }]) },
