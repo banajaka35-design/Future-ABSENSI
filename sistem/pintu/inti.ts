@@ -192,6 +192,14 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       await mintaPin(alat, chat, tg, jenis === "r" ? "rilis" : asal === "y" ? "setujui" : "tolak", Number(mesin));
       return null;
     }
+    if (jenis === "b" && asal === "y" && /^\d+$/.test(mesin ?? "")) {
+      await batalAjukan(alat, chat, tg, info.hrd, mesin);
+      return null;
+    }
+    if (jenis === "u" && (asal === "hrd" || asal === "bos")) {
+      await undangAkun(alat, chat, tg, asal);
+      return null;
+    }
     if (jenis === "h" && asal === "y" && /^\d+$/.test(mesin ?? "")) {
       await hapusPin(alat, chat, tg, Number(mesin));
       return null;
@@ -218,7 +226,37 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
   if (pesan?.text !== undefined) {
     const info = await alat.api("pintu_pesan", { update_id: updateId, telegram_id: pesan.from?.id, jenis: "teks" });
     if (!info.baru) return null;
-    const teks = rapikanPerintah(String(pesan.text).trim());
+    // Paket 8b-4: jawaban atas pertanyaan bot (balasan pesan "Ketik ID karyawan ..." atau "Buat PIN ...").
+    const ditanya = String(pesan.reply_to_message?.from?.is_bot ? pesan.reply_to_message?.text ?? "" : "");
+    const jawab = String(pesan.text).trim();
+    if (ditanya.startsWith(TANYA_PIN)) {
+      await hapusPesan(alat, pesan.chat.id, pesan.message_id);
+      const [a, b, lebih] = jawab.split(/\s+/);
+      await kirim(alat, pesan.chat.id, lebih !== undefined
+        ? "Format salah. Buat PIN: 6 angka. Ganti PIN: PIN lama, spasi, PIN baru."
+        : await aturPin(alat, pesan.from?.id, info.hrd, a, b));
+      return null;
+    }
+    if (ditanya.startsWith(TANYA_ID)) {
+      const [id, tambahan] = jawab.split(/\s+/);
+      await kirim(alat, pesan.chat.id, await buatKodeDaftar(alat, pesan.from?.id, info.hrd, id, tambahan));
+      return null;
+    }
+    const teks = rapikanPerintah(teksTombol(jawab));
+    if (teks === "/tombol_kode" || teks === "/tombol_pin") {
+      if (!info.hrd) await kirim(alat, pesan.chat.id, BUKAN_HRD_RILIS);
+      else await kirim(alat, pesan.chat.id, teks === "/tombol_kode"
+        ? `${TANYA_ID}, misalnya 10001. Untuk ganti HP karyawan, ketik ID lalu kata ganti, misalnya 10001 ganti.`
+        : `${TANYA_PIN}. Pesan berisi PIN dihapus otomatis.`,
+        { reply_markup: { force_reply: true, input_field_placeholder: teks === "/tombol_kode" ? "ID karyawan" : "PIN" } });
+      return null;
+    }
+    if (teks === "/tombol_undang") {
+      await kirim(alat, pesan.chat.id, "Undang akun sebagai apa? (hanya akun pembangun)", { reply_markup: { inline_keyboard: [[
+        { text: "HRD", callback_data: "u|hrd" }, { text: "Bos", callback_data: "u|bos" },
+      ]] } });
+      return null;
+    }
     // Paket 8b-3: pesan 6 angka dianggap PIN untuk tombol/perintah yang sedang menunggu; pesannya selalu dihapus.
     if (/^\d{6}$/.test(teks)) {
       await hapusPesan(alat, pesan.chat.id, pesan.message_id);
@@ -669,7 +707,35 @@ export function rapikanPerintah(teks: string): string {
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
 }
 
+// Paket 8b-4: tombol tetap di bawah kolom ketik, per peran. Teks tombol diterjemahkan ke perintah.
+export const TOMBOL_TETAP: Record<string, string[][]> = {
+  hrd: [["Kirim file", "Ajukan", "Rilis"], ["Kode karyawan", "PIN", "Bantuan"]],
+  pembangun: [["Kirim file", "Ajukan", "Rilis"], ["Kode karyawan", "PIN", "Undang"], ["Hapus PIN", "Bantuan"]],
+  bos: [["Bantuan"]],
+};
+export function papanTombol(peran: string | null): Record<string, unknown> {
+  const baris = TOMBOL_TETAP[peran ?? ""];
+  return baris
+    ? { reply_markup: { keyboard: baris.map((b) => b.map((text) => ({ text }))), resize_keyboard: true, is_persistent: true } }
+    : { reply_markup: { remove_keyboard: true } };
+}
+const TEKS_TOMBOL: Record<string, string> = {
+  "kirim file": "/unggah", "ajukan": "/ajukan", "rilis": "/rilis", "bantuan": "/bantuan", "hapus pin": "/hapuspin",
+  "kode karyawan": "/tombol_kode", "pin": "/tombol_pin", "undang": "/tombol_undang",
+};
+export function teksTombol(teks: string): string {
+  return TEKS_TOMBOL[teks.trim().toLowerCase()] ?? teks;
+}
+// Pertanyaan bot yang dijawab dengan membalas pesannya (force reply); awal teks dipakai untuk mengenali jawabannya.
+export const TANYA_ID = "Ketik ID karyawan yang dibuatkan kode daftar";
+export const TANYA_PIN = "Buat PIN: ketik 6 angka. Ganti PIN: ketik PIN lama, spasi, PIN baru";
+
 const tombolRilis = (periode: number) => ({ reply_markup: { inline_keyboard: [[{ text: "Rilis (PIN)", callback_data: `r|y|${periode}` }]] } });
+// Paket 8b-4: baris tombol "Batalkan pengajuan" ditambahkan di bawah tombol lain.
+function denganBatal(tambahan: any, periode: number): Record<string, unknown> {
+  const baris = [...(tambahan?.reply_markup?.inline_keyboard ?? []), [{ text: "Batalkan pengajuan", callback_data: `b|y|${periode}` }]];
+  return { reply_markup: { inline_keyboard: baris } };
+}
 const tombolPembangun = (periode: number) => ({ reply_markup: { inline_keyboard: [[
   { text: "Setujui (PIN)", callback_data: `p|y|${periode}` }, { text: "Tolak (PIN)", callback_data: `p|n|${periode}` },
 ]] } });
@@ -738,12 +804,14 @@ async function daftarPeriode(alat: Alat, chat: number, tg: number, hrd: boolean,
       const tunggu = r.perlu_bos && x.status !== "disetujui";
       if (tunggu) {
         await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. Menunggu persetujuan bos.` +
-          (r.pembangun ? `\n${caraPembangun(x.periode_id)}` : ""), r.pembangun ? tombolPembangun(x.periode_id) : {});
+          (r.pembangun ? `\n${caraPembangun(x.periode_id)}` : ""),
+          denganBatal(r.pembangun ? tombolPembangun(x.periode_id) : {}, x.periode_id));
       } else if (x.menunggu) {
-        await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. Belum bisa dirilis: ${tungguUrutan(x.menunggu)}.`);
+        await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. Belum bisa dirilis: ${tungguUrutan(x.menunggu)}.`,
+          denganBatal({}, x.periode_id));
       } else {
         await kirim(alat, chat, `${teksRingkasan(x)}\nStatus: ${x.status}. Tekan Rilis lalu ketik PIN, ` +
-          `atau ketik: /rilis ${x.periode_id} <PIN> (pesan berisi PIN dihapus otomatis).`, tombolRilis(x.periode_id));
+          `atau ketik: /rilis ${x.periode_id} <PIN> (pesan berisi PIN dihapus otomatis).`, denganBatal(tombolRilis(x.periode_id), x.periode_id));
       }
     }
   }
@@ -893,7 +961,8 @@ async function pakaiPin(alat: Alat, chat: number, tg: number, hrd: boolean, pin:
   if (t?.aksi === "setujui" || t?.aksi === "tolak") return putuskan(alat, chat, tg, Number(t.periode_id), null, t.aksi === "setujui", pin);
   await kirim(alat, chat, t?.lewat
     ? "Waktu memasukkan PIN sudah lewat (5 menit). Tekan tombolnya lagi."
-    : "Pesan berisi 6 angka sudah dihapus. Tidak ada perintah yang sedang menunggu PIN.");
+    : "Pesan berisi 6 angka sudah dihapus. Tidak ada perintah yang sedang menunggu PIN. " +
+      "Untuk membuat atau mengganti PIN, tekan tombol PIN lalu balas pertanyaannya.");
 }
 
 async function batalAjukan(alat: Alat, chat: number, tg: number, hrd: boolean, nomor?: string): Promise<void> {
@@ -980,7 +1049,7 @@ async function gabung(alat: Alat, chat: number, tg: number, ketik: string): Prom
   switch (r.hasil) {
     case "terdaftar":
       await pasangMenu(alat, chat, r.peran);
-      await kirim(alat, chat, `Terdaftar sebagai ${nama(r.peran)}.\n${BANTUAN[r.peran] ?? ""}`);
+      await kirim(alat, chat, `Terdaftar sebagai ${nama(r.peran)}.\n${BANTUAN[r.peran] ?? ""}`, papanTombol(r.peran));
       if (r.pembangun) await kirimAman2(alat, r.pembangun, `Kode undangan ${nama(r.peran)} sudah dipakai; akun baru terdaftar.`, {});
       return;
     case "sudah_terdaftar":
@@ -998,7 +1067,8 @@ async function gabung(alat: Alat, chat: number, tg: number, ketik: string): Prom
 async function bantuan(alat: Alat, chat: number, tg: number): Promise<void> {
   const akun = await alat.api("pintu_akun", { telegram_id: tg });
   await pasangMenu(alat, chat, akun.peran);
-  await kirim(alat, chat, BANTUAN[akun.peran ?? "umum"] ?? BANTUAN.umum);
+  await kirim(alat, chat, (BANTUAN[akun.peran ?? "umum"] ?? BANTUAN.umum) +
+    (TOMBOL_TETAP[akun.peran ?? ""] ? "\nTombol di bawah kolom ketik bisa dipakai sebagai ganti perintah." : ""), papanTombol(akun.peran));
 }
 
 // Pengingat harian ke bos untuk pengajuan yang belum dijawab (dipanggil bersama pengingat kirim file).

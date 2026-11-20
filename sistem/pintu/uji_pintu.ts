@@ -12,7 +12,8 @@ import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
-  apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
+  TOMBOL_TETAP, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -1113,4 +1114,59 @@ test("8b-3: /undang bos hanya pembangun; 'gabung KODE' -> akun bos terdaftar, me
   assert.equal(nilai(`select peran from induk.pengguna where telegram_id = ${BOS_BARU}`), "bos");
   assert.match((await kirimUpdate(teksPribadi(9971, BOS_BARU, `/gabung ${kode}`))).pesan[0].text, /sudah terdaftar sebagai bos/);
   assert.match((await kirimUpdate(teksPribadi(9972, BOS_BARU, "/bantuan"))).pesan[0].text, /tombol Setujui dan Tolak/);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 8b-4: tombol tetap di bawah kolom ketik.
+// ---------------------------------------------------------------------------
+
+const balas = (u: number, dari: number, text: string, tanya: string) => JSON.stringify({ update_id: u, message: {
+  message_id: u, chat: { id: dari, type: "private" }, from: { id: dari }, text,
+  reply_to_message: { message_id: u - 1, from: { id: 1, is_bot: true }, text: tanya } } });
+const papan = (p: any) => p.reply_markup.keyboard.map((b: any[]) => b.map((t) => t.text));
+
+test("8b-4: /bantuan memasang tombol tetap sesuai peran (HRD, pembangun, bos)", async () => {
+  assert.deepEqual(papan((await kirimUpdate(teksPribadi(9980, HRD, "/bantuan"))).pesan[0]), TOMBOL_TETAP.hrd);
+  assert.deepEqual(papan((await kirimUpdate(teksPribadi(9981, PEMBANGUN, "Bantuan"))).pesan[0]), TOMBOL_TETAP.pembangun);
+  assert.deepEqual(papan((await kirimUpdate(teksPribadi(9982, BOS, "/start"))).pesan[0]), TOMBOL_TETAP.bos);
+  const k = await kirimUpdate(teksPribadi(9983, KARYAWAN_BARU, "/bantuan"));
+  assert.equal(k.pesan[0].reply_markup.remove_keyboard, true);
+});
+
+test("8b-4: tombol 'Kirim file', 'Ajukan', 'Rilis', 'Hapus PIN' sama dengan perintahnya", async () => {
+  const tanpaKode = (r: { pesan: any[] }) => r.pesan.map((p) => String(p.text).replace(/#kode=[0-9a-f]{64}/, "#kode=X"));
+  assert.deepEqual(tanpaKode(await kirimUpdate(teksPribadi(9984, HRD, "Kirim file"))),
+    tanpaKode(await kirimUpdate(teksPribadi(9985, HRD, "/unggah"))));
+  assert.deepEqual((await kirimUpdate(teksPribadi(9986, HRD, "Rilis"))).pesan.map((p) => p.text),
+    (await kirimUpdate(teksPribadi(9987, HRD, "/rilis"))).pesan.map((p) => p.text));
+  assert.match((await kirimUpdate(teksPribadi(9988, PEMBANGUN, "Hapus PIN"))).pesan[0].text, /^Pilih akun yang PIN-nya dihapus/);
+  assert.match((await kirimUpdate(teksPribadi(9989, KARYAWAN_BARU, "Kode karyawan"))).pesan[0].text, /hanya untuk HRD/);
+});
+
+test("8b-4: tombol 'Kode karyawan' bertanya ID -> balasan ID membuat kode daftar", async () => {
+  const t = await kirimUpdate(teksPribadi(9990, HRD, "Kode karyawan"));
+  assert.ok(t.pesan[0].text.startsWith(TANYA_ID));
+  assert.equal(t.pesan[0].reply_markup.force_reply, true);
+  const id = nilai(`select k.id from induk.karyawan k where fakta.karyawan_aktif(k.id)
+                    and not exists (select 1 from induk.pengguna u where u.id_karyawan = k.id) order by k.id limit 1`);
+  const r = await kirimUpdate(balas(9991, HRD, id, t.pesan[0].text));
+  assert.match(r.pesan[0].text, new RegExp(`^Kode daftar untuk ${id} `));
+});
+
+test("8b-4: tombol 'PIN' bertanya -> balasan 'PIN lama PIN baru' mengganti PIN; pesan dihapus; format salah ditolak", async () => {
+  const t = await kirimUpdate(teksPribadi(9992, HRD, "PIN"));
+  assert.ok(t.pesan[0].text.startsWith(TANYA_PIN));
+  const awal = terkirim.length;
+  assert.match((await kirimUpdate(balas(9993, HRD, "905172 640913 1", t.pesan[0].text))).pesan[0].text, /^Format salah/);
+  assert.match((await kirimUpdate(balas(9994, HRD, "905172 640913", t.pesan[0].text))).pesan[0].text, /^PIN diganti/);
+  assert.deepEqual(dihapus(awal), [9993, 9994]);
+  assert.match((await kirimUpdate(balas(9995, HRD, "640913", t.pesan[0].text))).pesan[0].text, /^PIN sudah ada/);
+});
+
+test("8b-4: tombol 'Undang' -> pilihan HRD/Bos -> kode undangan; tombol 'Batalkan pengajuan' memanggil /batal", async () => {
+  const u = await kirimUpdate(teksPribadi(9996, PEMBANGUN, "Undang"));
+  assert.deepEqual(u.pesan[0].reply_markup.inline_keyboard[0].map((t: any) => t.callback_data), ["u|hrd", "u|bos"]);
+  assert.match((await kirimUpdate(tekanTombol(9997, PEMBANGUN, "u|hrd"))).pesan[0].text, /^Kode undangan HRD: [A-Z0-9]{10}/);
+  assert.match((await kirimUpdate(tekanTombol(9998, HRD, "u|bos"))).pesan[0].text, /hanya untuk akun pembangun/);
+  assert.match((await kirimUpdate(tekanTombol(9999, HRD, `b|y|${periode3}`))).pesan[0].text, /tidak sedang diajukan atau disetujui \(status: dirilis\)/);
 });
