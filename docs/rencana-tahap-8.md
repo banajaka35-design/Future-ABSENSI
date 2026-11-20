@@ -4,6 +4,8 @@
 
 **Gerbang (PRD v2 bagian 13):** pesan sampai ke akun uji, dan pendaftaran dengan kode salah ditolak.
 
+**Hasil gerbang:** "pesan sampai ke akun uji" lulus uji nyata 20 Nov 2026 15.31 WIB (akun Telegram kedua sebagai karyawan 10735, `docs/serah-terima.md`). "Pendaftaran dengan kode salah ditolak" lulus uji otomatis 8a; uji nyata menunggu akun yang belum terdaftar.
+
 | Paket | Isi | Status |
 | --- | --- | --- |
 | 8a | Pendaftaran karyawan lewat bot: kode sekali pakai dari HRD, konfirmasi nama dan divisi, ganti HP lewat HRD (K1, K8) | di-"buat" 19 Nov 2026, `docs/rencana-8a.md` |

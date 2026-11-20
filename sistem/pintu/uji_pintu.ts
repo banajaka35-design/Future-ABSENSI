@@ -762,6 +762,9 @@ test("8a: tombol Ya -> terdaftar sebagai karyawan 10001; ditekan lagi -> tidak b
     from: { id: KARYAWAN_BARU }, message: { chat: { id: KARYAWAN_BARU, type: "private" } } } });
   const r = await kirimUpdate(tekan(9806));
   assert.match(r.pesan[0].text, /^Terdaftar: Eka Susanto \(ID 10001\)/);
+  // Paket 8c-3: belum ada gaji yang dirilis -> kalimat "akan dikirim setelah gaji dirilis" tetap, tanpa rincian.
+  assert.ok(r.pesan[0].text.endsWith("Rincian gaji akan dikirim lewat chat ini setelah gaji dirilis."), r.pesan[0].text);
+  assert.equal(r.pesan.length, 1);
   assert.equal(nilai(`select peran || '/' || id_karyawan || '/' || aktif from induk.pengguna where telegram_id = ${KARYAWAN_BARU}`),
                "karyawan/10001/true");
   assert.match((await kirimUpdate(tekan(9807))).pesan[0].text, /tidak berlaku lagi/);
@@ -1305,6 +1308,8 @@ test("8c: karyawan yang baru daftar sesudah rilis langsung menerima rincian gaji
   const d = await kirimUpdate(teksPribadi(10111, BARU, `/daftar ${kode}`));
   const r = await kirimUpdate(tekanTombol(10112, BARU, d.pesan[0].reply_markup.inline_keyboard[0][0].callback_data));
   assert.match(r.pesan[0].text, /^Terdaftar: /);
+  // Paket 8c-3: rincian terakhir sudah ada -> kalimat "akan dikirim setelah gaji dirilis" diganti.
+  assert.ok(r.pesan[0].text.endsWith("Rincian gaji terakhir ada di bawah ini; tombol Gaji saya untuk meminta ulang."), r.pesan[0].text);
   assert.deepEqual(papan(r.pesan[0]), TOMBOL_TETAP.karyawan);
   assert.match(r.pesan[1].text, new RegExp(`^RINCIAN GAJI\nPeriode no\\. ${periode3}:[\\s\\S]*\\(ID ${id}\\)`));
   assert.equal(nilai(`select status from fakta.kirim_gaji where id_karyawan = '${id}' and periode_id = ${periode3}`), "terkirim");

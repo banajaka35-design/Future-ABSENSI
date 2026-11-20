@@ -206,13 +206,16 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       return null;
     }
     if (jenis === "d" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
-      const jawab = await jawabDaftar(alat, tg, Number(mesin), asal === "y");
+      let jawab = await jawabDaftar(alat, tg, Number(mesin), asal === "y");
       const baru = jawab.startsWith("Terdaftar:");
-      await kirim(alat, chat, jawab, baru ? papanTombol("karyawan") : {});
       // Paket 8c: karyawan yang baru daftar langsung menerima rincian gaji periode terakhir yang sudah dirilis.
+      // Paket 8c-3: bila rincian itu ada, kalimat "akan dikirim setelah gaji dirilis" diganti supaya tidak janggal.
+      const gaji = baru ? await alat.api("pintu_gaji_saya", { telegram_id: tg }) : null;
+      if (gaji?.hasil === "ada") jawab = jawab.replace(KALIMAT_TUNGGU_RILIS, KALIMAT_SUDAH_RILIS);
+      await kirim(alat, chat, jawab, baru ? papanTombol("karyawan") : {});
       if (baru) {
         await pasangMenu(alat, chat, "karyawan");
-        await gajiSaya(alat, chat, tg, undefined, true);
+        await kirimHasilGaji(alat, chat, tg, gaji, undefined, true);
       }
       return null;
     }
@@ -1217,6 +1220,10 @@ async function gajiSaya(alat: Alat, chat: number, tg: number, nomor?: string, da
     return;
   }
   const r = await alat.api("pintu_gaji_saya", nomor ? { telegram_id: tg, periode_id: Number(nomor) } : { telegram_id: tg });
+  await kirimHasilGaji(alat, chat, tg, r, nomor, dariDaftar);
+}
+
+async function kirimHasilGaji(alat: Alat, chat: number, tg: number, r: any, nomor?: string, dariDaftar = false): Promise<void> {
   switch (r.hasil) {
     case "ada": {
       let ok = true;
@@ -1366,11 +1373,14 @@ async function mintaDaftar(alat: Alat, tg: number, ketik: string): Promise<[stri
   }
 }
 
+export const KALIMAT_TUNGGU_RILIS = "Rincian gaji akan dikirim lewat chat ini setelah gaji dirilis.";
+export const KALIMAT_SUDAH_RILIS = "Rincian gaji terakhir ada di bawah ini; tombol Gaji saya untuk meminta ulang.";
+
 async function jawabDaftar(alat: Alat, tg: number, kodeId: number, ya: boolean): Promise<string> {
   const r = await alat.api("pintu_daftar_jawab", { telegram_id: tg, kode_id: kodeId, jawab: ya ? "ya" : "bukan" });
   switch (r.hasil) {
     case "terdaftar":
-      return `Terdaftar: ${r.nama} (ID ${r.id}). Rincian gaji akan dikirim lewat chat ini setelah gaji dirilis.`;
+      return `Terdaftar: ${r.nama} (ID ${r.id}). ${KALIMAT_TUNGGU_RILIS}`;
     case "dibatalkan":
       return "Kode dibatalkan. Minta kode baru ke HRD.";
     case "sudah_terdaftar":
