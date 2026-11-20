@@ -72,7 +72,8 @@ select uji.sama('8b-3: rilis memberi kabar ke HRD lain, bos, pembangun (tanpa pe
 select uji.sama('8b-3: sesudah periode 1 dirilis, periode 2 bisa diajukan',
   concat_ws('/', (pg_temp.k('daftar_sesudah') -> 'periode' -> 0 ->> 'periode_id'), pg_temp.k('ajukan_2') ->> 'hasil'),
   pg_temp.pid(2) || '/diajukan');
-select uji.sama('8b-3: teks status Dirilis', fakta.status_rilis_teks(pg_temp.pid(1)), 'Dirilis');
+-- Paket 8c: teks status sesudah rilis menyebut pengiriman pesan gaji.
+select uji.sama('8b-3: teks status Dirilis', fakta.status_rilis_teks(pg_temp.pid(1)), 'Dirilis, pesan gaji sedang dikirim');
 
 -- ---------------------------------------------------------------------------
 -- Batal pengajuan

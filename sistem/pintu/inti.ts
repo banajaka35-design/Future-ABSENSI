@@ -39,6 +39,7 @@ const API_BOLEH = new Set([
   "pintu_atur_pin", "pintu_daftar_periode", "pintu_ajukan", "pintu_setujui", "pintu_rilis",
   "pintu_batal", "pintu_daftar_pin", "pintu_hapus_pin", "pintu_undang", "pintu_gabung", "pintu_minta_pin", "pintu_ambil_pin",
   "pintu_pengingat_rilis",
+  "pintu_kirim_gaji_ambil", "pintu_kirim_gaji_hasil", "pintu_gaji_saya", "pintu_contoh_gaji",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -205,7 +206,14 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       return null;
     }
     if (jenis === "d" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
-      await kirim(alat, chat, await jawabDaftar(alat, tg, Number(mesin), asal === "y"));
+      const jawab = await jawabDaftar(alat, tg, Number(mesin), asal === "y");
+      const baru = jawab.startsWith("Terdaftar:");
+      await kirim(alat, chat, jawab, baru ? papanTombol("karyawan") : {});
+      // Paket 8c: karyawan yang baru daftar langsung menerima rincian gaji periode terakhir yang sudah dirilis.
+      if (baru) {
+        await pasangMenu(alat, chat, "karyawan");
+        await gajiSaya(alat, chat, tg, undefined, true);
+      }
       return null;
     }
     if (jenis !== "m" || !asal || !mesin) return null;
@@ -300,6 +308,16 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
         await kirim(alat, pesan.chat.id, "Cara pakai: /setujui <nomor periode> atau /tolak <nomor periode>, lalu ketik PIN. Nomor periode terlihat di /rilis.");
       } else if (!putus[3]) await mintaPin(alat, pesan.chat.id, pesan.from?.id, setuju ? "setujui" : "tolak", Number(putus[2]));
       else await putuskan(alat, pesan.chat.id, pesan.from?.id, Number(putus[2]), null, setuju, putus[3]);
+      return null;
+    }
+    const gaji = /^\/gaji(?:@\w+)?(?:\s+(\S+))?\s*$/i.exec(teks);
+    if (gaji) {
+      await gajiSaya(alat, pesan.chat.id, pesan.from?.id, gaji[1]);
+      return null;
+    }
+    const contoh = /^\/contohgaji(?:@\w+)?(?:\s+(\S+))?(?:\s+(\S+))?\s*$/i.exec(teks);
+    if (contoh) {
+      await contohGaji(alat, pesan.chat.id, pesan.from?.id, contoh[1], contoh[2]);
       return null;
     }
     const batal = /^\/batal(?:@\w+)?(?:\s+(\S+))?\s*$/i.exec(teks);
@@ -632,6 +650,7 @@ export async function tanganiPengingat(
   } catch {
     return { status: 400, hasil: null };
   }
+  if (isi?.tugas === "kirim_gaji") return { status: 200, hasil: await kirimAntreanGaji(alat) };
   const tanggal = isi?.tanggal;
   if (tanggal !== undefined && tanggal !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(tanggal))) {
     return { status: 400, hasil: null };
@@ -671,12 +690,12 @@ const P = (command: string, description: string): Perintah => ({ command, descri
 const MENU_HRD = [
   P("unggah", "Tautan unggah file mesin lewat web"), P("kode", "Kode daftar karyawan: /kode <ID>"),
   P("ajukan", "Ajukan rilis gaji"), P("rilis", "Lihat dan rilis gaji yang siap"), P("batal", "Batalkan pengajuan: /batal <nomor>"),
-  P("pin", "Buat atau ganti PIN"), P("bantuan", "Daftar perintah"),
+  P("pin", "Buat atau ganti PIN"), P("contohgaji", "Contoh pesan gaji: /contohgaji <ID> <nomor>"), P("bantuan", "Daftar perintah"),
 ];
 export const MENU: Record<string, Perintah[]> = {
   umum: [P("daftar", "Daftar karyawan dengan kode dari HRD"), P("gabung", "Gabung sebagai HRD/bos dengan kode undangan"),
          P("bantuan", "Daftar perintah")],
-  karyawan: [P("bantuan", "Daftar perintah")],
+  karyawan: [P("gaji", "Rincian gaji terakhir (atau /gaji <nomor>)"), P("bantuan", "Daftar perintah")],
   hrd: MENU_HRD,
   bos: [P("bantuan", "Daftar perintah")],
   pembangun: [...MENU_HRD.slice(0, -1), P("setujui", "Setujui pengajuan: /setujui <nomor>"), P("tolak", "Tolak pengajuan: /tolak <nomor>"),
@@ -695,10 +714,12 @@ export async function pasangMenu(alat: Alat, chat: number, peran: string | null)
 const BANTUAN: Record<string, string> = {
   hrd: "Perintah HRD:\n/unggah tautan unggah file\n/kode <ID> kode daftar karyawan\n/ajukan ajukan rilis gaji\n" +
     "/rilis lihat gaji yang siap dirilis (tombol Rilis lalu ketik PIN)\n/batal <nomor> batalkan pengajuan\n/pin buat atau ganti PIN\n" +
+    "/contohgaji <ID> <nomor> contoh pesan rincian gaji untuk karyawan\n" +
     "Kirim file mesin sebagai dokumen untuk menghitung gaji.",
   bos: "Pengajuan rilis gaji dikirim ke chat ini dengan tombol Setujui dan Tolak. Bila belum dijawab, bot mengingatkan setiap pagi.",
   pembangun: "",
-  karyawan: "Rincian gaji akan dikirim lewat chat ini setelah gaji dirilis.",
+  karyawan: "Rincian gaji dikirim lewat chat ini setelah gaji dirilis.\nTombol Gaji saya (atau /gaji) mengirim ulang " +
+    "rincian gaji terakhir; /gaji <nomor> untuk periode tertentu.",
   umum: "Karyawan: minta kode daftar ke HRD, lalu ketik /daftar KODE.\nHRD atau bos: minta kode undangan ke pembangun, lalu ketik /gabung KODE.",
 };
 BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /tolak <nomor> (lalu ketik PIN)\n" +
@@ -706,7 +727,7 @@ BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /
 
 // Perintah yang diketik tanpa garis miring tetap dikenali (paket 8b-3, temuan 6).
 const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
-  "kode", "unggah", "bantuan"]);
+  "kode", "unggah", "bantuan", "gaji", "contohgaji"]);
 export function rapikanPerintah(teks: string): string {
   const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
@@ -717,6 +738,7 @@ export const TOMBOL_TETAP: Record<string, string[][]> = {
   hrd: [["Kirim file", "Ajukan", "Rilis"], ["Kode karyawan", "PIN", "Bantuan"]],
   pembangun: [["Kirim file", "Ajukan", "Rilis"], ["Kode karyawan", "PIN", "Undang"], ["Hapus PIN", "Bantuan"]],
   bos: [["Bantuan"]],
+  karyawan: [["Gaji saya", "Bantuan"]],
 };
 export function papanTombol(peran: string | null): Record<string, unknown> {
   const baris = TOMBOL_TETAP[peran ?? ""];
@@ -731,6 +753,7 @@ async function papanAkun(alat: Alat, tg: number): Promise<Record<string, unknown
 const TEKS_TOMBOL: Record<string, string> = {
   "kirim file": "/unggah", "ajukan": "/ajukan", "rilis": "/rilis", "bantuan": "/bantuan", "hapus pin": "/hapuspin",
   "kode karyawan": "/tombol_kode", "pin": "/tombol_pin", "undang": "/tombol_undang",
+  "gaji saya": "/gaji", "menu": "/bantuan",
 };
 export function teksTombol(teks: string): string {
   return TEKS_TOMBOL[teks.trim().toLowerCase()] ?? teks;
@@ -1127,6 +1150,148 @@ async function kirimPengingatRilis(alat: Alat, tanggal?: string): Promise<number
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Pesan rincian gaji (paket 8c, docs/rencana-8c.md): antrean sesudah rilis, minta ulang, contoh untuk HRD/pembangun.
+// ---------------------------------------------------------------------------
+
+const LABEL_KOMPONEN: Record<string, string> = {
+  gaji_pokok: "Gaji pokok", tunjangan_tetap: "Tunjangan tetap", uang_makan: "Uang makan", lembur: "Lembur",
+  premi_hadir: "Premi hadir", tunjangan_shift_malam: "Tunjangan shift malam", thr: "THR",
+  pengembalian_pph21: "Pengembalian PPh 21", potongan_tidak_dibayar: "Potongan hari tidak dibayar",
+  pph21: "PPh 21", bpjs_jht_karyawan: "BPJS JHT", bpjs_jp_karyawan: "BPJS Pensiun", bpjs_kesehatan_karyawan: "BPJS Kesehatan",
+  bpjs_jht_perusahaan: "BPJS JHT", bpjs_jkk_perusahaan: "BPJS Kecelakaan Kerja", bpjs_jkm_perusahaan: "BPJS Kematian",
+  bpjs_jp_perusahaan: "BPJS Pensiun", bpjs_kesehatan_perusahaan: "BPJS Kesehatan",
+};
+const labelKomponen = (k: string) => LABEL_KOMPONEN[k] ?? (k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " "));
+export const rupiah = (n: number) => (Number(n) < 0 ? "-" : "") + "Rp" + Math.abs(Number(n)).toLocaleString("id-ID");
+
+// Susun pesan gaji satu orang; dipecah bila lebih panjang dari BATAS_PESAN (dipecah di antara baris).
+export function susunPesanGaji(x: any, judul = "RINCIAN GAJI"): string[] {
+  const baris: string[] = [
+    judul,
+    `Periode no. ${x.periode_id}: ${x.awal} s.d. ${x.akhir}, dibayar ${x.bayar}.`,
+    `${x.nama} (ID ${x.id})${x.divisi ? `, ${x.divisi}` : ""}.`,
+  ];
+  const kelompok = (k: string) => (x.komponen ?? []).filter((c: any) => c.kelompok === k);
+  const tulis = (daftar: any[]) => {
+    for (const c of daftar) {
+      baris.push(`- ${labelKomponen(c.komponen)}: ${rupiah(c.nominal)}`);
+      if (c.bukti) baris.push(`  (${String(c.bukti).slice(0, 600)})`);
+    }
+  };
+  baris.push("", "Pendapatan:");
+  tulis(kelompok("pendapatan"));
+  baris.push(`Total pendapatan: ${rupiah(x.pendapatan)}`, "", "Potongan:");
+  tulis(kelompok("potongan"));
+  baris.push(`Total potongan: ${rupiah(x.potongan)}`, "", `GAJI BERSIH: ${rupiah(x.bersih)}`,
+    `Dibayar ${x.cara_bayar === "tunai" ? "tunai" : "lewat transfer"}: ${rupiah(x.dibayar)}`);
+  if (Number(x.sisa) !== 0) baris.push(`Sisa pembulatan ${rupiah(x.sisa)} dibawa ke periode berikutnya.`);
+  const perusahaan = kelompok("perusahaan");
+  if (perusahaan.length) {
+    baris.push("", "Dibayar perusahaan untuk Anda (tidak memotong gaji):");
+    for (const c of perusahaan) baris.push(`- ${labelKomponen(c.komponen)}: ${rupiah(c.nominal)}`);
+  }
+  baris.push("", "Ada yang tidak sesuai? Hubungi HRD.");
+  const pesan: string[] = [];
+  let kini = "";
+  for (const b of baris) {
+    if (kini && kini.length + 1 + b.length > BATAS_PESAN) {
+      pesan.push(kini);
+      kini = "";
+    }
+    kini = kini ? `${kini}\n${b}` : b;
+  }
+  if (kini) pesan.push(kini);
+  return pesan.map((p, i) => (pesan.length > 1 ? `(${i + 1}/${pesan.length})\n${p}` : p));
+}
+
+async function kirimBagian(alat: Alat, chat: number, bagian: string[], tambahan: Record<string, unknown> = {}): Promise<void> {
+  for (let i = 0; i < bagian.length; i++) await kirim(alat, chat, bagian[i], i === bagian.length - 1 ? tambahan : {});
+}
+
+async function gajiSaya(alat: Alat, chat: number, tg: number, nomor?: string, dariDaftar = false): Promise<void> {
+  if (nomor !== undefined && !/^\d+$/.test(nomor)) {
+    await kirim(alat, chat, "Cara pakai: /gaji untuk rincian gaji terakhir, atau /gaji <nomor periode>.");
+    return;
+  }
+  const r = await alat.api("pintu_gaji_saya", nomor ? { telegram_id: tg, periode_id: Number(nomor) } : { telegram_id: tg });
+  switch (r.hasil) {
+    case "ada": {
+      let ok = true;
+      let galat: string | undefined;
+      try {
+        await kirimBagian(alat, chat, susunPesanGaji(r));
+      } catch (e) {
+        ok = false;
+        galat = String((e as Error).message ?? e).slice(0, 300);
+      }
+      await alat.api("pintu_kirim_gaji_hasil", { hasil: [{ kirim_id: r.kirim_id, ok, galat, telegram_id: tg }] });
+      return;
+    }
+    case "belum_ada":
+      if (!dariDaftar) {
+        await kirim(alat, chat, nomor ? "Belum ada rincian gaji yang dirilis untuk Anda di periode itu."
+          : "Belum ada rincian gaji yang dirilis untuk Anda.");
+      }
+      return;
+    case "terlalu_sering": await kirim(alat, chat, "Rincian gaji sudah diminta 5 kali dalam 1 jam. Coba lagi nanti."); return;
+    default: if (!dariDaftar) await kirim(alat, chat, "Perintah ini untuk karyawan yang sudah terdaftar.");
+  }
+}
+
+async function contohGaji(alat: Alat, chat: number, tg: number, id?: string, nomor?: string): Promise<void> {
+  if (!id || !/^\d+$/.test(nomor ?? "")) {
+    await kirim(alat, chat, "Cara pakai: /contohgaji <ID karyawan> <nomor periode>. Nomor periode terlihat di /rilis atau Sheets.");
+    return;
+  }
+  const r = await alat.api("pintu_contoh_gaji", { telegram_id: tg, id_karyawan: id, periode_id: Number(nomor) });
+  switch (r.hasil) {
+    case "ada": await kirimBagian(alat, chat, susunPesanGaji(r, "CONTOH RINCIAN GAJI (pesan yang diterima karyawan)")); return;
+    case "rahasia": await kirim(alat, chat, "Gaji orang ini rahasia; contohnya hanya untuk akun pembangun."); return;
+    case "tidak_ada": await kirim(alat, chat, "Tidak ada rincian gaji untuk ID dan periode itu."); return;
+    default: await kirim(alat, chat, BUKAN_HRD_RILIS);
+  }
+}
+
+// Penjadwal (pg_cron tiap menit, hanya bila ada pekerjaan): kirim antrean pesan gaji, sekitar 20 pesan per detik,
+// paling lama 20 detik per panggilan (sisanya di panggilan berikutnya). Ringkasan ke HRD/pembangun saat periode selesai.
+export const BATAS_KIRIM_GAJI_MS = 20_000;
+export async function kirimAntreanGaji(alat: Alat): Promise<{ terkirim: number; gagal: number; selesai: number[] }> {
+  const mulai = alat.sekarang();
+  let terkirim = 0;
+  let gagal = 0;
+  const selesai: number[] = [];
+  const ringkas = async (daftar: any[]) => {
+    for (const s of daftar ?? []) {
+      selesai.push(s.periode_id);
+      const teks = `Pesan gaji periode no. ${s.periode_id} selesai dikirim: ${angka(s.terkirim)} terkirim, ` +
+        `${angka(s.tanpa_akun)} belum punya akun Telegram, ${angka(s.gagal)} gagal. ` +
+        "Yang belum terkirim bisa meminta rinciannya sendiri lewat tombol Gaji saya sesudah daftar.";
+      for (const t of (s.penerima ?? []) as number[]) await kirimAman2(alat, t, teks, {});
+    }
+  };
+  while (alat.sekarang() - mulai < BATAS_KIRIM_GAJI_MS) {
+    const r = await alat.api("pintu_kirim_gaji_ambil", { batas: 25 });
+    await ringkas(r.selesai);
+    if (!(r.kirim ?? []).length) break;
+    const hasil: any[] = [];
+    for (const k of r.kirim) {
+      try {
+        await kirimBagian(alat, k.telegram_id, susunPesanGaji(k), papanTombol("karyawan"));
+        hasil.push({ kirim_id: k.kirim_id, ok: true });
+        terkirim++;
+      } catch (e) {
+        hasil.push({ kirim_id: k.kirim_id, ok: false, galat: String((e as Error).message ?? e).slice(0, 300) });
+        gagal++;
+      }
+      await alat.tidur(50);
+    }
+    const h = await alat.api("pintu_kirim_gaji_hasil", { hasil });
+    await ringkas(h.selesai);
+  }
+  return { terkirim, gagal, selesai };
+}
+
 // Pendaftaran karyawan (paket 8a, docs/rencana-8a.md; PRD v2 celah K1, K8)
 // ---------------------------------------------------------------------------
 

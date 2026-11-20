@@ -13,7 +13,7 @@ import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
-  TOMBOL_TETAP, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  TOMBOL_TETAP, susunPesanGaji, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -1136,8 +1136,10 @@ test("8b-4: /bantuan memasang tombol tetap sesuai peran (HRD, pembangun, bos)", 
   assert.deepEqual(papan((await kirimUpdate(teksPribadi(9980, HRD, "/bantuan"))).pesan[0]), TOMBOL_TETAP.hrd);
   assert.deepEqual(papan((await kirimUpdate(teksPribadi(9981, PEMBANGUN, "Bantuan"))).pesan[0]), TOMBOL_TETAP.pembangun);
   assert.deepEqual(papan((await kirimUpdate(teksPribadi(9982, BOS, "/start"))).pesan[0]), TOMBOL_TETAP.bos);
+  // Paket 8c: karyawan kini punya tombol tetap (Gaji saya, Bantuan); akun tak dikenal tanpa tombol.
   const k = await kirimUpdate(teksPribadi(9983, KARYAWAN_BARU, "/bantuan"));
-  assert.equal(k.pesan[0].reply_markup.remove_keyboard, true);
+  assert.deepEqual(papan(k.pesan[0]), TOMBOL_TETAP.karyawan);
+  assert.equal((await kirimUpdate(teksPribadi(9979, 4242, "/bantuan"))).pesan[0].reply_markup.remove_keyboard, true);
 });
 
 test("8b-4: tombol 'Kirim file', 'Ajukan', 'Rilis', 'Hapus PIN' sama dengan perintahnya", async () => {
@@ -1202,4 +1204,112 @@ test("8b-5: jawaban pertanyaan PIN mengembalikan tombol tetap", async () => {
   const r = await kirimUpdate(balas(10004, HRD, "640913 715208", t.pesan[0].text));
   assert.match(r.pesan[0].text, /^PIN diganti/);
   assert.deepEqual(papan(r.pesan[0]), TOMBOL_TETAP.hrd);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 8c: pesan rincian gaji ke karyawan.
+// ---------------------------------------------------------------------------
+
+const contohIsi = (bukti = "hadir 20 hari") => ({
+  periode_id: 7, awal: "2026-01-21", akhir: "2026-02-20", bayar: "2026-02-25", id: "10001", nama: "Eka", divisi: "Jahit",
+  cara_bayar: "tunai", pendapatan: 3000, potongan: -150, bersih: 2850, dibayar: 2000, sisa: 850,
+  komponen: [
+    { komponen: "gaji_pokok", kelompok: "pendapatan", nominal: 3000, bukti },
+    { komponen: "pph21", kelompok: "potongan", nominal: -150, bukti: "TER" },
+    { komponen: "bpjs_jht_perusahaan", kelompok: "perusahaan", nominal: 111, bukti: "3,7%" },
+  ],
+});
+
+test("8c: susun pesan gaji: komponen, potongan bertanda minus, dibayar tunai, sisa pembulatan (E09), bagian perusahaan", () => {
+  const [p, ...lain] = susunPesanGaji(contohIsi());
+  assert.equal(lain.length, 0);
+  assert.equal(rupiahBot(-150), "-Rp150");
+  for (const bagian of ["RINCIAN GAJI\nPeriode no. 7: 2026-01-21 s.d. 2026-02-20, dibayar 2026-02-25.\nEka (ID 10001), Jahit.",
+    "- Gaji pokok: Rp3.000\n  (hadir 20 hari)", "- PPh 21: -Rp150", "GAJI BERSIH: Rp2.850", "Dibayar tunai: Rp2.000",
+    "Sisa pembulatan Rp850 dibawa ke periode berikutnya.", "Dibayar perusahaan untuk Anda (tidak memotong gaji):\n- BPJS JHT: Rp111"]) {
+    assert.ok(p.includes(bagian), bagian);
+  }
+});
+
+test("8c: pesan gaji panjang dipecah di antara baris, tiap bagian <= batas Telegram, bernomor (1/n)", () => {
+  const isi = contohIsi();
+  isi.komponen = Array.from({ length: 30 }, (_, i) => ({ komponen: `tunjangan_${i}`, kelompok: "pendapatan", nominal: 1000 + i,
+    bukti: "x".repeat(500) }));
+  const bagian = susunPesanGaji(isi);
+  assert.ok(bagian.length >= 3, String(bagian.length));
+  for (const [i, b] of bagian.entries()) {
+    assert.ok(b.length <= BATAS + 20, String(b.length));
+    assert.ok(b.startsWith(`(${i + 1}/${bagian.length})\n`));
+  }
+  assert.ok(bagian.join("\n").includes("- Tunjangan 29: Rp1.029"));
+});
+
+test("8c: penjadwal mengirim antrean: karyawan terdaftar menerima rincian + tombol Gaji saya; periode dikunci; ringkasan ke HRD/pembangun", async () => {
+  const menunggu = Number(nilai("select count(*) from fakta.kirim_gaji where status = 'menunggu'"));
+  assert.ok(menunggu >= 3, String(menunggu));
+  const r = await picuPengingat({ tugas: "kirim_gaji" });
+  assert.equal(r.status, 200);
+  assert.equal(r.hasil.terkirim, menunggu);
+  const ke = r.pesan.filter((p) => p.chat_id === KARYAWAN_BARU);
+  assert.equal(ke.filter((p) => p.text.startsWith("RINCIAN GAJI")).length, 3, JSON.stringify(ke.map((p) => p.text.slice(0, 40))));
+  assert.match(ke[0].text, /\(ID 10001\)/);
+  assert.deepEqual(papan(ke[0]), TOMBOL_TETAP.karyawan);
+  assert.equal(nilai("select count(*) from fakta.kirim_gaji where status in ('menunggu', 'sedang')"), "0");
+  assert.equal(nilai(`select string_agg(status, ',' order by id) from fakta.periode where status in ('dirilis', 'dikunci')`),
+    "dikunci,dikunci,dikunci");
+  for (const tg of [HRD, PEMBANGUN]) {
+    assert.equal(r.pesan.filter((p) => p.chat_id === tg && /^Pesan gaji periode no\. \d+ selesai dikirim: /.test(p.text)).length, 3);
+  }
+  assert.equal(r.pesan.filter((p) => p.chat_id === NONAKTIF).length, 0);
+  const lagi = await picuPengingat({ tugas: "kirim_gaji" });
+  assert.equal(lagi.hasil.terkirim + lagi.pesan.length, 0);
+});
+
+test("8c: 'Gaji saya' -> rincian periode terakhir; /gaji <nomor> -> periode itu; salah ketik dan HRD ditolak", async () => {
+  const g = await kirimUpdate(teksPribadi(10101, KARYAWAN_BARU, "Gaji saya"));
+  assert.match(g.pesan[0].text, new RegExp(`^RINCIAN GAJI\nPeriode no\\. ${periode3}:`));
+  const n = Number(nilai("select id from fakta.periode where tanggal_awal = '2026-01-21'"));
+  assert.match((await kirimUpdate(teksPribadi(10102, KARYAWAN_BARU, `gaji ${n}`))).pesan[0].text, new RegExp(`Periode no\\. ${n}:`));
+  assert.match((await kirimUpdate(teksPribadi(10103, KARYAWAN_BARU, "/gaji abc"))).pesan[0].text, /^Cara pakai: \/gaji/);
+  assert.match((await kirimUpdate(teksPribadi(10104, HRD, "/gaji"))).pesan[0].text, /untuk karyawan yang sudah terdaftar/);
+});
+
+// Contoh untuk periode yang belum dirilis (versi berlaku) diuji di db/uji/210_pesan_gaji.sql.
+test("8c: /contohgaji: HRD ya; orang rahasia hanya pembangun; karyawan ditolak", async () => {
+  const p4 = periode3;
+  const biasa = nilai(`select g.id_karyawan from hitung.ringkasan_gaji g where g.versi_id = fakta.versi_gaji_berlaku(${p4})
+                       and not fakta.rahasia_di_periode(g.id_karyawan, ${p4}) order by 1 limit 1`);
+  const c = await kirimUpdate(teksPribadi(10105, HRD, `/contohgaji ${biasa} ${p4}`));
+  assert.match(c.pesan[0].text, new RegExp(`^CONTOH RINCIAN GAJI \\(pesan yang diterima karyawan\\)\nPeriode no\\. ${p4}:`));
+  const rahasia = nilai(`select g.id_karyawan from hitung.ringkasan_gaji g
+                         where g.versi_id = fakta.versi_gaji_berlaku(${p4}) and fakta.rahasia_di_periode(g.id_karyawan, ${p4})
+                         order by 1 limit 1`);
+  const bukanRahasiaTapiRahasiaKini = nilai(`select g.id_karyawan from hitung.ringkasan_gaji g join induk.karyawan_riwayat r
+                         on r.id_karyawan = g.id_karyawan and r.gaji_rahasia
+                         where g.versi_id = fakta.versi_gaji_berlaku(${p4}) order by 1 limit 1`);
+  // Celah yang tertangkap saat membuat 8c: orang yang rahasia di riwayat mana pun tetap tertutup dari HRD (F15c).
+  assert.match((await kirimUpdate(teksPribadi(10114, HRD, `/contohgaji ${bukanRahasiaTapiRahasiaKini} ${p4}`))).pesan[0].text,
+    /hanya untuk akun pembangun/);
+  assert.match((await kirimUpdate(teksPribadi(10106, HRD, `/contohgaji ${rahasia} ${p4}`))).pesan[0].text, /hanya untuk akun pembangun/);
+  assert.match((await kirimUpdate(teksPribadi(10107, PEMBANGUN, `/contohgaji ${rahasia} ${p4}`))).pesan[0].text, /^CONTOH RINCIAN GAJI/);
+  assert.match((await kirimUpdate(teksPribadi(10108, KARYAWAN_BARU, `/contohgaji 10001 ${p4}`))).pesan[0].text, /hanya untuk HRD/);
+  assert.match((await kirimUpdate(teksPribadi(10109, HRD, "/contohgaji 10001"))).pesan[0].text, /^Cara pakai: \/contohgaji/);
+});
+
+test("8c: karyawan yang baru daftar sesudah rilis langsung menerima rincian gaji terakhir + tombol Gaji saya", async () => {
+  const id = nilai(`select k.id from induk.karyawan k where fakta.karyawan_aktif(k.id)
+                    and exists (select 1 from fakta.kirim_gaji g where g.id_karyawan = k.id and g.periode_id = ${periode3})
+                    and not exists (select 1 from induk.pengguna u where u.id_karyawan = k.id) order by k.id limit 1`);
+  const kode = /: ([A-HJKMNP-Z2-9]{10})\n/.exec((await kirimUpdate(teksPribadi(10110, HRD, `/kode ${id}`))).pesan[0].text)![1];
+  const BARU = 7005;
+  const d = await kirimUpdate(teksPribadi(10111, BARU, `/daftar ${kode}`));
+  const r = await kirimUpdate(tekanTombol(10112, BARU, d.pesan[0].reply_markup.inline_keyboard[0][0].callback_data));
+  assert.match(r.pesan[0].text, /^Terdaftar: /);
+  assert.deepEqual(papan(r.pesan[0]), TOMBOL_TETAP.karyawan);
+  assert.match(r.pesan[1].text, new RegExp(`^RINCIAN GAJI\nPeriode no\\. ${periode3}:[\\s\\S]*\\(ID ${id}\\)`));
+  assert.equal(nilai(`select status from fakta.kirim_gaji where id_karyawan = '${id}' and periode_id = ${periode3}`), "terkirim");
+});
+
+test("8c: tombol 'menu' dikenali sebagai /bantuan", async () => {
+  assert.match((await kirimUpdate(teksPribadi(10113, HRD, "menu"))).pesan[0].text, /^Perintah HRD:/);
 });

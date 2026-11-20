@@ -178,11 +178,29 @@ begin
           'x-pengingat-rahasia', (select s.decrypted_secret from vault.decrypted_secrets s where s.name = 'pengingat_rahasia')),
         timeout_milliseconds := 30000);
     end $b$ $f$, current_setting('pasang.alamat'));
+  -- Paket 8c: antrean pesan gaji. Dipanggil tiap menit; Edge Function hanya dihubungi bila ada pekerjaan.
+  execute format($f$
+    create or replace function jadwal.picu_kirim_gaji() returns bigint
+    language plpgsql security definer set search_path = '' as $b$
+    begin
+      if not fakta.ada_kirim_gaji() then
+        return null;
+      end if;
+      return net.http_post(
+        url := %L,
+        body := '{"tugas": "kirim_gaji"}'::jsonb,
+        headers := jsonb_build_object(
+          'content-type', 'application/json',
+          'x-pengingat-rahasia', (select s.decrypted_secret from vault.decrypted_secrets s where s.name = 'pengingat_rahasia')),
+        timeout_milliseconds := 30000);
+    end $b$ $f$, current_setting('pasang.alamat'));
 end $do$;
 select set_config('pasang.rahasia', '', false) \gset
 revoke all on function jadwal.picu_pengingat(date) from public;
 select 'Jadwal nomor ' || cron.schedule('pengingat-kirim-file', '0 1 * * *', 'select jadwal.picu_pengingat()');
+revoke all on function jadwal.picu_kirim_gaji() from public;
+select 'Jadwal nomor ' || cron.schedule('kirim-pesan-gaji', '* * * * *', 'select jadwal.picu_kirim_gaji()');
 select 'Zona waktu pg_cron: ' || coalesce(current_setting('cron.timezone', true), '(tidak terbaca)');
 select 'Jadwal terpasang: ' || jobname || ' | ' || schedule || ' | ' || command || ' | aktif=' || active
-from cron.job where jobname = 'pengingat-kirim-file';
+from cron.job where jobname in ('pengingat-kirim-file', 'kirim-pesan-gaji');
 EOF
