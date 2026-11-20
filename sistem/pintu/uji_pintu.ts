@@ -914,6 +914,9 @@ test("8b: file baru untuk periode yang sudah dirilis -> tap disimpan, periode ti
 // ---------------------------------------------------------------------------
 
 const PIN_PEMBANGUN = "640295";
+// Paket 8b-5: pesan kabar "Sheets sedang diperbarui" sesudah status periode berubah tidak dihitung di uji jumlah pesan.
+const KABAR_SHEETS = /^Sheets sedang diperbarui otomatis/;
+const tanpaSheets = (ps: any[]) => ps.filter((p) => !KABAR_SHEETS.test(String(p.text)));
 let periode2 = 0;
 const pembangunId = () => nilai(`select id from induk.pengguna where telegram_id = ${PEMBANGUN}`);
 async function ajukanLewatTombol(u: number, dari: number) {
@@ -962,13 +965,13 @@ test("8b-2: pembangun menolak dengan PIN -> kembali dihitung; HRD diberi tahu 'P
 
 test("8b-2: pembangun mengajukan, menyetujui, dan merilis sendiri; tercatat 'oleh pembangun'", async () => {
   const a = await ajukanLewatTombol(9938, PEMBANGUN);
-  const sendiri = a.pesan.filter((p) => p.chat_id === PEMBANGUN);
+  const sendiri = tanpaSheets(a.pesan.filter((p) => p.chat_id === PEMBANGUN));
   assert.equal(sendiri.length, 1, JSON.stringify(sendiri.map((p) => p.text)));
   assert.match(sendiri[0].text, new RegExp(`^Diajukan\\.[\\s\\S]*Menunggu persetujuan bos\\.\\nSebagai pembangun: [\\s\\S]*\\/setujui ${periode2} <PIN>`));
   const d = await kirimUpdate(teksPribadi(9940, PEMBANGUN, "/rilis"));
   assert.match(d.pesan.find((p) => p.text.startsWith(`Periode no. ${periode2}`)).text, /Menunggu persetujuan bos\.\nSebagai pembangun: /);
   const s = await kirimUpdate(teksPribadi(9941, PEMBANGUN, `/setujui ${periode2} ${PIN_PEMBANGUN}`));
-  assert.equal(s.pesan.length, 1);
+  assert.equal(tanpaSheets(s.pesan).length, 1);
   assert.match(s.pesan[0].text, new RegExp(`^Pengajuan disetujui\\.[\\s\\S]*\\/rilis ${periode2} <PIN>\\.$`));
   assert.equal(s.pesan[0].reply_markup.inline_keyboard[0][0].callback_data, `r|y|${periode2}`);
   const rl = await kirimUpdate(teksPribadi(9942, PEMBANGUN, `/rilis ${periode2} ${PIN_PEMBANGUN}`));
@@ -1060,13 +1063,17 @@ test("8b-3: bos setuju -> HRD dapat tombol Rilis -> PIN salah lalu PIN benar (pe
   assert.equal(keHrd.reply_markup.inline_keyboard[0][0].callback_data, `r|y|${periode3}`);
   const minta = await kirimUpdate(tekanTombol(9957, HRD, `r|y|${periode3}`));
   assert.match(minta.pesan[0].text, new RegExp(`^Ketik PIN 6 angka untuk merilis gaji periode no\\. ${periode3}\\.`));
-  assert.equal(minta.pesan[0].reply_markup.force_reply, true);
+  // Paket 8b-5: tanpa force reply supaya tombol tetap tidak tertutup.
+  assert.equal(minta.pesan[0].reply_markup, undefined);
   const awal = terkirim.length;
   assert.match((await kirimUpdate(teksPribadi(9958, HRD, "000001"))).pesan[0].text, /^PIN salah/);
   await kirimUpdate(tekanTombol(9959, HRD, `r|y|${periode3}`));
   const ok = await kirimUpdate(teksPribadi(9960, HRD, PIN_UJI));
   assert.deepEqual(dihapus(awal), [9958, 9960]);
   assert.match(pesanKe(ok, HRD)[0].text, /^Gaji DIRILIS\./);
+  // Paket 8b-5: sesudah balasan rilis, Isi Sheets dipicu dan dikabarkan (urutan: hasil dulu, lalu kabar Sheets).
+  assert.match(pesanKe(ok, HRD)[1].text, KABAR_SHEETS);
+  assert.deepEqual(dipicu[dipicu.length - 1], { pemicu: "status periode", waktu_file: "" });
   for (const tg of [BOS, PEMBANGUN]) {
     assert.match(pesanKe(ok, tg)[0].text, new RegExp(`^Gaji periode no\\. ${periode3} DIRILIS\\.`));
   }
@@ -1169,4 +1176,30 @@ test("8b-4: tombol 'Undang' -> pilihan HRD/Bos -> kode undangan; tombol 'Batalka
   assert.match((await kirimUpdate(tekanTombol(9997, PEMBANGUN, "u|hrd"))).pesan[0].text, /^Kode undangan HRD: [A-Z0-9]{10}/);
   assert.match((await kirimUpdate(tekanTombol(9998, HRD, "u|bos"))).pesan[0].text, /hanya untuk akun pembangun/);
   assert.match((await kirimUpdate(tekanTombol(9999, HRD, `b|y|${periode3}`))).pesan[0].text, /tidak sedang diajukan atau disetujui \(status: dirilis\)/);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 8b-5: Sheets diisi ulang sesudah status periode berubah; tombol tetap kembali sesudah pertanyaan dijawab.
+// ---------------------------------------------------------------------------
+
+test("8b-5: ajukan dan batal yang ditolak (status tidak berubah) tidak memicu Isi Sheets", async () => {
+  const periode4 = Number(nilai("select id from fakta.periode where tanggal_awal = '2026-11-21'"));
+  const awal = dipicu.length;
+  await kirimUpdate(tekanTombol(10001, HRD, `a|y|${periode4}|0`));
+  await kirimUpdate(teksPribadi(10002, HRD, `/batal ${periode4}`));
+  assert.equal(dipicu.length, awal, "status tidak berubah -> Sheets tidak dipicu");
+});
+
+test("8b-5: setiap perubahan status (ajukan, batal, ajukan, setuju, rilis di uji 8b-3) memicu Isi Sheets dan tercatat", async () => {
+  const terakhir = dipicu.filter((d) => d.pemicu === "status periode");
+  assert.ok(terakhir.length >= 4, JSON.stringify(dipicu.slice(-6)));
+  assert.ok(terakhir.every((d) => d.waktu_file === ""));
+  assert.equal(nilai(`select count(*) from fakta.picu_sheets where waktu_file is null and hasil = 'terkirim'`), String(terakhir.length));
+});
+
+test("8b-5: jawaban pertanyaan PIN mengembalikan tombol tetap", async () => {
+  const t = await kirimUpdate(teksPribadi(10003, HRD, "PIN"));
+  const r = await kirimUpdate(balas(10004, HRD, "640913 715208", t.pesan[0].text));
+  assert.match(r.pesan[0].text, /^PIN diganti/);
+  assert.deepEqual(papan(r.pesan[0]), TOMBOL_TETAP.hrd);
 });

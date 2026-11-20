@@ -234,12 +234,12 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       const [a, b, lebih] = jawab.split(/\s+/);
       await kirim(alat, pesan.chat.id, lebih !== undefined
         ? "Format salah. Buat PIN: 6 angka. Ganti PIN: PIN lama, spasi, PIN baru."
-        : await aturPin(alat, pesan.from?.id, info.hrd, a, b));
+        : await aturPin(alat, pesan.from?.id, info.hrd, a, b), await papanAkun(alat, pesan.from?.id));
       return null;
     }
     if (ditanya.startsWith(TANYA_ID)) {
       const [id, tambahan] = jawab.split(/\s+/);
-      await kirim(alat, pesan.chat.id, await buatKodeDaftar(alat, pesan.from?.id, info.hrd, id, tambahan));
+      await kirim(alat, pesan.chat.id, await buatKodeDaftar(alat, pesan.from?.id, info.hrd, id, tambahan), await papanAkun(alat, pesan.from?.id));
       return null;
     }
     const teks = rapikanPerintah(teksTombol(jawab));
@@ -404,15 +404,20 @@ export async function kerjakanAntrean(
 }
 
 // Paket 6e: minta GitHub mengisi ulang Sheets, kabari pengirim, catat hasilnya (gagal -> pemberitahuan segera).
-export async function picuSheets(alat: Alat, chat: number | null, mulai: number, asal: "telegram" | "web"): Promise<void> {
-  const waktuFile = new Date(mulai).toISOString();
+export async function picuSheets(alat: Alat, chat: number | null, mulai: number, asal: "telegram" | "web",
+                                 karenaStatus = false): Promise<void> {
+  // Paket 8b-5: status periode berubah (ajukan, setujui, tolak, rilis, batal) -> Sheets dan demo diisi ulang;
+  // waktu_file kosong supaya kabar SELESAI tidak menulis "lama sejak file masuk".
+  const waktuFile = karenaStatus ? "" : new Date(mulai).toISOString();
   let hasil: "terkirim" | "gagal" | "belum_disiapkan";
   let alasan: string | undefined;
   if (!alat.picuSheets) {
     hasil = "belum_disiapkan";
   } else {
     try {
-      const r = await alat.picuSheets({ pemicu: asal === "web" ? "file web" : "file Telegram", waktu_file: waktuFile });
+      const r = await alat.picuSheets({
+        pemicu: karenaStatus ? "status periode" : asal === "web" ? "file web" : "file Telegram", waktu_file: waktuFile,
+      });
       hasil = r.ok ? "terkirim" : "gagal";
       alasan = r.ok ? undefined : (r.alasan ?? "tanpa alasan").slice(0, 200);
     } catch (e) {
@@ -430,7 +435,7 @@ export async function picuSheets(alat: Alat, chat: number | null, mulai: number,
       : "Sheets belum diperbarui otomatis (pemicu belum disiapkan); angka di Sheets masih yang lama.",
   );
   try {
-    await alat.api("pintu_catat_picu", { asal, hasil, alasan: alasan ?? null, waktu_file: waktuFile });
+    await alat.api("pintu_catat_picu", { asal, hasil, alasan: alasan ?? null, waktu_file: waktuFile || null });
     if (hasil !== "terkirim") await kirimPemberitahuan(alat, chat);
   } catch {
     // catatan gagal tidak menggagalkan hasil hitung yang sudah tersimpan
@@ -719,6 +724,10 @@ export function papanTombol(peran: string | null): Record<string, unknown> {
     ? { reply_markup: { keyboard: baris.map((b) => b.map((text) => ({ text }))), resize_keyboard: true, is_persistent: true } }
     : { reply_markup: { remove_keyboard: true } };
 }
+// Paket 8b-5: sesudah pertanyaan force reply dijawab, tombol tetap dikirim lagi supaya muncul kembali.
+async function papanAkun(alat: Alat, tg: number): Promise<Record<string, unknown>> {
+  return papanTombol((await alat.api("pintu_akun", { telegram_id: tg }))?.peran ?? null);
+}
 const TEKS_TOMBOL: Record<string, string> = {
   "kirim file": "/unggah", "ajukan": "/ajukan", "rilis": "/rilis", "bantuan": "/bantuan", "hapus pin": "/hapuspin",
   "kode karyawan": "/tombol_kode", "pin": "/tombol_pin", "undang": "/tombol_undang",
@@ -776,6 +785,12 @@ async function aturPin(alat: Alat, tg: number, hrd: boolean, a?: string, b?: str
   }
 }
 
+// Paket 8b-5: status periode berubah -> Isi Sheets dipicu (Sheets dan halaman demo menampilkan status rilis).
+// Kabar "Sheets sedang diperbarui" dikirim sesudah balasan utama (urutan pesan: hasil dulu, lalu kabar Sheets).
+async function statusBerubah(alat: Alat, chat: number): Promise<void> {
+  await picuSheets(alat, chat, alat.sekarang(), "telegram", true);
+}
+
 const tungguUrutan = (menunggu: number) => `rilis dulu periode no. ${menunggu}`;
 
 async function daftarPeriode(alat: Alat, chat: number, tg: number, hrd: boolean, untuk: "ajukan" | "rilis"): Promise<void> {
@@ -827,43 +842,47 @@ async function jawabAjukan(alat: Alat, chat: number, tg: number, periode: number
     return;
   }
   const r = await alat.api("pintu_ajukan", { telegram_id: tg, periode_id: periode, versi_gaji: versi });
-  switch (r.hasil) {
-    case "diajukan": {
-      if (!r.perlu_bos) {
-        await kirim(alat, chat, `Diajukan.\n${teksRingkasan(r)}\nTekan Rilis lalu ketik PIN, atau ketik: /rilis ${r.periode_id} <PIN>.`,
-          tombolRilis(r.periode_id));
+  try {
+    switch (r.hasil) {
+      case "diajukan": {
+        if (!r.perlu_bos) {
+          await kirim(alat, chat, `Diajukan.\n${teksRingkasan(r)}\nTekan Rilis lalu ketik PIN, atau ketik: /rilis ${r.periode_id} <PIN>.`,
+            tombolRilis(r.periode_id));
+          return;
+        }
+        const bos: number[] = r.bos ?? [];
+        const pembangun: number[] = r.pembangun ?? [];
+        const sayaPembangun = pembangun.includes(tg);
+        await kirim(alat, chat, `Diajukan.\n${teksRingkasan(r)}\n` + (bos.length
+          ? "Menunggu persetujuan bos."
+          : pembangun.length
+            ? "Belum ada akun bos yang terdaftar; akun pembangun bisa menyetujui."
+            : "Belum ada akun bos yang terdaftar, jadi pengajuan ini belum bisa disetujui.") +
+          (sayaPembangun ? `\n${caraPembangun(r.periode_id)}` : ""), sayaPembangun ? tombolPembangun(r.periode_id) : {});
+        for (const b of bos) {
+          await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}`, tombolBos(r.periode_id, r.pengajuan_id));
+        }
+        for (const b of pembangun) {
+          if (b !== tg) {
+            await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}\n${caraPembangun(r.periode_id)}`, tombolPembangun(r.periode_id));
+          }
+        }
         return;
       }
-      const bos: number[] = r.bos ?? [];
-      const pembangun: number[] = r.pembangun ?? [];
-      const sayaPembangun = pembangun.includes(tg);
-      await kirim(alat, chat, `Diajukan.\n${teksRingkasan(r)}\n` + (bos.length
-        ? "Menunggu persetujuan bos."
-        : pembangun.length
-          ? "Belum ada akun bos yang terdaftar; akun pembangun bisa menyetujui."
-          : "Belum ada akun bos yang terdaftar, jadi pengajuan ini belum bisa disetujui.") +
-        (sayaPembangun ? `\n${caraPembangun(r.periode_id)}` : ""), sayaPembangun ? tombolPembangun(r.periode_id) : {});
-      for (const b of bos) {
-        await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}`, tombolBos(r.periode_id, r.pengajuan_id));
-      }
-      for (const b of pembangun) {
-        if (b !== tg) {
-          await kirimAman2(alat, b, `Pengajuan rilis gaji:\n${teksRingkasan(r)}\n${caraPembangun(r.periode_id)}`, tombolPembangun(r.periode_id));
-        }
-      }
-      return;
+      case "versi_berubah":
+        await kirim(alat, chat, "Angka periode ini sudah dihitung ulang sejak daftar ditampilkan. Ketik /ajukan lagi.");
+        return;
+      case "tunggu_periode":
+        await kirim(alat, chat, `Periode ini belum bisa diajukan: ${tungguUrutan(r.menunggu)}. Gaji harus dirilis berurutan.`);
+        return;
+      case "tidak_bisa":
+        await kirim(alat, chat, `Periode ini tidak bisa diajukan (status: ${r.status ?? "-"}).`);
+        return;
+      default:
+        await kirim(alat, chat, BUKAN_HRD_RILIS);
     }
-    case "versi_berubah":
-      await kirim(alat, chat, "Angka periode ini sudah dihitung ulang sejak daftar ditampilkan. Ketik /ajukan lagi.");
-      return;
-    case "tunggu_periode":
-      await kirim(alat, chat, `Periode ini belum bisa diajukan: ${tungguUrutan(r.menunggu)}. Gaji harus dirilis berurutan.`);
-      return;
-    case "tidak_bisa":
-      await kirim(alat, chat, `Periode ini tidak bisa diajukan (status: ${r.status ?? "-"}).`);
-      return;
-    default:
-      await kirim(alat, chat, BUKAN_HRD_RILIS);
+  } finally {
+    if (r.hasil === "diajukan") await statusBerubah(alat, chat);
   }
 }
 
@@ -887,31 +906,35 @@ async function putuskan(alat: Alat, chat: number, tg: number, periode: number, p
   if (pengajuan !== null) isi.pengajuan_id = pengajuan;
   if (pin !== undefined) isi.pin = pin;
   const r = await alat.api("pintu_setujui", isi);
-  switch (r.hasil) {
-    case "disetujui":
-    case "ditolak": {
-      const kata = r.hasil === "disetujui" ? "disetujui" : "ditolak (kembali ke dihitung)";
-      const siapa = r.oleh === "pembangun" ? "Pembangun" : "Bos";
-      const lanjut = r.hasil === "disetujui" ? `\nTekan Rilis lalu ketik PIN, atau ketik: /rilis ${r.periode_id} <PIN>.` : "";
-      const tombol = r.hasil === "disetujui" ? tombolRilis(r.periode_id) : {};
-      if (r.pengaju && r.pengaju !== tg) {
-        await kirimAman2(alat, r.pengaju, `${siapa} ${r.hasil === "disetujui" ? "menyetujui" : "menolak"} pengajuan rilis:\n` +
-          teksRingkasan(r) + lanjut, tombol);
-        await kirim(alat, chat, `Pengajuan ${kata}.\n${teksRingkasan(r)}`);
+  try {
+    switch (r.hasil) {
+      case "disetujui":
+      case "ditolak": {
+        const kata = r.hasil === "disetujui" ? "disetujui" : "ditolak (kembali ke dihitung)";
+        const siapa = r.oleh === "pembangun" ? "Pembangun" : "Bos";
+        const lanjut = r.hasil === "disetujui" ? `\nTekan Rilis lalu ketik PIN, atau ketik: /rilis ${r.periode_id} <PIN>.` : "";
+        const tombol = r.hasil === "disetujui" ? tombolRilis(r.periode_id) : {};
+        if (r.pengaju && r.pengaju !== tg) {
+          await kirimAman2(alat, r.pengaju, `${siapa} ${r.hasil === "disetujui" ? "menyetujui" : "menolak"} pengajuan rilis:\n` +
+            teksRingkasan(r) + lanjut, tombol);
+          await kirim(alat, chat, `Pengajuan ${kata}.\n${teksRingkasan(r)}`);
+          return;
+        }
+        await kirim(alat, chat, `Pengajuan ${kata}.\n${teksRingkasan(r)}` + (r.pengaju === tg ? lanjut : ""),
+          r.pengaju === tg ? tombol : {});
         return;
       }
-      await kirim(alat, chat, `Pengajuan ${kata}.\n${teksRingkasan(r)}` + (r.pengaju === tg ? lanjut : ""),
-        r.pengaju === tg ? tombol : {});
-      return;
+      case "tidak_berlaku":
+        await kirim(alat, chat, "Pengajuan ini tidak berlaku lagi (sudah diputuskan, dihitung ulang, ada pengajuan baru, atau periode belum diajukan).");
+        return;
+      case "belum_ada_pin": await kirim(alat, chat, "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>."); return;
+      case "pin_salah": await kirim(alat, chat, "PIN salah."); return;
+      case "terkunci": await kirim(alat, chat, "Terlalu banyak PIN salah. Coba lagi 1 jam lagi."); return;
+      case "pakai_tombol": await kirim(alat, chat, "Akun bos menyetujui lewat tombol Setujui/Tolak di pesan pengajuan."); return;
+      default: await kirim(alat, chat, "Persetujuan rilis hanya untuk akun bos atau pembangun.");
     }
-    case "tidak_berlaku":
-      await kirim(alat, chat, "Pengajuan ini tidak berlaku lagi (sudah diputuskan, dihitung ulang, ada pengajuan baru, atau periode belum diajukan).");
-      return;
-    case "belum_ada_pin": await kirim(alat, chat, "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>."); return;
-    case "pin_salah": await kirim(alat, chat, "PIN salah."); return;
-    case "terkunci": await kirim(alat, chat, "Terlalu banyak PIN salah. Coba lagi 1 jam lagi."); return;
-    case "pakai_tombol": await kirim(alat, chat, "Akun bos menyetujui lewat tombol Setujui/Tolak di pesan pengajuan."); return;
-    default: await kirim(alat, chat, "Persetujuan rilis hanya untuk akun bos atau pembangun.");
+  } finally {
+    if (r.hasil === "disetujui" || r.hasil === "ditolak") await statusBerubah(alat, chat);
   }
 }
 
@@ -921,21 +944,25 @@ async function rilisGaji(alat: Alat, chat: number, tg: number, hrd: boolean, nom
     return;
   }
   const r = await alat.api("pintu_rilis", { telegram_id: tg, periode_id: Number(nomor), pin });
-  switch (r.hasil) {
-    case "dirilis":
-      await kirim(alat, chat, `Gaji DIRILIS.\n${teksRingkasan(r)}\nPeriode ini tidak dihitung ulang lagi.`);
-      for (const t of (r.kabari ?? []) as number[]) {
-        await kirimAman2(alat, t, `Gaji periode no. ${r.periode_id} DIRILIS.\n${teksRingkasan(r)}`, {});
-      }
-      return;
-    case "belum_ada_pin": await kirim(alat, chat, "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>."); return;
-    case "pin_salah": await kirim(alat, chat, "PIN salah."); return;
-    case "terkunci": await kirim(alat, chat, "Terlalu banyak PIN salah. Coba lagi 1 jam lagi."); return;
-    case "belum_disetujui": await kirim(alat, chat, "Periode ini belum disetujui bos."); return;
-    case "tunggu_periode": await kirim(alat, chat, `Periode ini belum bisa dirilis: ${tungguUrutan(r.menunggu)}.`); return;
-    case "versi_berubah": await kirim(alat, chat, "Angka periode ini sudah dihitung ulang sejak diajukan. Ajukan lagi dengan /ajukan."); return;
-    case "tidak_bisa": await kirim(alat, chat, `Periode ini tidak bisa dirilis (status: ${r.status ?? "tidak ada"}).`); return;
-    default: await kirim(alat, chat, BUKAN_HRD_RILIS);
+  try {
+    switch (r.hasil) {
+      case "dirilis":
+        await kirim(alat, chat, `Gaji DIRILIS.\n${teksRingkasan(r)}\nPeriode ini tidak dihitung ulang lagi.`);
+        for (const t of (r.kabari ?? []) as number[]) {
+          await kirimAman2(alat, t, `Gaji periode no. ${r.periode_id} DIRILIS.\n${teksRingkasan(r)}`, {});
+        }
+        return;
+      case "belum_ada_pin": await kirim(alat, chat, "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>."); return;
+      case "pin_salah": await kirim(alat, chat, "PIN salah."); return;
+      case "terkunci": await kirim(alat, chat, "Terlalu banyak PIN salah. Coba lagi 1 jam lagi."); return;
+      case "belum_disetujui": await kirim(alat, chat, "Periode ini belum disetujui bos."); return;
+      case "tunggu_periode": await kirim(alat, chat, `Periode ini belum bisa dirilis: ${tungguUrutan(r.menunggu)}.`); return;
+      case "versi_berubah": await kirim(alat, chat, "Angka periode ini sudah dihitung ulang sejak diajukan. Ajukan lagi dengan /ajukan."); return;
+      case "tidak_bisa": await kirim(alat, chat, `Periode ini tidak bisa dirilis (status: ${r.status ?? "tidak ada"}).`); return;
+      default: await kirim(alat, chat, BUKAN_HRD_RILIS);
+    }
+  } finally {
+    if (r.hasil === "dirilis") await statusBerubah(alat, chat);
   }
 }
 
@@ -945,8 +972,8 @@ async function mintaPin(alat: Alat, chat: number, tg: number, aksi: "rilis" | "s
   const r = await alat.api("pintu_minta_pin", { telegram_id: tg, aksi, periode_id: periode });
   switch (r.hasil) {
     case "menunggu":
-      await kirim(alat, chat, `Ketik PIN 6 angka untuk ${KATA_AKSI[aksi]} periode no. ${periode}. Berlaku 5 menit; pesan PIN dihapus otomatis.`,
-        { reply_markup: { force_reply: true, input_field_placeholder: "PIN 6 angka" } });
+      // Paket 8b-5: tanpa force reply (6 angka dikenali dari catatan menunggu PIN), supaya tombol tetap tidak tertutup.
+      await kirim(alat, chat, `Ketik PIN 6 angka untuk ${KATA_AKSI[aksi]} periode no. ${periode}. Berlaku 5 menit; pesan PIN dihapus otomatis.`);
       return;
     case "bukan_pembangun": await kirim(alat, chat, "Persetujuan dengan PIN hanya untuk akun pembangun; akun bos memakai tombol."); return;
     case "tidak_ada": await kirim(alat, chat, "Periode tidak ditemukan."); return;
@@ -975,15 +1002,19 @@ async function batalAjukan(alat: Alat, chat: number, tg: number, hrd: boolean, n
     return;
   }
   const r = await alat.api("pintu_batal", { telegram_id: tg, periode_id: Number(nomor) });
-  if (r.hasil === "dibatalkan") {
-    await kirim(alat, chat, `Pengajuan dibatalkan; periode kembali ke dihitung.\n${teksRingkasan(r)}`);
-    for (const t of (r.kabari ?? []) as number[]) {
-      await kirimAman2(alat, t, `Pengajuan rilis periode no. ${r.periode_id} dibatalkan oleh ${r.oleh === "pembangun" ? "pembangun" : "HRD"}.`, {});
+  try {
+    if (r.hasil === "dibatalkan") {
+      await kirim(alat, chat, `Pengajuan dibatalkan; periode kembali ke dihitung.\n${teksRingkasan(r)}`);
+      for (const t of (r.kabari ?? []) as number[]) {
+        await kirimAman2(alat, t, `Pengajuan rilis periode no. ${r.periode_id} dibatalkan oleh ${r.oleh === "pembangun" ? "pembangun" : "HRD"}.`, {});
+      }
+    } else if (r.hasil === "tidak_bisa") {
+      await kirim(alat, chat, `Periode ini tidak sedang diajukan atau disetujui (status: ${r.status ?? "tidak ada"}).`);
+    } else {
+      await kirim(alat, chat, BUKAN_HRD_RILIS);
     }
-  } else if (r.hasil === "tidak_bisa") {
-    await kirim(alat, chat, `Periode ini tidak sedang diajukan atau disetujui (status: ${r.status ?? "tidak ada"}).`);
-  } else {
-    await kirim(alat, chat, BUKAN_HRD_RILIS);
+  } finally {
+    if (r.hasil === "dibatalkan") await statusBerubah(alat, chat);
   }
 }
 
