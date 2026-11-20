@@ -11,7 +11,7 @@
 | 8a | Pendaftaran karyawan lewat bot: kode sekali pakai dari HRD, konfirmasi nama dan divisi, ganti HP lewat HRD (K1, K8) | di-"buat" 19 Nov 2026, `docs/rencana-8a.md` |
 | 8b | Rilis gaji: HRD mengajukan → bos menyetujui (bila pengaturan `hrd_lalu_bos`) → HRD merilis dengan PIN, ringkasan total dan konfirmasi kedua (K5) | belum; masalah: semua periode demo "belum bisa diajukan" karena data pajak Januari tidak ada (sejak 4b-3) |
 | 8c | Pesan rincian gaji ke tiap karyawan sesudah rilis (bagian 10): antrean, pesan panjang dipecah, minta ulang | terpasang 20 Nov 2026, `docs/laporan-8c.md` |
-| 8d | Jalur bos: total lengkap dan gaji orang rahasia (F15, F15b); aturan "orang rahasia wajib transfer" | belum; keputusan pemilik (a) bot dengan PIN atau (b) Sheets khusus bos; saran Claude (a) |
+| 8d | Jalur bos: total lengkap dan gaji orang rahasia (F15, F15b); aturan "orang rahasia wajib transfer" | terpasang 20 Nov 2026 (keputusan (a) bot dengan PIN, (i) wajib transfer), `docs/laporan-8d.md` |
 | 8e | Keberatan karyawan (`docs/kontrak-data.md` tabel `keberatan`) | belum; [Kemungkinan Besar] bukan dari baris Tahap 8 PRD v2, ikut atau ditunda diputuskan pemilik |
 
 Setiap paket punya daftar dan "buat" sendiri.
