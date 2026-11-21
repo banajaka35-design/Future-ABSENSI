@@ -2,6 +2,11 @@
 
 21 November 2026 · ditulis sebelum kode · **belum di-"buat"** · acuan: tabel "Rencana Tahap 3 sampai 9" di `docs/serah-terima.md` (Tahap 7 = "Perintah HRD lewat chat", hasil "Koreksi lewat chat"), kasus jebakan C12, D05, F08, F12, F16, temuan Tahap 3 nomor 7.
 
+## 0. Acuan PRD v2 bagian 13 (ditempel pemilik 21 Nov 2026 10.08 WIB)
+
+- **Yang dibangun:** perintah harian HRD: izin, sakit, kasbon, dan persetujuannya.
+- **Gerbang (selesai kalau):** izin susulan mengubah hasil setelah hitung ulang.
+
 ## 1. Hasil pemeriksaan (21 Nov 2026 09.3x WIB)
 
 | Hal | Hasil | Label |
@@ -17,17 +22,17 @@
 
 **Kesimpulan [Pasti]:** Tahap 7 belum dibangun. Yang kurang hanya "pintu"-nya: membaca perintah dari chat, menyimpannya, lalu menghitung ulang. Mesin hitungnya sudah ada.
 
-## 2. Usulan pecahan paket
+## 2. Usulan pecahan paket (versi 2, sesudah acuan PRD)
 
 Setiap paket punya daftar lengkap dan "buat" sendiri (aturan 7). Urutan di bawah adalah saran.
 
 | Paket | Isi | Kasus uji |
 | --- | --- | --- |
-| **7a** | Sakit, izin, cuti untuk satu orang (satu tanggal atau rentang). Bot membalas ringkasan ("Sakit · 10001 Eka Susanto · 19–20 Feb"), lalu tombol **Ya / Batal**; baru disimpan sesudah Ya (`asal = chat`, `oleh` = akun pengirim). Sesudah disimpan, periode yang kena dihitung ulang (baca tap + gaji) lewat antrean yang sama dengan file, lalu bot mengabarkan selesai dan Sheets ikut diisi ulang. Hanya akun `hrd` dan `pembangun`. Ditolak bila periode sudah dirilis/dikunci | C12 (alpha → sakit sesudah hitung ulang), perintah ke periode dirilis ditolak, akun karyawan ditolak |
-| **7b** | Batalkan perintah (`batalkan_perintah`) dan "daftar perintah terakhir saya", supaya salah ketik bisa dibetulkan tanpa menghapus baris (fakta hanya bertambah) | Perintah dibatalkan → hasil kembali seperti semula |
-| **7c** | Perintah untuk satu divisi: absen manual divisi, tambah libur, setujui lembur, batalkan lembur | F08, F16, F12, D05 |
-| **7d** | Berhenti dan aktif kembali lewat chat (menulis `induk.status_kerja`) | C11; perlu keputusan arti tanggal (bagian 3 nomor 3) |
-| ditunda | Karyawan baru, mutasi regu, ubah gaji, kasbon, penyesuaian, data pajak awal tahun, tukar shift dari usulan sistem | Isiannya banyak (gaji, divisi, cara bayar, PTKP, ID mesin); [Kemungkinan Besar] lebih cocok lewat file templat atau web di Tahap 9 |
+| **7a** | Izin, sakit, cuti untuk satu orang (satu tanggal atau rentang), termasuk **susulan** (tanggal yang sudah lewat). Bot membalas ringkasan ("Izin · 10001 Eka Susanto · 19 Feb"), lalu tombol **Ya / Batal**; baru disimpan sesudah Ya (`asal = chat`, `oleh` = akun pengirim). Sesudah disimpan, periode yang kena dihitung ulang (baca tap + gaji) lewat antrean yang sama dengan file, bot mengabarkan selesai, Sheets ikut diisi ulang. Hanya akun `hrd` dan `pembangun`. Ditolak bila periode sudah dirilis/dikunci | **Gerbang:** izin susulan untuk hari yang tercatat alpha → sesudah hitung ulang menjadi izin, dicek di Supabase dan Sheets (pola C12); perintah ke periode dirilis ditolak; akun karyawan ditolak |
+| **7b** | Kasbon lewat chat: pinjam dan pelunasan (menulis `fakta.buku_kasbon`, aturan potong I2–I4 sudah ada sejak 4b-2) | Pinjam → potongan muncul di gaji sesudah hitung ulang, tidak melewati batas 50% (K22, K23) |
+| **7c** | Persetujuan, isinya tergantung keputusan pemilik (bagian 3 nomor 1) | F11, F12, D05 bila pilihan (a) |
+| **7d** | Batalkan perintah (`batalkan_perintah`) dan "daftar perintah terakhir saya", supaya salah ketik bisa dibetulkan tanpa menghapus baris (fakta hanya bertambah) | Perintah dibatalkan → hasil kembali seperti semula |
+| di luar PRD Tahap 7 | Absen manual divisi, tambah libur, berhenti/aktif kembali, karyawan baru, mutasi, ubah gaji, penyesuaian, data pajak awal tahun | Tidak dikerjakan di Tahap 7 kecuali pemilik memintanya; [Kemungkinan Besar] cocok untuk templat/web Tahap 9 |
 
 Yang **sama untuk semua paket** (dicatat supaya tidak lupa saat menulis daftar lengkap):
 
@@ -38,10 +43,9 @@ Yang **sama untuk semua paket** (dicatat supaya tidak lupa saat menulis daftar l
 
 ## 3. Yang perlu diputuskan pemilik sebelum 7a ditulis lengkap
 
-1. **Bunyi gerbang Tahap 7 di PRD v2 bagian 13.** Teks PRD tidak ada di repo. Mohon tempel baris Tahap 7. Tanpa itu saya menebak gerbangnya "C12 lulus lewat chat" [Menebak].
-2. **Cara menulis perintah.** (a) Perintah tetap, misalnya `/sakit 10001 19-02` atau `/cuti 10001 19-02 21-02`, ditambah tombol "Perintah HRD" yang menuntun langkah demi langkah; atau (b) kalimat bebas ("10001 sakit tgl 19") yang dibaca AI. Saran: **(a)** dulu. Alasan: tidak ada biaya AI, hasilnya bisa diuji pasti, dan tombol Ya/Batal tetap menjaga salah ketik. (b) bisa ditambah nanti di atas (a).
-3. **Arti "berhenti tgl X"** (untuk 7d): hari kerja terakhir (dipakai mesin hitung sekarang, kasus C11) atau "nonaktif sejak tanggal itu" (tulisan PRD bagian 9). Saran: hari kerja terakhir, dan bot menulisnya jelas di konfirmasi ("hari kerja terakhir: 18 Feb").
-4. **Izin dengan alasan Pasal 149 ayat 2** (menikah, keluarga meninggal, dan lain-lain; dibayar). Ikut 7a sebagai pilihan alasan, atau ditunda? Sekarang semua izin tidak dibayar (`izin_dibayar`).
+1. **Arti "persetujuannya".** (a) HRD menyetujui usulan sistem: tukar shift (F11) dan lembur tanpa perintah (D04, F12, D05); (b) kasbon perlu disetujui bos sebelum dicatat; (c) keduanya. Saran: **(a)**. Alasan [Kemungkinan Besar]: tabel `fakta.persetujuan` yang dirancang dari PRD sejak 0001 punya pilihan `tukar_shift`, `lembur`, `penyesuaian`, `rilis`, tetapi tidak punya `kasbon`.
+2. **Cara menulis perintah.** (a) Perintah tetap, misalnya `/izin 10001 19-02` atau `/cuti 10001 19-02 21-02`, ditambah tombol "Perintah HRD" yang menuntun langkah demi langkah; atau (b) kalimat bebas ("10001 izin tgl 19") yang dibaca AI. Saran: **(a)** dulu. Alasan: tidak ada biaya AI, hasilnya bisa diuji pasti, tombol Ya/Batal menjaga salah ketik. (b) bisa ditambah nanti di atas (a).
+3. **Izin dengan alasan Pasal 149 ayat 2** (menikah, keluarga meninggal, dan lain-lain; dibayar). Ikut 7a sebagai pilihan alasan, atau ditunda? Sekarang semua izin tidak dibayar (`izin_dibayar`).
 
 ## 4. Yang tidak ikut paket mana pun
 
