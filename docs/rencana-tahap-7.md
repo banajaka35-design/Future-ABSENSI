@@ -30,7 +30,7 @@ Setiap paket punya daftar lengkap dan "buat" sendiri (aturan 7). Urutan di bawah
 | --- | --- | --- |
 | **7a** | Izin, sakit, cuti untuk satu orang (satu tanggal atau rentang), termasuk **susulan** (tanggal yang sudah lewat). Bot membalas ringkasan ("Izin · 10001 Eka Susanto · 19 Feb"), lalu tombol **Ya / Batal**; baru disimpan sesudah Ya (`asal = chat`, `oleh` = akun pengirim). Sesudah disimpan, periode yang kena dihitung ulang (baca tap + gaji) lewat antrean yang sama dengan file, bot mengabarkan selesai, Sheets ikut diisi ulang. Hanya akun `hrd` dan `pembangun`. Ditolak bila periode sudah dirilis/dikunci | **Gerbang:** izin susulan untuk hari yang tercatat alpha → sesudah hitung ulang menjadi izin, dicek di Supabase dan Sheets (pola C12); perintah ke periode dirilis ditolak; akun karyawan ditolak |
 | **7b** | Kasbon lewat chat: pinjam dan pelunasan (menulis `fakta.buku_kasbon`, aturan potong I2–I4 sudah ada sejak 4b-2) | Pinjam → potongan muncul di gaji sesudah hitung ulang, tidak melewati batas 50% (K22, K23) |
-| **7c** | Persetujuan, isinya tergantung keputusan pemilik (bagian 3 nomor 1) | F11, F12, D05 bila pilihan (a) |
+| **7c** | Persetujuan (keputusan pemilik (a), 21 Nov 2026): HRD menyetujui atau membatalkan lembur lewat chat, per orang atau per divisi (`setujui_lembur`, `batalkan_lembur`; efeknya sudah ada sejak 4b-1); persetujuan jam sebelum jadwal masuk (B5, **efek belum ada**, butuh aturan hitung baru + permintaan perubahan untuk kasus uji); tukar shift lewat chat cukup dicatat HRD (lihat bagian 3a) | D04, D05, F12; kasus baru B5 lewat permintaan perubahan |
 | **7d** | Batalkan perintah (`batalkan_perintah`) dan "daftar perintah terakhir saya", supaya salah ketik bisa dibetulkan tanpa menghapus baris (fakta hanya bertambah) | Perintah dibatalkan → hasil kembali seperti semula |
 | di luar PRD Tahap 7 | Absen manual divisi, tambah libur, berhenti/aktif kembali, karyawan baru, mutasi, ubah gaji, penyesuaian, data pajak awal tahun | Tidak dikerjakan di Tahap 7 kecuali pemilik memintanya; [Kemungkinan Besar] cocok untuk templat/web Tahap 9 |
 
@@ -41,9 +41,20 @@ Yang **sama untuk semua paket** (dicatat supaya tidak lupa saat menulis daftar l
 - Balasan bot tidak boleh membuka gaji orang rahasia (F15, F15b). Perintah untuk orang rahasia tetap boleh dicatat HRD; balasannya hanya nama, jenis, tanggal.
 - Hitung ulang satu periode di Supabase: baca tap sekitar 12 detik dan gaji 5–6 detik (diukur di Tahap 3 dan 5a), di bawah batas Edge Function 150 detik. Lama total dari "Ya" sampai kabar selesai **belum diukur**.
 
+## 3a. Persetujuan: dasar PRD v2 dan hasil cek kode (21 Nov 2026)
+
+Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib disetujui; tanpa persetujuan hanya tercatat sebagai kelebihan jam"; B5 "jam sebelum jadwal masuk tidak dihitung kecuali disetujui"; C10 kasbon cukup "saldo dan cicilan tercatat, beserta siapa yang memasukkan" (tanpa persetujuan bos); tukar shift = "pengecualian per orang".
+
+| Hal | Hasil cek kode | Label |
+| --- | --- | --- |
+| B4 persetujuan lembur | Sudah bekerja: pengaturan `wajib_perintah` membayar lembur hanya bila ada `setujui_lembur` (per orang atau divisi); tanpa itu tanda `lembur_tidak_dibayar_tanpa_izin`. Pengaturan `otomatis` membayar kecuali ada `batalkan_lembur` (migrasi 0013/0014). Pabrik A demo memakai `otomatis`, Pabrik B `wajib_perintah` | [Pasti] |
+| B5 jam sebelum jadwal | Jam sebelum masuk tidak pernah menjadi lembur (kasus B05). **Belum ada cara menyetujuinya**: `setujui_lembur` hanya membuka menit sesudah jam pulang | [Kemungkinan Besar]; dipastikan saat menulis daftar 7c |
+| C10 kasbon | Sesuai rencana 7b: dicatat HRD, `oleh` = akun pengirim, tanpa persetujuan bos | [Pasti] (bunyi PRD) |
+| Tukar shift | Perintah `tukar_shift` dari HRD langsung berlaku di baca tap; tidak memakai tabel `fakta.persetujuan`. Usulan sistem (F11) hanya tanda; "disetujui" di F11 dijalankan dengan HRD mengirim perintah tukar shift. **Jadi cukup dicatat HRD**, cocok dengan "pengecualian per orang" | [Pasti] (kode 0016 baris 149, uji U1 F11) |
+
 ## 3. Yang perlu diputuskan pemilik sebelum 7a ditulis lengkap
 
-1. **Arti "persetujuannya".** (a) HRD menyetujui usulan sistem: tukar shift (F11) dan lembur tanpa perintah (D04, F12, D05); (b) kasbon perlu disetujui bos sebelum dicatat; (c) keduanya. Saran: **(a)**. Alasan [Kemungkinan Besar]: tabel `fakta.persetujuan` yang dirancang dari PRD sejak 0001 punya pilihan `tukar_shift`, `lembur`, `penyesuaian`, `rilis`, tetapi tidak punya `kasbon`.
+1. ~~Arti "persetujuannya"~~: diputuskan **(a)** 21 Nov 2026 10.11 WIB (bagian 3a).
 2. **Cara menulis perintah.** (a) Perintah tetap, misalnya `/izin 10001 19-02` atau `/cuti 10001 19-02 21-02`, ditambah tombol "Perintah HRD" yang menuntun langkah demi langkah; atau (b) kalimat bebas ("10001 izin tgl 19") yang dibaca AI. Saran: **(a)** dulu. Alasan: tidak ada biaya AI, hasilnya bisa diuji pasti, tombol Ya/Batal menjaga salah ketik. (b) bisa ditambah nanti di atas (a).
 3. **Izin dengan alasan Pasal 149 ayat 2** (menikah, keluarga meninggal, dan lain-lain; dibayar). Ikut 7a sebagai pilihan alasan, atau ditunda? Sekarang semua izin tidak dibayar (`izin_dibayar`).
 
