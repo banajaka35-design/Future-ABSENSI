@@ -41,6 +41,7 @@ const API_BOLEH = new Set([
   "pintu_pengingat_rilis",
   "pintu_kirim_gaji_ambil", "pintu_kirim_gaji_hasil", "pintu_gaji_saya", "pintu_contoh_gaji",
   "pintu_periode_gaji", "pintu_total_lengkap",
+  "pintu_perintah_siapkan", "pintu_perintah_simpan", "pintu_perintah_hasil",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -210,6 +211,10 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       await hapusPin(alat, chat, tg, Number(mesin));
       return null;
     }
+    // Paket 7a: tombol Ya/Batal perintah HRD (izin, sakit, cuti).
+    if (jenis === "c" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
+      return jawabPerintah(alat, chat, tg, Number(mesin), asal === "y", tombol.message?.message_id);
+    }
     if (jenis === "d" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
       let jawab = await jawabDaftar(alat, tg, Number(mesin), asal === "y");
       const baru = jawab.startsWith("Terdaftar:");
@@ -259,6 +264,21 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       return null;
     }
     const teks = rapikanPerintah(teksTombol(jawab));
+    if (ditanya.startsWith(TANYA_PERINTAH) && !RE_PERINTAH_HRD.test(teks)) {
+      await kirim(alat, pesan.chat.id, CARA_PERINTAH, await papanAkun(alat, pesan.from?.id));
+      return null;
+    }
+    if (teks === "/tombol_perintah") {
+      if (!info.hrd) await kirim(alat, pesan.chat.id, BUKAN_HRD_RILIS);
+      else await kirim(alat, pesan.chat.id, `${TANYA_PERINTAH}.\n${CONTOH_PERINTAH}`,
+        { reply_markup: { force_reply: true, input_field_placeholder: "izin 10001 30-03-2026" } });
+      return null;
+    }
+    const perintahHrd = RE_PERINTAH_HRD.exec(teks);
+    if (perintahHrd) {
+      await siapkanPerintah(alat, pesan.chat.id, pesan.from?.id, info.hrd, perintahHrd[1].toLowerCase(), perintahHrd[2] ?? "");
+      return null;
+    }
     if (teks === "/tombol_kode" || teks === "/tombol_pin") {
       const bolehPin = teks === "/tombol_pin" && !info.hrd &&
         (await alat.api("pintu_akun", { telegram_id: pesan.from?.id }))?.peran === "bos";
@@ -435,14 +455,16 @@ export async function kerjakanAntrean(
   chat: number | null,
   mulai: number,
   asal: "telegram" | "web" = "telegram",
-): Promise<void> {
+  pemicu?: string,
+): Promise<number> {
   const berhasil = await kerjakanSemua(alat, chat, mulai);
-  if (berhasil > 0) await picuSheets(alat, chat, mulai, asal);
+  if (berhasil > 0) await picuSheets(alat, chat, mulai, asal, false, pemicu);
+  return berhasil;
 }
 
 // Paket 6e: minta GitHub mengisi ulang Sheets, kabari pengirim, catat hasilnya (gagal -> pemberitahuan segera).
 export async function picuSheets(alat: Alat, chat: number | null, mulai: number, asal: "telegram" | "web",
-                                 karenaStatus = false): Promise<void> {
+                                 karenaStatus = false, pemicu?: string): Promise<void> {
   // Paket 8b-5: status periode berubah (ajukan, setujui, tolak, rilis, batal) -> Sheets dan demo diisi ulang;
   // waktu_file kosong supaya kabar SELESAI tidak menulis "lama sejak file masuk".
   const waktuFile = karenaStatus ? "" : new Date(mulai).toISOString();
@@ -453,7 +475,7 @@ export async function picuSheets(alat: Alat, chat: number | null, mulai: number,
   } else {
     try {
       const r = await alat.picuSheets({
-        pemicu: karenaStatus ? "status periode" : asal === "web" ? "file web" : "file Telegram", waktu_file: waktuFile,
+        pemicu: karenaStatus ? "status periode" : pemicu ?? (asal === "web" ? "file web" : "file Telegram"), waktu_file: waktuFile,
       });
       hasil = r.ok ? "terkirim" : "gagal";
       alasan = r.ok ? undefined : (r.alasan ?? "tanpa alasan").slice(0, 200);
@@ -709,7 +731,9 @@ const P = (command: string, description: string): Perintah => ({ command, descri
 const MENU_HRD = [
   P("unggah", "Tautan unggah file mesin lewat web"), P("kode", "Kode daftar karyawan: /kode <ID>"),
   P("ajukan", "Ajukan rilis gaji"), P("rilis", "Lihat dan rilis gaji yang siap"), P("batal", "Batalkan pengajuan: /batal <nomor>"),
-  P("pin", "Buat atau ganti PIN"), P("contohgaji", "Contoh pesan gaji: /contohgaji <ID> <nomor>"), P("bantuan", "Daftar perintah"),
+  P("pin", "Buat atau ganti PIN"), P("contohgaji", "Contoh pesan gaji: /contohgaji <ID> <nomor>"),
+  P("izin", "Catat izin: /izin <ID> <tanggal> [tanggal selesai]"), P("sakit", "Catat sakit: /sakit <ID> <tanggal> [tanggal selesai]"),
+  P("cuti", "Catat cuti: /cuti <ID> <tanggal> [tanggal selesai]"), P("bantuan", "Daftar perintah"),
 ];
 export const MENU: Record<string, Perintah[]> = {
   umum: [P("daftar", "Daftar karyawan dengan kode dari HRD"), P("gabung", "Gabung sebagai HRD/bos dengan kode undangan"),
@@ -736,6 +760,8 @@ const BANTUAN: Record<string, string> = {
   hrd: "Perintah HRD:\n/unggah tautan unggah file\n/kode <ID> kode daftar karyawan\n/ajukan ajukan rilis gaji\n" +
     "/rilis lihat gaji yang siap dirilis (tombol Rilis lalu ketik PIN)\n/batal <nomor> batalkan pengajuan\n/pin buat atau ganti PIN\n" +
     "/contohgaji <ID> <nomor> contoh pesan rincian gaji untuk karyawan\n" +
+    "/izin, /sakit, /cuti <ID> <tanggal> [tanggal selesai] [catatan] catat izin, sakit, atau cuti (boleh susulan), " +
+    "misalnya /izin 10001 30-03-2026\n" +
     "Kirim file mesin sebagai dokumen untuk menghitung gaji.",
   bos: "Pengajuan rilis gaji dikirim ke chat ini dengan tombol Setujui dan Tolak. Bila belum dijawab, bot mengingatkan setiap pagi.\n" +
     "Total lengkap termasuk orang rahasia: tombol Total lengkap (atau /lengkap <nomor>), lalu ketik PIN. " +
@@ -751,7 +777,7 @@ BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /
 
 // Perintah yang diketik tanpa garis miring tetap dikenali (paket 8b-3, temuan 6).
 const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
-  "kode", "unggah", "bantuan", "gaji", "contohgaji", "lengkap"]);
+  "kode", "unggah", "bantuan", "gaji", "contohgaji", "lengkap", "izin", "sakit", "cuti"]);
 export function rapikanPerintah(teks: string): string {
   const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
@@ -759,8 +785,9 @@ export function rapikanPerintah(teks: string): string {
 
 // Paket 8b-4: tombol tetap di bawah kolom ketik, per peran. Teks tombol diterjemahkan ke perintah.
 export const TOMBOL_TETAP: Record<string, string[][]> = {
-  hrd: [["Kirim file", "Ajukan", "Rilis"], ["Kode karyawan", "PIN", "Bantuan"]],
-  pembangun: [["Kirim file", "Ajukan", "Rilis"], ["Kode karyawan", "PIN", "Undang"], ["Hapus PIN", "Total lengkap", "Bantuan"]],
+  hrd: [["Kirim file", "Ajukan", "Rilis"], ["Perintah HRD", "Kode karyawan", "PIN"], ["Bantuan"]],
+  pembangun: [["Kirim file", "Ajukan", "Rilis"], ["Perintah HRD", "Kode karyawan", "PIN"], ["Undang", "Hapus PIN", "Total lengkap"],
+              ["Bantuan"]],
   bos: [["Total lengkap", "PIN"], ["Bantuan"]],
   karyawan: [["Gaji saya", "Bantuan"]],
 };
@@ -777,7 +804,7 @@ async function papanAkun(alat: Alat, tg: number): Promise<Record<string, unknown
 const TEKS_TOMBOL: Record<string, string> = {
   "kirim file": "/unggah", "ajukan": "/ajukan", "rilis": "/rilis", "bantuan": "/bantuan", "hapus pin": "/hapuspin",
   "kode karyawan": "/tombol_kode", "pin": "/tombol_pin", "undang": "/tombol_undang",
-  "gaji saya": "/gaji", "menu": "/bantuan", "total lengkap": "/lengkap",
+  "gaji saya": "/gaji", "menu": "/bantuan", "total lengkap": "/lengkap", "perintah hrd": "/tombol_perintah",
 };
 export function teksTombol(teks: string): string {
   return TEKS_TOMBOL[teks.trim().toLowerCase()] ?? teks;
@@ -785,6 +812,7 @@ export function teksTombol(teks: string): string {
 // Pertanyaan bot yang dijawab dengan membalas pesannya (force reply); awal teks dipakai untuk mengenali jawabannya.
 export const TANYA_ID = "Ketik ID karyawan yang dibuatkan kode daftar";
 export const TANYA_PIN = "Buat PIN: ketik 6 angka. Ganti PIN: ketik PIN lama, spasi, PIN baru";
+export const TANYA_PERINTAH = "Ketik perintah HRD sebagai balasan pesan ini";
 
 const tombolRilis = (periode: number) => ({ reply_markup: { inline_keyboard: [[{ text: "Rilis (PIN)", callback_data: `r|y|${periode}` }]] } });
 // Paket 8b-4: baris tombol "Batalkan pengajuan" ditambahkan di bawah tombol lain.
@@ -1177,6 +1205,159 @@ async function kirimPengingatRilis(alat: Alat, tanggal?: string): Promise<number
     n++;
   }
   return n;
+}
+
+// ---------------------------------------------------------------------------
+// Perintah HRD lewat chat (paket 7a, docs/rencana-tahap-7.md bagian 5; PRD v2 Tahap 7): izin, sakit, cuti, termasuk
+// susulan. Draf -> tombol Ya/Batal -> perintah dicatat -> hitung ulang lewat antrean yang sama dengan file -> kabar
+// status hari sebelum dan sesudah. Balasan tanpa angka gaji perorangan (F15).
+// ---------------------------------------------------------------------------
+
+export const RE_PERINTAH_HRD = /^\/(izin|sakit|cuti)(?:@\w+)?(?:\s+([\s\S]*))?$/i;
+export const CONTOH_PERINTAH = "Contoh: izin 10001 30-03-2026, sakit 10001 30-03 31-03, cuti 10001 01-04-2026 03-04-2026 menikah. " +
+  "Bentuk: jenis (izin, sakit, cuti), ID karyawan, tanggal, tanggal selesai bila lebih dari sehari, catatan bila perlu.";
+export const CARA_PERINTAH = "Cara pakai: /izin <ID> <tanggal> [tanggal selesai] [catatan]; sama untuk /sakit dan /cuti. " +
+  "Tanggal dd-mm-yyyy, atau dd-mm untuk tahun ini. " + CONTOH_PERINTAH.split(". Bentuk")[0] + ".";
+const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+const NAMA_JENIS: Record<string, string> = { izin: "IZIN", sakit: "SAKIT", cuti: "CUTI" };
+const NAMA_STATUS: Record<string, string> = {
+  alpha: "alpha", hadir: "hadir", izin: "izin", sakit: "sakit", cuti: "cuti", dinas_luar: "dinas luar", libur: "libur",
+  lembur_hari_libur: "masuk di hari libur", menunggu: "menunggu data mesin", tanpa_tap_massal: "hari tanpa tap massal",
+};
+const namaStatus = (x: string | null | undefined) => x ? (NAMA_STATUS[x] ?? x.replace(/_/g, " ")) : "belum dihitung";
+
+// "30-03-2026", "30/03/2026", "30.03.2026", atau "30-03" (tahun ini menurut WIB) -> "2026-03-30"; tanggal tidak ada -> null.
+export function bacaTanggal(teks: string, sekarangMs: number): string | null {
+  const m = /^(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{4}))?$/.exec(teks.trim());
+  if (!m) return null;
+  const tahun = m[3] ? Number(m[3]) : new Date(sekarangMs + 7 * 3600 * 1000).getUTCFullYear();
+  const t = new Date(Date.UTC(tahun, Number(m[2]) - 1, Number(m[1])));
+  if (t.getUTCFullYear() !== tahun || t.getUTCMonth() !== Number(m[2]) - 1 || t.getUTCDate() !== Number(m[1])) return null;
+  return t.toISOString().slice(0, 10);
+}
+// "2026-03-30" -> "Senin, 30 Mar 2026"
+export function tulisTanggal(iso: string, denganHari = true): string {
+  const t = new Date(iso + "T00:00:00Z");
+  return (denganHari ? HARI[t.getUTCDay()] + ", " : "") + `${t.getUTCDate()} ${BULAN[t.getUTCMonth()]} ${t.getUTCFullYear()}`;
+}
+// Baca isi perintah: ID, tanggal, tanggal selesai (bila berupa tanggal), catatan.
+export function bacaPerintah(isi: string, sekarangMs: number):
+  { id: string; mulai: string; selesai: string; catatan: string } | { salah: string } {
+  const kata = isi.trim().split(/\s+/).filter(Boolean);
+  if (kata.length < 2) return { salah: CARA_PERINTAH };
+  const mulai = bacaTanggal(kata[1], sekarangMs);
+  if (!mulai) return { salah: `Tanggal "${kata[1]}" tidak dikenali atau tidak ada. ${CARA_PERINTAH}` };
+  const kedua = kata[2] !== undefined ? bacaTanggal(kata[2], sekarangMs) : null;
+  if (kata[2] !== undefined && !kedua && /^\d{1,2}[-/.]\d{1,2}/.test(kata[2])) {
+    return { salah: `Tanggal "${kata[2]}" tidak dikenali atau tidak ada. ${CARA_PERINTAH}` };
+  }
+  return { id: kata[0], mulai, selesai: kedua ?? mulai, catatan: kata.slice(kedua ? 3 : 2).join(" ") };
+}
+
+function teksTolakPerintah(r: any): string {
+  switch (r?.hasil) {
+    case "bukan_hrd": return BUKAN_HRD_RILIS;
+    case "tidak_ada": return `Karyawan dengan ID ${r.id ?? "itu"} tidak ada. Periksa ID-nya.`;
+    case "tanggal_salah": return `Tanggal tidak benar (tanggal selesai tidak boleh sebelum tanggal mulai). ${CARA_PERINTAH}`;
+    case "terlalu_panjang": return `Rentang ${angka(r.hari)} hari terlalu panjang; paling banyak 31 hari sekali catat.`;
+    case "tanpa_periode": return `Tanggal ${tulisTanggal(r.tanggal)} tidak masuk periode gaji mana pun yang tercatat.`;
+    case "periode_dirilis": return `Ditolak: ${tulisTanggal(r.tanggal)} masuk periode no. ${r.periode?.id} ` +
+      `(${r.periode?.awal} s.d. ${r.periode?.akhir}) yang gajinya sudah ${r.periode?.status}; periode itu tidak dihitung ulang. ` +
+      "Tidak ada yang dicatat.";
+    case "tidak_aktif": return `Ditolak: ${r.id} ${r.nama} tidak aktif bekerja pada ${tulisTanggal(r.tanggal)} ` +
+      "(belum mulai atau sudah berhenti). Tidak ada yang dicatat.";
+    case "jenis_salah": return CARA_PERINTAH;
+    case "tidak_berlaku": return "Tombol ini sudah tidak berlaku (sudah dipakai, dibatalkan, atau lewat 15 menit). Ketik perintahnya lagi.";
+    default: return "Perintah tidak bisa diproses.";
+  }
+}
+const barisPeriode = (r: any) => (r.periode ?? []).map((p: any) => `no. ${p.id} (${p.awal} s.d. ${p.akhir})`).join(", ");
+const libur = (st: string | null) => st === "libur" || st === "lembur_hari_libur";
+
+export function susunKonfirmasi(r: any): string {
+  const hari: any[] = r.hari ?? [];
+  const jumlah = hari.length;
+  const baris = hari.map((h) => {
+    let b = `• ${tulisTanggal(h.tanggal)}: ${namaStatus(h.status)}`;
+    if (h.perintah_lama) b += ` (perintah ${h.perintah_lama.jenis.replace(/_/g, " ")} no. ${h.perintah_lama.id} diganti)`;
+    if (libur(h.status)) b += " — hari libur, perintah tidak mengubah hari ini";
+    return b;
+  });
+  return `Catat ${NAMA_JENIS[r.jenis] ?? r.jenis} untuk ${r.id} ${r.nama} (${r.divisi})?\n` +
+    `Tanggal: ${jumlah === 1 ? tulisTanggal(r.mulai) : `${tulisTanggal(r.mulai)} s.d. ${tulisTanggal(r.selesai)} (${angka(jumlah)} hari)`}\n` +
+    (r.catatan ? `Catatan: ${r.catatan}\n` : "") +
+    `Status sekarang:\n${baris.join("\n")}\n` +
+    `Sesudah dicatat, periode ${barisPeriode(r)} dihitung ulang.` +
+    (r.pengajuan_batal ? " Pengajuan rilis periode itu batal dan perlu diajukan lagi." : "") +
+    (r.jenis === "izin" ? "\nIzin tidak dibayar (pengaturan sekarang)." : "");
+}
+
+async function siapkanPerintah(alat: Alat, chat: number, tg: number, hrd: boolean, jenis: string, isi: string): Promise<void> {
+  if (!hrd) {
+    await kirim(alat, chat, BUKAN_HRD_RILIS);
+    return;
+  }
+  const baca = bacaPerintah(isi, alat.sekarang());
+  if ("salah" in baca) {
+    await kirim(alat, chat, baca.salah, await papanAkun(alat, tg));
+    return;
+  }
+  const r = await alat.api("pintu_perintah_siapkan", {
+    telegram_id: tg, jenis, id_karyawan: baca.id, mulai: baca.mulai, selesai: baca.selesai, catatan: baca.catatan || null,
+  });
+  if (r?.hasil !== "siap") {
+    await kirim(alat, chat, teksTolakPerintah(r), await papanAkun(alat, tg));
+    return;
+  }
+  await kirim(alat, chat, susunKonfirmasi(r), { reply_markup: { inline_keyboard: [[
+    { text: "Ya, catat", callback_data: `c|y|${r.draf_id}` }, { text: "Batal", callback_data: `c|n|${r.draf_id}` },
+  ]] } });
+}
+
+export function susunHasilPerintah(sebelum: any[], r: any): string {
+  const lama = new Map<string, string | null>((sebelum ?? []).map((h: any) => [h.tanggal, h.status] as [string, string | null]));
+  const baris = (r.hari ?? []).map((h: any) => {
+    const a = lama.get(h.tanggal) ?? null;
+    return `• ${tulisTanggal(h.tanggal)}: ${a === h.status ? `${namaStatus(h.status)} (tidak berubah)` : `${namaStatus(a)} → ${namaStatus(h.status)}`}`;
+  });
+  return `Hasil ${NAMA_JENIS[r.jenis] ?? r.jenis} ${r.id} ${r.nama} (perintah no. ${r.perintah_id}):\n${baris.join("\n")}`;
+}
+
+async function jawabPerintah(alat: Alat, chat: number, tg: number, draf: number, ya: boolean, pesanId?: number): Promise<void> {
+  const mulai = alat.sekarang();
+  const r = await alat.api("pintu_perintah_simpan", { telegram_id: tg, draf_id: draf, ya });
+  if (r?.hasil === "disimpan" || r?.hasil === "dibatalkan") {
+    try {
+      if (pesanId !== undefined) {
+        await alat.telegram("editMessageReplyMarkup", { chat_id: chat, message_id: pesanId, reply_markup: { inline_keyboard: [] } });
+      }
+    } catch {
+      // tombol yang tertinggal tidak berlaku lagi (dijaga database)
+    }
+  }
+  if (r?.hasil === "dibatalkan") {
+    await kirim(alat, chat, "Tidak jadi dicatat.", await papanAkun(alat, tg));
+    return;
+  }
+  if (r?.hasil !== "disimpan") {
+    await kirim(alat, chat, teksTolakPerintah(r), await papanAkun(alat, tg));
+    return;
+  }
+  const tanggal = r.mulai === r.selesai ? tulisTanggal(r.mulai) : `${tulisTanggal(r.mulai)} s.d. ${tulisTanggal(r.selesai)}`;
+  await kirim(alat, chat, `Tercatat: perintah no. ${r.perintah_id}, ${NAMA_JENIS[r.jenis] ?? r.jenis} ${r.id} ${r.nama}, ${tanggal}. ` +
+    `Menghitung ulang periode ${barisPeriode(r)}...`, await papanAkun(alat, tg));
+  await kerjakanAntrean(alat, chat, mulai, "telegram", "perintah HRD");
+  const h = await alat.api("pintu_perintah_hasil", { telegram_id: tg, perintah_id: r.perintah_id });
+  if (h?.hasil !== "ada") return;
+  if (h.gagal) {
+    await kirimAman(alat, chat, `Perintah no. ${r.perintah_id} tersimpan, tetapi hitung ulang gagal; pembangun perlu memeriksa.`);
+  } else if (!h.selesai_dihitung) {
+    await kirimAman(alat, chat, `Perintah no. ${r.perintah_id} tersimpan; hitung ulang belum selesai (antrean). ` +
+      "Hasilnya terlihat sesudah hitungan berikutnya.");
+  } else {
+    await kirimAman(alat, chat, susunHasilPerintah(r.hari_sebelum, h));
+  }
 }
 
 // ---------------------------------------------------------------------------

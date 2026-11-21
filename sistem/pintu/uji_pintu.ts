@@ -13,7 +13,7 @@ import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
-  TOMBOL_TETAP, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  TOMBOL_TETAP, TANYA_PERINTAH, CARA_PERINTAH, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -1388,4 +1388,103 @@ test("8d (i): orang rahasia tidak bisa dicatat dibayar tunai", () => {
   assert.throws(() => psql(`set app.pengguna = 'uji'; insert into induk.karyawan_riwayat (id_karyawan, berlaku_dari, divisi, gaji_pokok,
     ptkp, cara_bayar, gaji_rahasia) select '10001', '2031-01-01', divisi, 1, 'TK/0', 'tunai', true from induk.karyawan_riwayat
     where id_karyawan = '10001' limit 1;`), /rahasia_wajib_transfer/);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 7a: izin, sakit, cuti lewat chat (docs/rencana-tahap-7.md bagian 5)
+// ---------------------------------------------------------------------------
+
+test("7a: membaca tanggal dd-mm-yyyy, dd/mm/yyyy, dd-mm (tahun ini WIB); tanggal tidak ada ditolak", () => {
+  const nov2026 = Date.UTC(2026, 10, 21, 3); // 21 Nov 2026 10.00 WIB
+  assert.equal(bacaTanggal("30-03-2026", nov2026), "2026-03-30");
+  assert.equal(bacaTanggal("30/3/2026", nov2026), "2026-03-30");
+  assert.equal(bacaTanggal("30.03", nov2026), "2026-03-30");
+  assert.equal(bacaTanggal("01-01", Date.UTC(2026, 11, 31, 18)), "2027-01-01"); // 1 Jan 2027 01.00 WIB
+  assert.equal(bacaTanggal("30-02-2026", nov2026), null);
+  assert.equal(bacaTanggal("2026-03-30", nov2026), null);
+  assert.equal(tulisTanggal("2026-03-30"), "Senin, 30 Mar 2026");
+});
+
+test("7a: membaca isi perintah: ID, tanggal, tanggal selesai, catatan", () => {
+  const t = Date.UTC(2026, 10, 21, 3);
+  assert.deepEqual(bacaPerintah("10067 30-03-2026", t), { id: "10067", mulai: "2026-03-30", selesai: "2026-03-30", catatan: "" });
+  assert.deepEqual(bacaPerintah("10067 30-03 31-03 urusan keluarga", t),
+    { id: "10067", mulai: "2026-03-30", selesai: "2026-03-31", catatan: "urusan keluarga" });
+  assert.deepEqual(bacaPerintah("10067 30-03-2026 2 hari", t), { id: "10067", mulai: "2026-03-30", selesai: "2026-03-30", catatan: "2 hari" });
+  assert.match((bacaPerintah("10067", t) as any).salah, /^Cara pakai/);
+  assert.match((bacaPerintah("10067 31-04-2026", t) as any).salah, /^Tanggal "31-04-2026" tidak dikenali/);
+  assert.match((bacaPerintah("10067 30-03 31-13", t) as any).salah, /^Tanggal "31-13" tidak dikenali/);
+});
+
+const jumlahPerintahChat = () => nilai("select count(*) from fakta.perintah_hrd where asal = 'chat'");
+const statusHari = (id: string, hari: string) => nilai(`select hh.status from hitung.hasil_harian hh
+  join hitung.versi_terakhir v on v.id = hh.versi_id and v.jenis = 'baca_tap'
+  join fakta.periode p on p.id = v.periode_id and '${hari}'::date between p.tanggal_awal and p.tanggal_akhir
+  where hh.id_karyawan = '${id}' and hh.tanggal = '${hari}'`);
+let tombolYa7a = "";
+
+test("7a: karyawan ditolak; periode dirilis ditolak; ID tidak ada ditolak; tidak ada yang dicatat", async () => {
+  assert.equal((await kirimUpdate(teksPribadi(10301, KARYAWAN_BARU, "/izin 10067 25-11-2026"))).pesan[0].text, "Perintah ini hanya untuk HRD.");
+  const dirilis = await kirimUpdate(teksPribadi(10302, HRD, "/izin 10067 30-03-2026"));
+  assert.match(dirilis.pesan[0].text, /^Ditolak: Senin, 30 Mar 2026 masuk periode no\. \d+ \(2026-03-21 s\.d\. 2026-04-20\) yang gajinya sudah (dirilis|dikunci)/);
+  assert.match((await kirimUpdate(teksPribadi(10303, HRD, "/izin 99999 25-11-2026"))).pesan[0].text, /^Karyawan dengan ID 99999 tidak ada/);
+  assert.match((await kirimUpdate(teksPribadi(10304, HRD, "/izin 10067 31-11-2026"))).pesan[0].text, /^Tanggal "31-11-2026" tidak dikenali/);
+  assert.equal(jumlahPerintahChat(), "0");
+});
+
+test("7a: /izin (susulan) -> konfirmasi berisi nama, status sekarang, periode; tombol Ya/Batal; belum dicatat", async () => {
+  const r = await kirimUpdate(teksPribadi(10305, HRD, "/izin 10067 25-11-2026 urusan keluarga"));
+  const k = r.pesan[0];
+  assert.match(k.text, /^Catat IZIN untuk 10067 .+ \(.+\)\?\nTanggal: Rabu, 25 Nov 2026\nCatatan: urusan keluarga\nStatus sekarang:\n• Rabu, 25 Nov 2026: /);
+  assert.match(k.text, /periode no\. \d+ \(2026-11-21 s\.d\. 2026-12-20\) dihitung ulang/);
+  assert.doesNotMatch(k.text, /Rp|gaji bersih/);
+  const [ya, batal] = k.reply_markup.inline_keyboard[0];
+  assert.match(ya.callback_data, /^c\|y\|\d+$/);
+  assert.match(batal.callback_data, /^c\|n\|\d+$/);
+  tombolYa7a = ya.callback_data;
+  assert.equal(jumlahPerintahChat(), "0");
+});
+
+test("7a GERBANG: Ya -> tercatat oleh HRD, periode dihitung ulang, Sheets dipicu, hasil 'sebelum -> izin'", async () => {
+  const sebelumPicu = dipicu.length;
+  const r = await kirimUpdate(tekanTombol(10306, HRD, tombolYa7a));
+  const teks = r.pesan.map((p) => p.text as string);
+  assert.match(teks[0], /^Tercatat: perintah no\. \d+, IZIN 10067 .+, Rabu, 25 Nov 2026\. Menghitung ulang periode no\. \d+/);
+  assert.ok(teks.some((t) => t.startsWith("Periode 2026-11-21 s.d. 2026-12-20: ")), JSON.stringify(teks));
+  const hasil = teks.find((t) => t.startsWith("Hasil IZIN 10067"));
+  assert.ok(hasil, JSON.stringify(teks));
+  assert.match(hasil!, /• Rabu, 25 Nov 2026: .+ → izin$/);
+  assert.equal(statusHari("10067", "2026-11-25"), "izin");
+  assert.equal(nilai(`select x.asal || '/' || x.jenis || '/' || u.telegram_id || '/' || x.alasan from fakta.perintah_hrd x
+                      join induk.pengguna u on u.id = x.oleh where x.asal = 'chat'`), `chat/izin/${HRD}/urusan keluarga`);
+  assert.equal(dipicu.length, sebelumPicu + 1);
+  assert.equal(dipicu[dipicu.length - 1].pemicu, "perintah HRD");
+  assert.ok(r.pesan.every((p) => !/Rp\d/.test(p.text) || p.text.startsWith("Periode ")), "hanya kabar periode yang memuat total");
+  const lagi = await kirimUpdate(tekanTombol(10307, HRD, tombolYa7a));
+  assert.match(lagi.pesan[0].text, /^Tombol ini sudah tidak berlaku/);
+  assert.equal(jumlahPerintahChat(), "1");
+});
+
+test("7a: tombol 'Perintah HRD' bertanya -> balasan tanpa garis miring -> konfirmasi; balasan salah -> cara pakai", async () => {
+  const t = await kirimUpdate(teksPribadi(10308, PEMBANGUN, "Perintah HRD"));
+  assert.ok(t.pesan[0].text.startsWith(TANYA_PERINTAH));
+  assert.equal(t.pesan[0].reply_markup.force_reply, true);
+  const salah = await kirimUpdate(balas(10309, PEMBANGUN, "halo", t.pesan[0].text));
+  assert.equal(salah.pesan[0].text, CARA_PERINTAH);
+  const r = await kirimUpdate(balas(10310, PEMBANGUN, "sakit 10067 25-11-2026 26-11-2026", t.pesan[0].text));
+  assert.match(r.pesan[0].text, /^Catat SAKIT untuk 10067 .+\nTanggal: Rabu, 25 Nov 2026 s\.d\. Kamis, 26 Nov 2026 \(2 hari\)/);
+  assert.match(r.pesan[0].text, /• Rabu, 25 Nov 2026: izin \(perintah izin no\. \d+ diganti\)/);
+  const batal = await kirimUpdate(tekanTombol(10311, PEMBANGUN, r.pesan[0].reply_markup.inline_keyboard[0][1].callback_data));
+  assert.equal(batal.pesan[0].text, "Tidak jadi dicatat.");
+  assert.equal(jumlahPerintahChat(), "1");
+  assert.equal(statusHari("10067", "2026-11-25"), "izin");
+  assert.match((await kirimUpdate(teksPribadi(10312, KARYAWAN_BARU, "Perintah HRD"))).pesan[0].text, /hanya untuk HRD/);
+});
+
+test("7a: tombol tetap HRD dan pembangun memuat 'Perintah HRD'; menu memuat izin, sakit, cuti", () => {
+  for (const peran of ["hrd", "pembangun"]) {
+    assert.ok(TOMBOL_TETAP[peran].flat().includes("Perintah HRD"));
+    for (const c of ["izin", "sakit", "cuti"]) assert.ok(MENU[peran].some((m) => m.command === c), `${peran} ${c}`);
+  }
+  assert.ok(!TOMBOL_TETAP.karyawan.flat().includes("Perintah HRD"));
 });
