@@ -60,7 +60,7 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 
 **Cara memutuskan mulai 21 Nov 2026 10.13 WIB (pesan pemilik):** untuk keputusan di Tahap 7, Claude memakai sarannya sendiri, mencatatnya di sini dengan label, lalu lanjut. Pemilik hanya ditanya bila keputusannya (1) tidak bisa dibatalkan, (2) mengubah angka gaji atau uang, atau (3) membatasi hak akun pemilik.
 
-## 5. Daftar paket 7a (menunggu "buat")
+## 5. Daftar paket 7a (di-"buat" 21 Nov 2026 10.39 WIB; terpasang, `docs/laporan-7a.md`)
 
 **Tujuan:** HRD mencatat izin, sakit, atau cuti lewat chat, termasuk susulan; hasil berubah sesudah hitung ulang (gerbang Tahap 7).
 
