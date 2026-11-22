@@ -29,4 +29,7 @@
 | **D05 nyata** | 10067 periode 4: lembur Rp80.925 → **Rp0**; dibayar Rp4.460.925 → **Rp4.380.000**; tanda `lembur_tidak_dibayar_tanpa_izin` (kelebihan jam tetap tercatat). Versi 42 dibanding 40: hanya 1 orang berbeda | [Pasti] |
 | Sheets tab periode 4 | Baris 10067: Lembur 0, Dibayar 4380000, Peringatan "lembur_tidak_dibayar_tanpa_izin, pph_masa_terakhir_tertahan"; cocok dengan gudang | [Pasti] |
 
-Sisa: `/batalperintah 1608` → lembur kembali Rp80.925; uji tolak `/setujuilembur XYZ 26-11-2026`.
+| `/batalperintah 1608` (18.58) | Konfirmasi menyebut "sudah ada BATALKAN LEMBUR no. 1608"; perintah no. 1609 `batalkan_perintah` → 1608; periode 4 selesai 18.59.08 (versi 44): **sekitar 22 detik** | [Pasti] |
+| Kembali seperti semula | 10067 periode 4: lembur **Rp80.925**, dibayar **Rp4.460.925**; versi 44 dibanding 40 (sebelum uji): 0 orang berbeda. Sheets baris 10067: Lembur 80925, Dibayar 4460925 | [Pasti] |
+
+Sisa: uji tolak `/setujuilembur XYZ 26-11-2026` (belum dikirim pemilik pada 18.59).
