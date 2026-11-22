@@ -31,4 +31,11 @@
 | Hasil | 10067 30 Mar 2026 kembali `alpha`; premi hadir hilang; PPh 21 Rp29.422; dibayar **Rp5.513.378** (sama dengan sebelum uji 7a). Versi gaji 32 dibanding versi 25 (sebelum uji 7a): 0 orang berbeda dari 1.010 | [Pasti] |
 | Sheets baris 10067 | Alpha 1, Izin 0, Premi hadir 0, PPh 21 −29422, Dibayar 5513378; cocok dengan gudang | [Pasti] |
 
-Sisa: uji tolak `/batalperintah 1604` kedua kali.
+| Uji tolak `/batalperintah 1604` kedua kali (16.07 WIB) | Bot: "Perintah no. 1604 sudah dibatalkan oleh perintah no. 1605. Tidak ada yang dicatat." Gudang: pembatalan untuk 1604 tetap 1, perintah chat tetap 2, draf tetap 2, tidak ada antrean baru | [Pasti] |
+| Pesan bot sesudah Ya | "Hasil PEMBATALAN 10067 ... • Senin, 30 Mar 2026: izin → alpha" dan "Sheets SELESAI diperbarui ... diperiksa sama dengan gudang" sampai ke chat | [Pasti] (tangkapan layar pemilik) |
+
+**Uji nyata 7d selesai.**
+
+## Temuan
+
+1. Kabar Sheets sesudah perintah chat menulis "Lama sejak **file** masuk: 145 detik", padahal pemicunya perintah HRD (teks dari workflow Isi Sheets). Hanya kata; angkanya diukur dari tombol Ya. Perbaikan butuh paket kecil.
