@@ -107,6 +107,38 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 - **Belum pasti:** lama dari Ya sampai kabar selesai (belum diukur; hitung ulang dua periode diperkirakan sekitar 35 detik [Menebak], dari 12 detik baca tap + 6 detik gaji per periode yang diukur di Tahap 3 dan 5a).
 - **Tidak ikut 7a:** kasbon (7b), persetujuan lembur (7c), batalkan perintah (7d), perintah divisi, alasan izin dibayar, penuntun tombol langkah demi langkah.
 
+## 7. Daftar paket 7d (menunggu "buat")
+
+**Tujuan:** perintah HRD yang salah bisa dibatalkan lewat chat tanpa Reset Supabase. Fakta tetap hanya bertambah: pembatalan dicatat sebagai perintah `batalkan_perintah` (kolom `membatalkan`), yang sudah dihormati baca tap dan hitung gaji sejak Tahap 3 [Pasti: 0013, 0014, 0016].
+
+### Keputusan Claude untuk 7d (kewenangan 21 Nov 2026 10.13 WIB)
+
+| Keputusan | Alasan | Label |
+| --- | --- | --- |
+| Bentuk: `/batal <nomor perintah>`, lalu konfirmasi dengan tombol Ya/Batal seperti 7a | Nomor perintah sudah tertulis di pesan "Tercatat: perintah no. ..." | [Pasti] keputusan |
+| Yang bisa dibatalkan: perintah sakit, izin, cuti, **dari chat maupun dari file** | Salah catat bisa datang dari keduanya; efeknya sama | [Pasti] keputusan |
+| Ditolak bila: nomor tidak ada, jenis lain, sudah dibatalkan, atau tanggalnya di periode `dirilis`/`dikunci` | Periode dirilis tidak dihitung ulang (8b) | [Pasti] keputusan |
+| `/perintahku`: 10 perintah chat terakhir dari semua akun HRD/pembangun (nomor, jenis, ID, nama, tanggal, pencatat, sudah dibatalkan atau belum) | Tim HRD berbagi pekerjaan; tanpa angka gaji | [Pasti] keputusan |
+| Hanya akun `hrd` dan `pembangun` | Sama dengan 7a | [Pasti] |
+
+### Isi paket
+
+1. **Migrasi 0033**:
+   - `fakta.draf_perintah` boleh berisi draf `batalkan_perintah` (kolom baru `membatalkan`);
+   - `fakta.periksa_perintah` diganti: ikut mengembalikan **semua** periode yang akan dihitung ulang, termasuk periode sesudahnya yang sudah punya gaji (perbaikan temuan uji nyata 7a: teks hanya menyebut periode 3);
+   - fungsi baru `api.pintu_batal_siapkan`, `api.pintu_perintah_terakhir`; `api.pintu_perintah_simpan` diganti supaya bisa menyimpan draf pembatalan.
+2. **Bot**: `/batal`, `/perintahku`, tombol Ya/Batal, kabar "Hasil ... sebelum → sesudah"; konfirmasi dan "Tercatat" 7a menyebut semua periode yang dihitung ulang; menu dan `/bantuan`.
+3. **Uji otomatis** (database dan pintu), termasuk: pembatalan mengembalikan status dari tap, batal dua kali ditolak, periode dikunci ditolak, perintah file bisa dibatalkan, daftar perintahku; bukti uji gagal dengan kode lama.
+4. **Pasang ke Supabase** lewat cabang `pasang` sesudah uji lulus.
+5. **Uji nyata**: `/batal 1604` (izin Vina Pohan 30 Mar 2026 dari uji 7a) → hari itu kembali `alpha`; dicek di Supabase dan Sheets. Uji tolak: `/batal 1604` kedua kali.
+6. **Dokumen**: `docs/laporan-7d.md`, `docs/serah-terima.md`.
+
+### Perlu diketahui pemilik
+
+- **Uji nyata mengubah angka gaji demo kembali**: [Kemungkinan Besar] dibayar Vina Pohan periode 3 kembali dari Rp5.597.917 ke Rp5.513.378 (premi hadir hilang), seperti sebelum uji 7a. Bisa diulang dengan `/izin` lagi.
+- **Pembatalan tidak bisa dibatalkan.** Kalau salah membatalkan, perintahnya diketik ulang (nomor baru).
+- **Tidak ikut 7d:** kasbon (7b), persetujuan lembur (7c), pembatalan jenis lain (tukar shift, lembur, absen manual).
+
 ## 6. Yang tidak ikut paket mana pun
 
 Isi Sheets dan halaman demo tidak berubah bentuk. Data simulasi dan kasus jebakan tidak diubah.
