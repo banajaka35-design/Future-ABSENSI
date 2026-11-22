@@ -34,7 +34,9 @@
 | Akibat ke gaji (aturan C3 lama) | 10067 periode 3: premi hadir 0 → Rp100.000; PPh 21 Rp29.422 → Rp44.883; potongan hari tidak dibayar tetap Rp153.846 ("alpha 0, izin 1"); dibayar Rp5.513.378 → **Rp5.597.917 (+Rp84.539)**. Dari 1.010 orang di periode 3, hanya 10067 yang angka dibayarnya berubah (versi 25 dibanding 28) | [Pasti] |
 | Sheets tab "Gaji 2026-03-21 sd 2026-04-20 transfer" | Baris 10067: Alpha 0, Izin 1, Premi hadir 100000, PPh 21 −44883, Dibayar 5597917; cocok dengan gudang | [Pasti] |
 
-**Gerbang Tahap 7 lulus untuk izin.** Sisa uji nyata: uji tolak `/izin 10067 25-02-2026` (periode 2 dikunci).
+| Uji tolak `/izin 10067 25-02-2026` (10.44 WIB) | Bot: "Ditolak: Rabu, 25 Feb 2026 masuk periode no. 2 (2026-02-21 s.d. 2026-03-20) yang gajinya sudah dikunci ...". Gudang: perintah chat tetap 1, draf tetap 1, tidak ada antrean baru, periode 2 tetap `dikunci` | [Pasti] |
+
+**Gerbang Tahap 7 lulus untuk izin; uji tolak lulus. Uji nyata 7a selesai.** Belum dipastikan: apakah pesan "Hasil IZIN 10067 ..." sampai ke chat (tidak tercatat di gudang; tangkapan layar pertama diambil sebelum hitung ulang selesai).
 
 ## Temuan
 
