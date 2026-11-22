@@ -34,4 +34,10 @@
 | Keadaan kasbon | saldo 750.000, pinjam 1.000.000, terpotong 250.000, cicilan 250.000 | [Pasti] |
 | Sheets tab "Gaji 2026-11-21 sd 2026-12-20 transfer" | Baris 10067: Kasbon −250000, Total potongan −410000, Dibayar 4210925; cocok dengan gudang | [Pasti] |
 
-Sisa: `/batalperintah 1606` → potongan harus hilang; uji tolak `/lunas 10067 5.000.000`.
+| `/batalperintah 1606` (17.06) | Konfirmasi: "Isi: pinjam Rp1.000.000, cicilan Rp250.000; Saldo kasbon sekarang: Rp750.000" | [Pasti] (tangkapan layar) |
+| Ya, batalkan | Perintah no. 1607 `batalkan_perintah`, `membatalkan = 1606`, oleh pembangun; periode 4 selesai 17.06.51 (versi gaji 40) | [Pasti] |
+| **Pembatalan kasbon (pilihan (a))** | 10067 periode 4: tidak ada rincian kasbon; dibayar kembali **Rp4.460.925**; versi 40 dibanding 36 (sebelum kasbon): 0 orang berbeda; keadaan kasbon saldo 0, pinjam 0 (baris yang dibatalkan tidak dihitung) | [Pasti] |
+| Sheets sesudah pembatalan | Baris 10067: Kasbon 0, Total potongan −160000, Dibayar 4460925; cocok dengan gudang | [Pasti] |
+| Uji tolak `/lunas 10067 5.000.000` (17.06.54) | Pesan diterima gudang; tidak ada perintah baru sesudah 1607, tidak ada baris kasbon baru (draf tidak dibuat karena ditolak sebelum draf). Isi balasan bot belum terlihat di tangkapan layar | [Pasti] gudang; balasan menunggu pemilik |
+
+**Uji nyata 7b selesai di gudang dan Sheets.**
