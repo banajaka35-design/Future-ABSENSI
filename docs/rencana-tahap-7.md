@@ -250,7 +250,51 @@ Jawaban pemilik: **(a) digabung** (22 Nov 2026 19.05 WIB, sesudah penjelasan bah
 
 Catatan [Pasti]: tap yang lebih awal dari jendela tap (sekarang 120 menit sebelum masuk) tidak dibaca sebagai tap masuk, jadi datang awal yang bisa dibayar paling banyak 120 menit.
 
-Jawaban pemilik: (belum)
+Jawaban pemilik: **(a) terpisah** (22 Nov 2026 19.05 WIB).
+
+### Temuan data demo (22 Nov 2026) [Pasti]
+
+- Di data simulasi, hampir semua hari hadir punya datang awal 1–30 menit (periode 4: 21.423 hari; paling awal 30 menit). Jadi persetujuan datang awal untuk satu divisi bisa menambah lembur banyak orang sekaligus; karena itu konfirmasi wajib menyebut jumlah orang dan menitnya.
+- Calon uji nyata: **10060 Maya Sitorus, Sabtu 21 Nov 2026**: datang 29 menit lebih awal, pulang 94 menit lewat jadwal. Sekarang dibayar 90 menit; dengan persetujuan datang awal (digabung): 123 menit → **120 menit**.
+
+## 11. Daftar paket 7c-2 (menunggu "buat")
+
+**Tujuan:** PRD v2 B5: jam sebelum jadwal masuk dibayar sebagai lembur hanya bila disetujui (keputusan pemilik: digabung dengan menit lewat jam pulang; persetujuan terpisah dari persetujuan lembur biasa).
+
+### Aturan baru (masuk `docs/aturan-hitung-gaji.md` sebagai D1b, versi kode gaji 7)
+
+- **D1b** Hari kerja (status `hadir`, asal mesin, jenis hari `kerja` atau `cuti_bersama`): menit lembur = (menit lewat jam pulang, bila boleh menurut D5) + (menit datang awal, bila ada perintah `setujui_datang_awal` untuk orang itu atau divisinya di tanggal itu). Menit datang awal = jadwal masuk − tap masuk, dibulatkan ke bawah per menit; paling banyak sejauh jendela tap. Jumlahnya lalu memakai D4 (minimal 60, kelipatan 30), D6–D9 seperti biasa.
+- Persetujuan datang awal berlaku di pengaturan **otomatis maupun wajib perintah**; persetujuan lembur biasa (`setujui_lembur`) dan pembatalannya (`batalkan_lembur`) hanya untuk menit lewat jam pulang, seperti sekarang.
+- Tanda `lembur_tidak_dibayar_tanpa_izin` tetap untuk menit lewat jam pulang yang tidak boleh. Datang awal tanpa persetujuan tidak diberi tanda (sama dengan sekarang, kasus B05).
+- **Tidak ikut** (tetap seperti sekarang): hari libur tanpa jadwal (D2, seluruh jam hadir sudah dihitung) dan hari libur nasional dengan jadwal (D3).
+
+### Keputusan Claude (bukan soal uang)
+
+| Keputusan | Label |
+| --- | --- |
+| Perintah bot `/setujuiawal <ID atau kode divisi> <tanggal> [tanggal selesai] [catatan]`; konfirmasi Ya/Batal berisi, per hari: orang → menit datang awal dan menit lewat jam pulang; divisi → jumlah orang yang datang awal dan jumlah menitnya. "Hasil": lembur sebelum → sesudah (sama dengan 7c-1) | [Pasti] keputusan |
+| Jenis perintah baru `setujui_datang_awal` di `fakta.perintah_hrd` (daftar jenis ditambah lewat migrasi), supaya tidak tercampur dengan `setujui_lembur` | [Pasti] keputusan |
+| Bisa dibatalkan dengan `/batalperintah`; muncul di `/perintahku` | [Pasti] |
+
+### Isi paket
+
+1. **Permintaan perubahan 06** (`docs/permintaan-perubahan-06.md`): tambah kasus **B05b** "Shift Pagi: tap 05:30 dan 15:45; HRD menyetujui datang awal → 90 + 45 = 135 menit → dibayar 120 menit"; B05 tidak diubah (tanpa persetujuan tetap tidak menjadi lembur). Kasus jebakan jadi versi 1.4.
+2. **Migrasi 0036**:
+   - daftar jenis `fakta.perintah_hrd` dan draf ditambah `setujui_datang_awal`;
+   - `hitung.hitung_gaji` versi kode 7: salinan versi 6 (0034) dengan D1b; menit datang awal dihitung dari `hitung.hasil_harian` (tap masuk dan jadwal masuk yang sudah tersimpan), **pembaca tap tidak diubah**;
+   - fungsi bot: `api.pintu_lembur_siapkan` dan teman-temannya menerima jenis baru; `fakta.hari_lembur` ikut menyebut menit datang awal.
+3. **Bot**: `/setujuiawal`, konfirmasi, hasil, menu, `/bantuan`.
+4. **Dokumen aturan**: `docs/aturan-hitung-gaji.md` D1b dan contoh K (angka uji).
+5. **Uji otomatis**: B05 tetap (tanpa persetujuan 0), B05b (135 → 120 menit), persetujuan divisi, wajib perintah (datang awal disetujui tetapi sore tidak → hanya pagi yang dihitung), batalkan perintah → kembali; **semua uji gaji lama dan U1 kunci jawaban harus tetap lulus** (data simulasi tidak punya persetujuan datang awal, jadi angkanya tidak boleh berubah); bukti uji gagal dengan kode lama.
+6. **Pasang ke Supabase** lewat cabang `pasang`.
+7. **Uji nyata**: `/setujuiawal 10060 21-11-2026` → lembur Maya Sitorus periode 4 naik (90 → 120 menit dibayar; rupiah dicek di Supabase dan Sheets); lalu `/batalperintah <nomor>` → kembali; uji tolak `/setujuiawal 10060 25-02-2026` (periode dikunci).
+8. **Dokumen**: `docs/laporan-7c2.md`, `docs/serah-terima.md`.
+
+### Perlu diketahui pemilik
+
+- **Ini mengubah mesin hitung gaji** (versi kode 7). Tanpa perintah `setujui_datang_awal`, semua angka harus sama persis dengan sekarang; itu dibuktikan dengan uji U1 dan perbandingan semua orang di Supabase sesudah dipasang.
+- **Uji nyata mengubah gaji demo periode 4** untuk satu orang, lalu dikembalikan oleh pembatalan.
+- **Tidak ikut:** datang awal di hari libur nasional berjadwal (D3), batas menit datang awal selain jendela tap.
 
 ## 6. Yang tidak ikut paket mana pun
 
