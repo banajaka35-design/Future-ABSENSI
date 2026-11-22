@@ -21,6 +21,14 @@
 | GitHub "Pasang ke Supabase" run 44983488913 | Lulus: hanya 0033 dipasang, pemeriksaan 33 lulus, Edge Function terpasang ulang; Isi Sheets, Cadangan, Terbitkan demo sesudahnya berhasil |
 | Dicek di Supabase | 0033 sidik `f4747ab411ca` = repo; perintah chat 1 (no. 1604); 10067 30 Mar 2026 `izin` |
 
-## Uji nyata
+## Uji nyata (22 Nov 2026, akun pembangun)
 
-Belum. Langkah: `/batalperintah 1604` → Ya, batalkan; lalu `/batalperintah 1604` sekali lagi (harus ditolak).
+| Langkah | Hasil (dicek di Supabase dan Sheets) | Label |
+| --- | --- | --- |
+| `/batalperintah 1604` (11.47 WIB) | Konfirmasi: izin no. 1604 Vina Pohan 30 Mar 2026, dicatat lewat chat, status `izin`; **menyebut periode no. 3 dan no. 4** (perbaikan temuan 7a terbukti) | [Pasti] (tangkapan layar pemilik) |
+| Ya, batalkan (11.48.53 WIB) | Perintah no. 1605 `batalkan_perintah`, `membatalkan = 1604`, asal chat, oleh pembangun; antrean periode 3 dan 4 | [Pasti] |
+| Hitung ulang | Periode 3 selesai 11.49.22 (versi gaji 32), periode 4 selesai 11.49.44 (versi gaji 34): **sekitar 51 detik**. Isi Sheets dipicu 11.49.46, berhasil | [Pasti] |
+| Hasil | 10067 30 Mar 2026 kembali `alpha`; premi hadir hilang; PPh 21 Rp29.422; dibayar **Rp5.513.378** (sama dengan sebelum uji 7a). Versi gaji 32 dibanding versi 25 (sebelum uji 7a): 0 orang berbeda dari 1.010 | [Pasti] |
+| Sheets baris 10067 | Alpha 1, Izin 0, Premi hadir 0, PPh 21 −29422, Dibayar 5513378; cocok dengan gudang | [Pasti] |
+
+Sisa: uji tolak `/batalperintah 1604` kedua kali.
