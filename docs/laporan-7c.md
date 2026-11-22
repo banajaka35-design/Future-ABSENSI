@@ -20,6 +20,13 @@
 | GitHub "Pasang ke Supabase" run 45015680331 | Lulus: hanya 0035, pemeriksaan 33 lulus, Edge Function terpasang ulang |
 | Dicek di Supabase | 0035 sidik `572cb01ee415` = repo; versi kode gaji tetap `hitung_gaji 6 (paket 7b)`; perintah lembur 0; 10067 periode 4: lembur Rp80.925, dibayar Rp4.460.925, 26 Nov 2026 pulang 127 menit lewat jadwal |
 
-## Uji nyata
+## Uji nyata (22 Nov 2026, akun pembangun)
 
-Belum. Langkah: `/batalkanlembur 10067 26-11-2026` → Ya; `/batalperintah <nomor>` → Ya; uji tolak `/setujuilembur XYZ 26-11-2026`.
+| Langkah | Hasil (dicek di Supabase dan Sheets) | Label |
+| --- | --- | --- |
+| `/batalkanlembur 10067 26-11-2026` | Konfirmasi: pengaturan otomatis; pulang 127 menit lewat jadwal; periode no. 4 dihitung ulang | [Pasti] (tangkapan layar pemilik) |
+| Ya, catat (18.55.38 WIB) | Perintah no. 1608 `batalkan_lembur`, 10067, 26 Nov 2026, oleh pembangun; periode 4 selesai 18.55.59 (versi gaji 42): **sekitar 21 detik**; Isi Sheets dipicu 18.56.01, berhasil | [Pasti] |
+| **D05 nyata** | 10067 periode 4: lembur Rp80.925 → **Rp0**; dibayar Rp4.460.925 → **Rp4.380.000**; tanda `lembur_tidak_dibayar_tanpa_izin` (kelebihan jam tetap tercatat). Versi 42 dibanding 40: hanya 1 orang berbeda | [Pasti] |
+| Sheets tab periode 4 | Baris 10067: Lembur 0, Dibayar 4380000, Peringatan "lembur_tidak_dibayar_tanpa_izin, pph_masa_terakhir_tertahan"; cocok dengan gudang | [Pasti] |
+
+Sisa: `/batalperintah 1608` → lembur kembali Rp80.925; uji tolak `/setujuilembur XYZ 26-11-2026`.
