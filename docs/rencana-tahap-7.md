@@ -140,6 +140,53 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 - **Pembatalan tidak bisa dibatalkan.** Kalau salah membatalkan, perintahnya diketik ulang (nomor baru).
 - **Tidak ikut 7d:** kasbon (7b), persetujuan lembur (7c), pembatalan jenis lain (tukar shift, lembur, absen manual).
 
+## 8. Daftar paket 7b (menunggu "buat"; ada 1 pertanyaan untuk pemilik)
+
+**Tujuan:** HRD mencatat kasbon lewat chat: pinjam dengan cicilan, ubah cicilan, pelunasan tunai, dan melihat saldo (PRD v2 C10: "saldo dan cicilan tercatat, beserta siapa yang memasukkan"; tanpa persetujuan bos, keputusan 21 Nov).
+
+### Cara kasbon dihitung sekarang (dicek 22 Nov 2026)
+
+- [Pasti] Aturan I2–I4 (`docs/aturan-hitung-gaji.md`, migrasi 0014): saldo = pinjam − pelunasan − potongan kasbon di periode sebelumnya; dipotong = cicilan terakhir yang dicatat (kalau tidak ada: seluruh saldo), dibatasi 50% pendapatan sesudah denda; sisa dibawa ke periode berikut.
+- [Pasti] Kasbon **tidak punya tanggal sendiri**: yang dipakai tanggal dicatat (`dibuat`, WIB). Kasbon yang dicatat hari ini mulai dipotong di periode yang memuat hari ini (demo: periode no. 4, 21 Nov–20 Des 2026). Jadi tidak ada "kasbon susulan".
+- [Pasti] `fakta.buku_kasbon` tidak punya kolom pencatat; pencatat diambil dari `perintah_id` → `fakta.perintah_hrd.oleh`.
+- [Pasti] Demo Supabase belum punya baris kasbon sama sekali.
+
+### Keputusan Claude untuk 7b
+
+| Keputusan | Alasan | Label |
+| --- | --- | --- |
+| `/kasbon <ID> <jumlah> <cicilan per periode> [catatan]` = pinjam + cicilan. **Cicilan wajib diisi** | Tanpa cicilan, aturan I2 memotong seluruh saldo sekaligus; HRD harus menyebutnya sendiri supaya tidak kaget. Tidak mengubah aturan hitung | [Pasti] keputusan |
+| `/cicilan <ID> <jumlah>` = ganti cicilan; `/lunas <ID> <jumlah> [catatan]` = pelunasan tunai di luar gaji, ditolak bila melebihi saldo | Tiga jenis yang sudah ada di `buku_kasbon` | [Pasti] keputusan |
+| `/kasbon <ID>` tanpa jumlah = lihat saldo, cicilan, 5 catatan terakhir (tanpa angka gaji lain) | Pengecekan sebelum mencatat | [Pasti] keputusan |
+| Jumlah boleh ditulis `1500000`, `1.500.000`, `1,5jt`, `500rb` | Cara orang menulis uang | [Pasti] keputusan |
+| Setiap catatan lewat konfirmasi Ya/Batal; tercatat sebagai perintah `kasbon` (asal chat, `oleh` = akun, nilai = jenis dan jumlah) + baris `buku_kasbon` dengan `perintah_id` | Siapa yang memasukkan terlacak (C10) | [Pasti] keputusan |
+| Ditolak bila hari ini tidak masuk periode mana pun, atau periode yang memuat hari ini sudah dirilis/dikunci; karyawan harus aktif hari ini | Sama dengan 7a | [Pasti] keputusan |
+| Yang dihitung ulang: periode yang memuat hari ini dan periode sesudahnya yang sudah punya gaji (fungsi 0033) | Saldo berantai (J4) | [Pasti] |
+| Hanya `hrd` dan `pembangun` | Sama dengan 7a | [Pasti] |
+
+### Pertanyaan untuk pemilik (keputusan yang tidak bisa dibatalkan)
+
+**Bagaimana kasbon yang salah catat dibetulkan?**
+
+- **(a) Lewat `/batalperintah <nomor>` seperti izin** (saran). Butuh satu perubahan di mesin hitung gaji: baris kasbon yang perintahnya dibatalkan tidak dihitung. Aturan I2–I4 tidak berubah. Fungsi `hitung.hitung_gaji` (0014, sekitar 480 baris) disalin ke migrasi baru dengan satu syarat tambahan; semua uji gaji lama harus tetap lulus.
+- **(b) Tanpa pembatalan**: salah catat dibetulkan dengan `/lunas` (tercatat seperti pelunasan tunai, padahal bukan). Mesin hitung tidak disentuh, tetapi riwayat kasbon jadi tidak jujur, dan kasbon yang salah tidak bisa dihapus dari catatan.
+
+### Isi paket (dengan pilihan (a))
+
+1. **Migrasi 0034**: `api.pintu_kasbon_siapkan`, `api.pintu_kasbon_saldo`; `api.pintu_perintah_simpan` diganti (draf kasbon → perintah + `buku_kasbon`); `api.pintu_batal_siapkan` diganti (kasbon bisa dibatalkan); `hitung.hitung_gaji` diganti dengan satu syarat: baris `buku_kasbon` yang perintahnya dibatalkan tidak dihitung; tabel draf menampung jenis kasbon dan jumlah.
+2. **Bot**: `/kasbon`, `/cicilan`, `/lunas`; konfirmasi (saldo sekarang → sesudah, cicilan, periode mulai dipotong, batas 50%); "Hasil": potongan kasbon orang itu di periode berjalan dan sisa saldo. **Hanya HRD/pembangun yang melihat angka ini**, dan orang rahasia (F15) tidak ditampilkan angkanya.
+3. **Perbaikan temuan 7d**: kabar Sheets sesudah perintah chat menulis "Lama sejak perintah dicatat", bukan "sejak file masuk" (`web/kabar_telegram.py`).
+4. **Uji otomatis**: database (pinjam/cicilan/lunas, lunas melebihi saldo ditolak, kasbon dibatalkan → potongan hilang, K22/K23 tetap lulus, semua uji gaji lama lulus), pintu, Sheets; bukti uji gagal dengan kode lama.
+5. **Pasang ke Supabase** lewat cabang `pasang`.
+6. **Uji nyata**: `/kasbon 10067 1.000.000 250.000` → Ya → potongan kasbon Rp250.000 muncul di gaji periode 4 Vina Pohan (Supabase dan Sheets); lalu `/batalperintah <nomor>` → potongan hilang. Uji tolak: `/lunas 10067 5.000.000` (melebihi saldo).
+7. **Dokumen**: `docs/laporan-7b.md`, `docs/serah-terima.md`.
+
+### Perlu diketahui pemilik
+
+- **Uji nyata mengubah angka gaji demo periode 4** (potongan Rp250.000 untuk satu orang), lalu dikembalikan oleh pembatalan.
+- Pilihan (a) **menyentuh mesin hitung gaji** untuk pertama kali sejak Tahap 4. Risikonya [Kemungkinan Besar] kecil karena hanya satu syarat dan semua uji gaji (K01–K25, U1 kunci jawaban) harus tetap lulus sebelum dipasang.
+- **Tidak ikut 7b:** persetujuan lembur (7c), kasbon yang dipotong dari THR, batas jumlah pinjaman.
+
 ## 6. Yang tidak ikut paket mana pun
 
 Isi Sheets dan halaman demo tidak berubah bentuk. Data simulasi dan kasus jebakan tidak diubah.
