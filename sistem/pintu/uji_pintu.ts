@@ -1681,3 +1681,50 @@ test("7c: /perintahku dan menu memuat perintah lembur", async () => {
   assert.match(daftar, new RegExp(`no\\. ${perintahLembur7c} · BATALKAN LEMBUR · ${calonLembur.id} .+ DIBATALKAN`));
   for (const peran of ["hrd", "pembangun"]) for (const c of ["setujuilembur", "batalkanlembur"]) assert.ok(MENU[peran].some((m) => m.command === c));
 });
+
+// ---------------------------------------------------------------------------
+// Paket 7c-2: jam datang awal yang disetujui (docs/rencana-tahap-7.md bagian 11; permintaan perubahan 06)
+// ---------------------------------------------------------------------------
+
+test("7c-2: /setujuiawal orang -> konfirmasi menit datang awal -> Ya -> lembur naik; divisi menyebut jumlah seluruh rentang", async () => {
+  // Tap uji: 40 menit sebelum masuk, 45 menit sesudah jadwal pulang (tanpa persetujuan 45 menit -> 0; disetujui 85 -> 60).
+  // Mesin dipilih yang sudah mengirim sampai tutup buku 20-04-2026 (uji pengingat P7 di uji_sambung tidak terganggu).
+  const tap = nilai(`select m.mesin || '|' || m.id_mesin || '|' || to_char(hh.jadwal_masuk at time zone 'Asia/Jakarta' - interval '40 minutes', 'YYYY-MM-DD HH24:MI:SS')
+      || '|' || to_char(hh.jadwal_pulang at time zone 'Asia/Jakarta' + interval '45 minutes', 'YYYY-MM-DD HH24:MI:SS') || '|' || p.id
+      || '|' || hh.id_karyawan || '|' || to_char(hh.tanggal, 'DD-MM-YYYY') || '|' || hh.divisi
+    from hitung.hasil_harian hh join hitung.versi_terakhir v on v.id = hh.versi_id and v.jenis = 'baca_tap'
+    join fakta.periode p on p.id = v.periode_id join induk.pemetaan_id_mesin m on m.id_karyawan = hh.id_karyawan
+    where hh.id_karyawan not in ('10067', '${calonLembur.id}') and p.status not in ('dirilis', 'dikunci') and hh.kode_jadwal is not null
+      and hh.jenis_hari = 'kerja' and hh.status <> 'hadir' and not fakta.rahasia_di_periode(hh.id_karyawan, p.id)
+      and fakta.karyawan_aktif(hh.id_karyawan, hh.tanggal)
+      and exists (select 1 from fakta.kiriman_file k where k.mesin = m.mesin and k.hasil = 'diterima' and k.tanggal_akhir >= '2026-04-20')
+      and hh.tanggal between m.berlaku_dari and coalesce(m.berlaku_sampai - 1, hh.tanggal)
+    order by hh.tanggal, hh.id_karyawan limit 1`);
+  assert.ok(tap, "ada hari kerja di periode terbuka dengan mesin yang sudah mengirim");
+  const [mesin, idMesin, masuk, pulang, periode, id, tgl, divisi] = tap.split("|");
+  nilai(`select fakta.terima_kiriman('uji7c2.csv', md5('uji7c2') || md5('uji7c2'), '${mesin}',
+    '[["${idMesin}", "${masuk}", "Masuk", 1], ["${idMesin}", "${pulang}", "Keluar", 2]]'::jsonb, null, now())`);
+  nilai(`select hitung.baca_tap(${periode}) + hitung.hitung_gaji(${periode})`);
+
+  const kd = (await kirimUpdate(teksPribadi(10701, HRD, `/setujuiawal ${divisi} ${tgl}`))).pesan[0];
+  assert.match(kd.text, /^Setujui DATANG AWAL \(dihitung lembur\) untuk divisi .+\?\n/);
+  assert.match(kd.text, /orang datang lebih awal, total \d+ menit\n/);
+  assert.match(kd.text, /\nJumlah seluruh rentang: [\d.]+ hari-orang datang lebih awal, total [\d.]+ menit\.\n/);
+  assert.equal((await kirimUpdate(tekanTombol(10702, HRD, kd.reply_markup.inline_keyboard[0][1].callback_data))).pesan[0].text, "Tidak jadi dicatat.");
+
+  const k = (await kirimUpdate(teksPribadi(10703, HRD, `setujuiawal ${id} ${tgl}`))).pesan[0];
+  assert.match(k.text, new RegExp(`^Setujui DATANG AWAL \\(dihitung lembur\\) untuk ${id} .+\\?\\n`));
+  assert.match(k.text, /: pengaturan otomatis; datang 40 menit lebih awal, pulang 45 menit lewat jadwal\n/);
+  assert.match(k.text, /Menit datang lebih awal ditambahkan ke menit lewat jam pulang/);
+  const r = await kirimUpdate(tekanTombol(10704, HRD, k.reply_markup.inline_keyboard[0][0].callback_data));
+  const teks = r.pesan.map((p) => p.text as string);
+  assert.match(teks[0], new RegExp(`^Tercatat: perintah no\\. \\d+, SETUJUI DATANG AWAL ${id} `));
+  const hasil = teks.find((t) => t.startsWith(`Hasil SETUJUI DATANG AWAL ${id}`));
+  assert.ok(hasil, JSON.stringify(teks));
+  const m = /• Lembur periode no\. \d+: Rp([\d.]+) → Rp([\d.]+)$/.exec(hasil!);
+  assert.ok(m, hasil);
+  assert.ok(Number(m![2].replace(/\./g, "")) > Number(m![1].replace(/\./g, "")), hasil);
+  assert.match(nilai(`select array_to_string(g.peringatan, ',') from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id
+                      and v.jenis = 'hitung_gaji' where v.periode_id = ${periode} and g.id_karyawan = '${id}'`), /lembur_datang_awal_disetujui/);
+  for (const peran of ["hrd", "pembangun"]) assert.ok(MENU[peran].some((x) => x.command === "setujuiawal"));
+});

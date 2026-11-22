@@ -61,7 +61,7 @@ create function pg_temp.jadi(p_n int, p_status text) returns void language sql a
   select set_config('app.ubah_status_periode', 'ya', true);
   update fakta.periode set status = p_status where id = (select id from per where n = p_n);
   select set_config('app.ubah_status_periode', '', true) $$;
-select uji.sama('7b (persiapan): versi kode gaji 6', hitung.versi_kode_gaji(), 'hitung_gaji 6 (paket 7b)');
+select uji.sama('7b (persiapan): versi kode gaji 6 atau lebih baru', hitung.versi_kode_gaji() >= 'hitung_gaji 6', true);
 select uji.sama('7b (persiapan): gaji P2 punya pendapatan, belum ada kasbon',
   (select count(*) from hitung.rincian_gaji r join hitung.versi_terakhir v on v.id = r.versi_id and v.jenis = 'hitung_gaji'
    where v.periode_id = (select id from per where n = 2) and r.komponen = 'gaji_pokok' and r.nominal > 0) || '/' || pg_temp.potong('K1', 2), '4/0');

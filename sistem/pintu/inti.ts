@@ -758,6 +758,7 @@ const MENU_HRD = [
   P("cicilan", "Ganti cicilan kasbon: /cicilan <ID> <jumlah>"), P("lunas", "Pelunasan kasbon tunai: /lunas <ID> <jumlah>"),
   P("setujuilembur", "Setujui lembur: /setujuilembur <ID atau divisi> <tanggal> [tanggal selesai]"),
   P("batalkanlembur", "Batalkan lembur: /batalkanlembur <ID atau divisi> <tanggal> [tanggal selesai]"),
+  P("setujuiawal", "Setujui jam datang lebih awal jadi lembur: /setujuiawal <ID atau divisi> <tanggal>"),
   P("batalperintah", "Batalkan izin/sakit/cuti/kasbon/lembur: /batalperintah <nomor perintah>"), P("perintahku", "10 perintah chat terakhir"),
   P("bantuan", "Daftar perintah"),
 ];
@@ -792,6 +793,7 @@ const BANTUAN: Record<string, string> = {
     "/kasbon <ID> lihat saldo\n/cicilan <ID> <jumlah> ganti cicilan\n/lunas <ID> <jumlah> [catatan] pelunasan tunai di luar gaji\n" +
     "/setujuilembur, /batalkanlembur <ID atau kode divisi> <tanggal> [tanggal selesai] [catatan] setujui atau batalkan lembur, " +
     "misalnya /setujuilembur PRD 05-12-2026\n" +
+    "/setujuiawal <ID atau kode divisi> <tanggal> [tanggal selesai] jam datang lebih awal ikut dihitung lembur\n" +
     "/batalperintah <nomor perintah> batalkan izin, sakit, cuti, kasbon, atau perintah lembur yang salah\n/perintahku 10 perintah chat terakhir\n" +
     "Kirim file mesin sebagai dokumen untuk menghitung gaji.",
   bos: "Pengajuan rilis gaji dikirim ke chat ini dengan tombol Setujui dan Tolak. Bila belum dijawab, bot mengingatkan setiap pagi.\n" +
@@ -809,7 +811,8 @@ BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /
 // Perintah yang diketik tanpa garis miring tetap dikenali (paket 8b-3, temuan 6).
 const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
   "kode", "unggah", "bantuan", "gaji", "contohgaji", "lengkap", "izin", "sakit", "cuti", "batalperintah", "perintahku", "kasbon",
-  "cicilan", "lunas", "setujuilembur", "batalkanlembur"]);
+  "cicilan", "lunas", "setujuilembur", "batalkanlembur",
+  "setujuiawal"]);
 export function rapikanPerintah(teks: string): string {
   const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
@@ -1254,6 +1257,7 @@ const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "O
 const HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const NAMA_JENIS: Record<string, string> = {
   izin: "IZIN", sakit: "SAKIT", cuti: "CUTI", kasbon: "KASBON", setujui_lembur: "SETUJUI LEMBUR", batalkan_lembur: "BATALKAN LEMBUR",
+  setujui_datang_awal: "SETUJUI DATANG AWAL",
 };
 // Sasaran perintah: orang ("10067 Vina Pohan") atau divisi ("divisi PRD (Produksi)").
 const sasaran = (r: any) => r.id ? `${r.id} ${r.nama}` : `divisi ${r.divisi_kode} (${r.divisi})`;
@@ -1468,17 +1472,23 @@ async function siapkanKasbon(alat: Alat, chat: number, tg: number, hrd: boolean,
 
 // Paket 7c-1 (docs/rencana-tahap-7.md bagian 9): setujui/batalkan lembur, per orang atau divisi. Mesin hitung tidak
 // berubah; efeknya mengikuti pengaturan lembur (otomatis / wajib perintah, aturan D5).
-export const RE_LEMBUR = /^\/(setujuilembur|batalkanlembur)(?:@\w+)?(?:\s+([\s\S]*))?$/i;
+export const RE_LEMBUR = /^\/(setujuilembur|batalkanlembur|setujuiawal)(?:@\w+)?(?:\s+([\s\S]*))?$/i;
 export const CARA_LEMBUR = "Cara pakai: /setujuilembur <ID atau kode divisi> <tanggal> [tanggal selesai] [catatan]; sama untuk " +
-  "/batalkanlembur. Contoh: /setujuilembur PRD 05-12-2026, /batalkanlembur 10001 26-11-2026.";
+  "/batalkanlembur dan /setujuiawal (jam datang lebih awal dihitung lembur). Contoh: /setujuilembur PRD 05-12-2026, " +
+  "/batalkanlembur 10001 26-11-2026, /setujuiawal 10001 21-11-2026.";
 const NAMA_ATUR: Record<string, string> = { otomatis: "otomatis", wajib_perintah: "wajib perintah" };
 
 function barisHariLembur(h: any, divisi: boolean, jenis?: string): string {
   let b = `• ${tulisTanggal(h.tanggal)}: pengaturan ${NAMA_ATUR[h.pengaturan] ?? h.pengaturan}; `;
-  if (divisi) b += `${angka(h.orang_lembur ?? 0)} orang pulang 60 menit atau lebih lewat jadwal`;
+  if (divisi && jenis === "setujui_datang_awal") {
+    b += `${angka(h.awal_divisi?.orang ?? 0)} orang datang lebih awal, total ${angka(h.awal_divisi?.menit ?? 0)} menit`;
+  } else if (divisi) b += `${angka(h.orang_lembur ?? 0)} orang pulang 60 menit atau lebih lewat jadwal`;
   else if (h.status === null || h.status === undefined) b += "belum dihitung";
   else if (h.status !== "hadir") b += namaStatus(h.status);
-  else b += `pulang ${angka(h.menit_lebih ?? 0)} menit lewat jadwal` + (Number(h.menit_lebih ?? 0) < 60 ? " (kurang dari 60 menit, bukan lembur)" : "");
+  else if (jenis === "setujui_datang_awal") {
+    b += `datang ${angka(h.menit_awal ?? 0)} menit lebih awal, pulang ${angka(h.menit_lebih ?? 0)} menit lewat jadwal` +
+      (Number(h.menit_awal ?? 0) === 0 ? " (tidak ada datang awal yang bisa dihitung)" : "");
+  } else b += `pulang ${angka(h.menit_lebih ?? 0)} menit lewat jadwal` + (Number(h.menit_lebih ?? 0) < 60 ? " (kurang dari 60 menit, bukan lembur)" : "");
   const ada = (h.perintah ?? []).map((p: any) => `${NAMA_JENIS[p.jenis] ?? p.jenis} no. ${p.id}`);
   if (ada.length) b += `; sudah ada ${ada.join(", ")}`;
   if (jenis === "setujui_lembur" && h.pengaturan === "otomatis") b += " — lembur sudah dibayar otomatis, perintah ini tidak mengubah hari ini";
@@ -1491,10 +1501,18 @@ function barisHariLembur(h: any, divisi: boolean, jenis?: string): string {
 export function susunKonfirmasiLembur(r: any): string {
   const hari: any[] = r.hari ?? [];
   const tanggal = r.mulai === r.selesai ? tulisTanggal(r.mulai) : `${tulisTanggal(r.mulai)} s.d. ${tulisTanggal(r.selesai)} (${angka(hari.length)} hari)`;
-  return `${r.jenis === "setujui_lembur" ? "Setujui" : "Batalkan"} LEMBUR untuk ${r.id ? `${r.id} ${r.nama} (${r.divisi})` : sasaran(r)}?\n` +
+  const awal = r.jenis === "setujui_datang_awal";
+  const judul = awal ? "Setujui DATANG AWAL (dihitung lembur)" : `${r.jenis === "setujui_lembur" ? "Setujui" : "Batalkan"} LEMBUR`;
+  // Celah 2 pemeriksaan 7c-2: persetujuan divisi untuk rentang panjang harus terlihat jumlahnya.
+  const jumlahAwal = awal && !r.id ? hari.reduce((a, h) => ({ orang: a.orang + Number(h.awal_divisi?.orang ?? 0),
+    menit: a.menit + Number(h.awal_divisi?.menit ?? 0) }), { orang: 0, menit: 0 }) : null;
+  return `${judul} untuk ${r.id ? `${r.id} ${r.nama} (${r.divisi})` : sasaran(r)}?\n` +
     `Tanggal: ${tanggal}\n` + (r.catatan ? `Catatan: ${r.catatan}\n` : "") +
     `Keadaan sekarang:\n${hari.map((h) => barisHariLembur(h, !r.id, r.jenis)).join("\n")}\n` +
-    (r.jenis === "setujui_lembur" ? "Lembur yang disetujui dibayar sesuai aturan lembur (minimal 60 menit, kelipatan 30 menit)."
+    (jumlahAwal ? `Jumlah seluruh rentang: ${angka(jumlahAwal.orang)} hari-orang datang lebih awal, total ${angka(jumlahAwal.menit)} menit.\n` : "") +
+    (awal ? "Menit datang lebih awal ditambahkan ke menit lewat jam pulang di hari yang sama, lalu dihitung dengan aturan lembur " +
+        "(minimal 60 menit, kelipatan 30 menit). Hari dengan data tap tidak lengkap atau meragukan tidak dihitung."
+      : r.jenis === "setujui_lembur" ? "Lembur yang disetujui dibayar sesuai aturan lembur (minimal 60 menit, kelipatan 30 menit)."
       : "Lembur di tanggal itu tidak dibayar; kelebihan jam tetap tercatat.") +
     `\nPeriode ${barisPeriode(r)} dihitung ulang.` +
     (r.pengajuan_batal ? " Pengajuan rilis periode itu batal dan perlu diajukan lagi." : "");
@@ -1535,7 +1553,8 @@ async function siapkanLembur(alat: Alat, chat: number, tg: number, hrd: boolean,
     return;
   }
   const r = await alat.api("pintu_lembur_siapkan", {
-    telegram_id: tg, jenis: perintah === "setujuilembur" ? "setujui_lembur" : "batalkan_lembur", sasaran: baca.id,
+    telegram_id: tg, jenis: perintah === "setujuilembur" ? "setujui_lembur" : perintah === "setujuiawal" ? "setujui_datang_awal" : "batalkan_lembur",
+    sasaran: baca.id,
     mulai: baca.mulai, selesai: baca.selesai, catatan: baca.catatan || null,
   });
   if (r?.hasil !== "siap") {
@@ -1553,8 +1572,8 @@ export function susunKonfirmasiBatal(r: any): string {
   const tanggal = r.mulai === r.selesai ? tulisTanggal(r.mulai) : `${tulisTanggal(r.mulai)} s.d. ${tulisTanggal(r.selesai)} (${angka(hari.length)} hari)`;
   return `Batalkan perintah no. ${d.id}: ${NAMA_JENIS[d.jenis] ?? d.jenis} ${r.id ? `${r.id} ${r.nama} (${r.divisi})` : sasaran(r)}?\n` +
     `Tanggal: ${tanggal}\nDicatat lewat: ${d.asal === "chat" ? "chat" : "file"}` + (d.alasan ? `, catatan: ${d.alasan}` : "") + "\n" +
-    (d.jenis === "setujui_lembur" || d.jenis === "batalkan_lembur"
-      ? `Keadaan sekarang:\n${hari.map((h) => barisHariLembur(h, !r.id)).join("\n")}\n` +
+    (d.jenis === "setujui_lembur" || d.jenis === "batalkan_lembur" || d.jenis === "setujui_datang_awal"
+      ? `Keadaan sekarang:\n${hari.map((h) => barisHariLembur(h, !r.id, d.jenis === "setujui_datang_awal" ? d.jenis : undefined)).join("\n")}\n` +
         "Sesudah dibatalkan, lembur di tanggal itu kembali mengikuti pengaturan (otomatis atau wajib perintah). "
       : d.jenis === "kasbon"
       ? `Isi: ${(d.kasbon ?? []).map((k: any) => `${k.jenis} ${rupiah(k.jumlah)}`).join(", ")}\n` +

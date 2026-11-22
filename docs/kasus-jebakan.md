@@ -1,6 +1,6 @@
 # Kasus Jebakan — Tahap 0
 
-Versi 1.3 · dikunci 12 November 2026, ditambah 16 November 2026 lewat permintaan perubahan 01 (C02b, D11b) dan 17 November 2026 lewat permintaan perubahan 02 (F13b); kasus lain tidak berubah · acuan: PRD v3.1, UU 27/2026
+Versi 1.4 · dikunci 12 November 2026, ditambah 16 November 2026 lewat permintaan perubahan 01 (C02b, D11b), 17 November 2026 lewat permintaan perubahan 02 (F13b), dan 22 November 2026 lewat permintaan perubahan 06 (B05b); kasus lain tidak berubah · acuan: PRD v3.1, UU 27/2026
 
 Daftar ini ditulis **sebelum** pembaca tap dan mesin hitung dibuat. Setiap kasus menyebut kejadian dan hasil yang diharapkan. Kode dinyatakan benar hanya kalau semua kasus di sini lulus (uji U1, U2, U4, U6, U10, U12, U14). Kasus tidak boleh diubah agar kode lulus; perubahan hanya lewat permintaan perubahan (PRD v3 bagian 3).
 
@@ -48,6 +48,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | B03 | Shift Pagi: tap 09:40 dan 15:02 | Telat 160 menit; tidak berubah menjadi shift lain | PRD B2 |
 | B04 | Jadwal Pagi, ada tukar shift ke Siang di tanggal itu; tap 14:57 dan 23:01 | Dibaca shift Siang, hadir | PRD B3 |
 | B05 | Shift Pagi: tap 05:30 dan 15:01 | Hadir; jam sebelum 07:00 tidak menjadi lembur | PRD B5 |
+| B05b | Shift Pagi 07:00–15:00, hari kerja, tap 05:30 dan 15:45; HRD menyetujui datang awal orang itu di tanggal itu | 90 + 45 = 135 menit → dibayar 120 menit; tanda `lembur_datang_awal_disetujui` | Permintaan perubahan 06 |
 | B06 | Shift Pagi: satu tap 06:58 saja | Hadir + lupa tap pulang | PRD |
 | B07 | Shift Pagi: satu tap 15:03 saja | Hadir + lupa tap masuk | PRD |
 | B08 | Shift Pagi: satu tap 11:00 saja | Hadir + lupa tap pulang, ditandai ambigu, masuk rekap harian HRD | PRD v3.1 |

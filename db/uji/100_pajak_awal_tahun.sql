@@ -102,7 +102,7 @@ select uji.sama('K50: Desember 800.000 (isian 10 bulan + November + Desember)', 
 select uji.harus_ditolak('isian pajak awal tahun: sampai bulan harus 1-11',
   $$insert into induk.pajak_awal_tahun (id_karyawan, tahun, sampai_bulan, bulan_kerja, bruto, iuran, pph)
                       values ('TANPA', 2027, 12, 12, 1, 0, 0)$$);
-select uji.sama('versi kode gaji terbaru', hitung.versi_kode_gaji(), 'hitung_gaji 6 (paket 7b)'); -- naik di 0034 (syarat pembatalan kasbon)
+select uji.sama('versi kode gaji terbaru', hitung.versi_kode_gaji(), 'hitung_gaji 7 (paket 7c-2)'); -- naik di 0034 (kasbon) dan 0036 (datang awal)
 select uji.sama('versi kode baca tap terbaru', hitung.versi_kode_baca(), 'baca_tap 3 (paket 5b)');
 
 rollback;

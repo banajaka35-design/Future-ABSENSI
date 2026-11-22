@@ -31,6 +31,7 @@ Nominal dari `aturan.komponen_lain` yang berlaku pada tanggalnya; hidup/mati dar
 ## D. Lembur
 
 - **D1 Hari kerja** (status `hadir`, jenis hari `kerja` atau `cuti_bersama`): menit = menit lebih (lewat jam pulang jadwal).
+- **D1b Datang awal yang disetujui** (versi kode 7, permintaan perubahan 06; PRD v2 B5): bila ada perintah `setujui_datang_awal` (tidak dibatalkan) untuk orang itu atau divisinya pada tanggal itu, menit lembur hari kerja = (menit lebih, bila boleh menurut D5) + menit datang awal. Menit datang awal = jadwal masuk − tap masuk, dibulatkan ke bawah per menit; hanya untuk hari `hadir` asal mesin dengan tap masuk dan pulang, tanpa lupa tap, tidak ambigu, tanpa tanda `jendela_bertumpuk`. Hasilnya memakai D4 dan seterusnya; hari itu diberi tanda `lembur_datang_awal_disetujui`. Tanpa persetujuan: menit datang awal tidak dihitung (B05). Bagian sore yang tidak boleh tetap bertanda `lembur_tidak_dibayar_tanpa_izin`.
 - **D2 Hari libur, tanpa jadwal** (status `lembur_hari_libur`): menit = menit hadir, dikurangi 60 menit istirahat bila menit hadir lebih dari 240. Tidak ada tap pulang → 0 dan diberi tanda.
 - **D3 Hari libur nasional dengan jadwal** (operasi 7 hari, status `hadir`, jenis hari `libur_nasional`): menit = (lama jadwal − istirahat jadwal bila tidak dibayar) − menit telat − menit pulang cepat + menit lebih. Lupa tap → tanpa menit lebih, diberi tanda (C05).
 - **D4 Menit dibayar**: kurang dari menit minimal (`aturan.lembur`, 60) → 0; selebihnya dibulatkan ke bawah per kelipatan (30). Pembulatan ke bawah diberi tanda peringatan (D03).
