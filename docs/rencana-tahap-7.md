@@ -187,6 +187,44 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 - Pilihan (a) **menyentuh mesin hitung gaji** untuk pertama kali sejak Tahap 4. Risikonya [Kemungkinan Besar] kecil karena hanya satu syarat dan semua uji gaji (K01–K25, U1 kunci jawaban) harus tetap lulus sebelum dipasang.
 - **Tidak ikut 7b:** persetujuan lembur (7c), kasbon yang dipotong dari THR, batas jumlah pinjaman.
 
+## 9. Daftar paket 7c-1 (menunggu "buat")
+
+**Tujuan:** HRD menyetujui atau membatalkan lembur lewat chat, per orang atau per divisi (PRD v2 B4; kasus D04, D05, F12). Paket ini **tidak mengubah aturan hitung**: efek `setujui_lembur` dan `batalkan_lembur` sudah ada di mesin hitung gaji sejak 4b-1 (aturan D5).
+
+Persetujuan **jam sebelum jadwal masuk (B5)** dipisah menjadi **paket 7c-2**, karena butuh aturan hitung baru (mengubah angka gaji) dan kasus uji baru lewat permintaan perubahan. Daftarnya ditulis sesudah 7c-1 selesai, dengan pertanyaan ke pemilik.
+
+### Yang dicek (22 Nov 2026)
+
+- [Pasti] Demo Supabase (Pabrik A): pengaturan `lembur = otomatis` untuk seluruh perusahaan. Jadi di demo, **`/setujuilembur` tidak mengubah angka** (lembur sudah dibayar otomatis); yang terlihat efeknya hanya `/batalkanlembur` (D05). Pengaturan `wajib_perintah` (D04, F12) diuji di uji otomatis.
+- [Pasti] Mesin hitung: `wajib_perintah` membayar hanya bila ada `setujui_lembur` untuk orang itu atau divisinya pada tanggal itu; `otomatis` membayar kecuali ada `batalkan_lembur`. Perintah yang dibatalkan dengan `batalkan_perintah` tidak berlaku.
+- [Pasti] Belum ada perintah lembur di demo. Kode divisi: GDG, KAM, KTR, PRD, QC.
+- [Pasti] Calon uji nyata: 10067 Vina Pohan, 26 Nov 2026 (periode 4), pulang 127 menit sesudah jadwal; lembur periode 4 orang itu Rp80.925, hanya dari hari itu.
+
+### Keputusan Claude untuk 7c-1
+
+| Keputusan | Alasan | Label |
+| --- | --- | --- |
+| `/setujuilembur <ID atau kode divisi> <tanggal> [tanggal selesai] [catatan]` dan `/batalkanlembur ...` (bentuk tanggal sama dengan `/izin`) | Satu bentuk untuk orang dan divisi; kode divisi huruf, ID karyawan angka | [Pasti] keputusan |
+| Konfirmasi Ya/Batal berisi: pengaturan lembur di tanggal itu (otomatis / wajib perintah), dan untuk orang: menit lebih per hari; untuk divisi: jumlah orang yang pulang lewat jadwal 60 menit atau lebih. Bila perintah tidak akan mengubah apa pun (misalnya setujui di pengaturan otomatis), konfirmasi menulisnya | HRD tahu akibatnya sebelum Ya | [Pasti] keputusan |
+| "Hasil" sesudah hitung ulang: orang → lembur periode itu sebelum → sesudah (rupiah; orang rahasia tidak ditampilkan); divisi → jumlah orang yang lemburnya berubah dan total perubahannya tanpa orang rahasia (F15b) | Sama dengan kabar kasbon | [Pasti] keputusan |
+| Aturan tanggal sama dengan 7a: periode harus ada dan belum dirilis/dikunci; rentang paling panjang 31 hari; untuk orang: aktif di tanggal itu | Konsisten | [Pasti] |
+| Bisa dibatalkan dengan `/batalperintah`; muncul di `/perintahku` | Sama dengan 7a/7b | [Pasti] |
+| Hanya `hrd` dan `pembangun` | Sama | [Pasti] |
+
+### Isi paket
+
+1. **Migrasi 0035**: `api.pintu_lembur_siapkan`; `api.pintu_perintah_simpan`, `api.pintu_batal_siapkan`, `api.pintu_perintah_hasil` diganti (perintah lembur, per orang atau per divisi); draf menampung divisi. **Mesin hitung tidak diubah.**
+2. **Bot**: `/setujuilembur`, `/batalkanlembur`; konfirmasi; "Hasil"; menu dan `/bantuan`.
+3. **Uji otomatis**: database (D04 tanpa perintah tidak dibayar; F12 setujui divisi → dibayar; D05 batalkan orang → Rp0; batalkan perintah lembur → kembali; periode dikunci ditolak; divisi tidak ada ditolak), pintu; bukti uji gagal dengan kode lama.
+4. **Pasang ke Supabase** lewat cabang `pasang`.
+5. **Uji nyata**: `/batalkanlembur 10067 26-11-2026` → lembur Vina Pohan periode 4 Rp80.925 → Rp0 (Supabase dan Sheets); lalu `/batalperintah <nomor>` → kembali Rp80.925. Uji tolak: `/setujuilembur XYZ 26-11-2026` (divisi tidak ada).
+6. **Dokumen**: `docs/laporan-7c.md`, `docs/serah-terima.md`.
+
+### Perlu diketahui pemilik
+
+- **Uji nyata mengubah gaji demo periode 4** untuk satu orang (lembur −Rp80.925, PPh ikut), lalu dikembalikan oleh pembatalan.
+- **Tidak ikut 7c-1:** jam sebelum jadwal masuk (7c-2), tukar shift lewat chat, perintah divisi untuk izin/sakit/cuti.
+
 ## 6. Yang tidak ikut paket mana pun
 
 Isi Sheets dan halaman demo tidak berubah bentuk. Data simulasi dan kasus jebakan tidak diubah.
