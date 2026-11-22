@@ -30,4 +30,7 @@
 | **B5 nyata (aturan D1b)** | 10060 periode 4: lembur **690 → 720 menit** (21 Nov: 29 + 94 = 123 → 120, sebelumnya 90), Rp445.088 → **Rp467.342**; dibayar Rp4.472.088 → **Rp4.494.342**; tanda `lembur_datang_awal_disetujui`. Versi 48 dibanding 46: **hanya 10060 yang berbeda** | [Pasti] |
 | Sheets tab periode 4 | Baris 10060: Lembur 467342, Dibayar 4494342, "Lembur 720 menit dibayar", Peringatan memuat `lembur_datang_awal_disetujui`; cocok dengan gudang | [Pasti] |
 
-Sisa: `/batalperintah 1610` → kembali 690 menit / Rp4.472.088; uji tolak `/setujuiawal 10060 25-02-2026`.
+| `/batalperintah 1610` → Ya (20.36.08) | Perintah no. 1611 membatalkan 1610; periode 4 selesai 20.36.39 (versi 50): **sekitar 31 detik** | [Pasti] |
+| Kembali seperti semula | 10060: lembur 690 menit / Rp445.088, dibayar Rp4.472.088; **sidik hasil seluruh periode 4 = `c427e5a53c5f`, sama persis dengan sebelum uji** (versi 44 dan 46) | [Pasti] |
+
+Sisa: uji tolak `/setujuiawal 10060 25-02-2026` (sampai 20.37 belum ada pesan baru di gudang).
