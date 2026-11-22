@@ -107,7 +107,7 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 - **Belum pasti:** lama dari Ya sampai kabar selesai (belum diukur; hitung ulang dua periode diperkirakan sekitar 35 detik [Menebak], dari 12 detik baca tap + 6 detik gaji per periode yang diukur di Tahap 3 dan 5a).
 - **Tidak ikut 7a:** kasbon (7b), persetujuan lembur (7c), batalkan perintah (7d), perintah divisi, alasan izin dibayar, penuntun tombol langkah demi langkah.
 
-## 7. Daftar paket 7d (menunggu "buat")
+## 7. Daftar paket 7d (di-"buat" 22 Nov 2026 10.47 WIB)
 
 **Tujuan:** perintah HRD yang salah bisa dibatalkan lewat chat tanpa Reset Supabase. Fakta tetap hanya bertambah: pembatalan dicatat sebagai perintah `batalkan_perintah` (kolom `membatalkan`), yang sudah dihormati baca tap dan hitung gaji sejak Tahap 3 [Pasti: 0013, 0014, 0016].
 
@@ -116,6 +116,7 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 | Keputusan | Alasan | Label |
 | --- | --- | --- |
 | Bentuk: `/batal <nomor perintah>`, lalu konfirmasi dengan tombol Ya/Batal seperti 7a | Nomor perintah sudah tertulis di pesan "Tercatat: perintah no. ..." | [Pasti] keputusan |
+| **Diubah saat membuat (22 Nov 2026):** perintahnya `/batalperintah <nomor>`, bukan `/batal` | `/batal <nomor>` sudah dipakai untuk membatalkan pengajuan rilis (paket 8b); nama yang sama akan bentrok. Pesan "Tercatat" 7a kini menulis petunjuk `/batalperintah <nomor>` | [Pasti] keputusan |
 | Yang bisa dibatalkan: perintah sakit, izin, cuti, **dari chat maupun dari file** | Salah catat bisa datang dari keduanya; efeknya sama | [Pasti] keputusan |
 | Ditolak bila: nomor tidak ada, jenis lain, sudah dibatalkan, atau tanggalnya di periode `dirilis`/`dikunci` | Periode dirilis tidak dihitung ulang (8b) | [Pasti] keputusan |
 | `/perintahku`: 10 perintah chat terakhir dari semua akun HRD/pembangun (nomor, jenis, ID, nama, tanggal, pencatat, sudah dibatalkan atau belum) | Tim HRD berbagi pekerjaan; tanpa angka gaji | [Pasti] keputusan |

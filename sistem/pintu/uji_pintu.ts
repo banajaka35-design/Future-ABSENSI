@@ -1488,3 +1488,52 @@ test("7a: tombol tetap HRD dan pembangun memuat 'Perintah HRD'; menu memuat izin
   }
   assert.ok(!TOMBOL_TETAP.karyawan.flat().includes("Perintah HRD"));
 });
+
+// ---------------------------------------------------------------------------
+// Paket 7d: membatalkan perintah lewat chat, /perintahku (docs/rencana-tahap-7.md bagian 7)
+// ---------------------------------------------------------------------------
+
+test("7d: /perintahku dan /batalperintah hanya HRD/pembangun; nomor salah dijawab cara pakai", async () => {
+  assert.match((await kirimUpdate(teksPribadi(10401, KARYAWAN_BARU, "/perintahku"))).pesan[0].text, /hanya untuk HRD/);
+  assert.match((await kirimUpdate(teksPribadi(10402, KARYAWAN_BARU, "/batalperintah 1"))).pesan[0].text, /hanya untuk HRD/);
+  assert.match((await kirimUpdate(teksPribadi(10403, HRD, "/batalperintah abc"))).pesan[0].text, /^Cara pakai: \/batalperintah <nomor perintah>/);
+  assert.match((await kirimUpdate(teksPribadi(10404, HRD, "/batalperintah 99999999"))).pesan[0].text, /^Perintah no\. 99999999 tidak ada/);
+  const izin = nilai("select id from fakta.perintah_hrd where asal = 'chat' and jenis = 'izin'");
+  const daftar = (await kirimUpdate(teksPribadi(10405, HRD, "/perintahku"))).pesan[0].text as string;
+  assert.match(daftar, new RegExp(`^10 perintah chat terakhir \\(terbaru di atas\\):\\nno\\. ${izin} · IZIN · 10067 .+ · 25 Nov 2026 · hrd `));
+  assert.doesNotMatch(daftar, /DIBATALKAN/);
+});
+
+test("7d: /batalperintah -> konfirmasi -> Ya -> izin dibatalkan, hari kembali dari data mesin; kedua kali ditolak", async () => {
+  const izin = nilai("select id from fakta.perintah_hrd where asal = 'chat' and jenis = 'izin'");
+  const k = (await kirimUpdate(teksPribadi(10406, HRD, `/batalperintah ${izin}`))).pesan[0];
+  assert.match(k.text, new RegExp(`^Batalkan perintah no\\. ${izin}: IZIN 10067 .+\\?\\nTanggal: Rabu, 25 Nov 2026\\nDicatat lewat: chat, catatan: urusan keluarga\\n` +
+    "Status sekarang:\\n• Rabu, 25 Nov 2026: izin\\n"));
+  assert.match(k.text, /Periode no\. \d+ \(2026-11-21 s\.d\. 2026-12-20\) dihitung ulang\./);
+  assert.doesNotMatch(k.text, /Rp/);
+  const ya = k.reply_markup.inline_keyboard[0][0];
+  assert.equal(ya.text, "Ya, batalkan");
+  const r = await kirimUpdate(tekanTombol(10407, HRD, ya.callback_data));
+  const teks = r.pesan.map((p) => p.text as string);
+  assert.match(teks[0], new RegExp(`^Tercatat: perintah no\\. \\d+, pembatalan perintah no\\. ${izin} 10067 `));
+  assert.doesNotMatch(teks[0], /Salah catat\?/);
+  const hasil = teks.find((t) => t.startsWith("Hasil PEMBATALAN 10067"));
+  assert.ok(hasil, JSON.stringify(teks));
+  assert.match(hasil!, /• Rabu, 25 Nov 2026: izin → /);
+  assert.notEqual(statusHari("10067", "2026-11-25"), "izin");
+  assert.equal(nilai(`select count(*) from fakta.perintah_hrd where jenis = 'batalkan_perintah' and membatalkan = ${izin}`), "1");
+  assert.match((await kirimUpdate(teksPribadi(10408, HRD, `/batalperintah ${izin}`))).pesan[0].text,
+    new RegExp(`^Perintah no\\. ${izin} sudah dibatalkan oleh perintah no\\. \\d+`));
+  const daftar = (await kirimUpdate(teksPribadi(10409, PEMBANGUN, "perintahku"))).pesan[0].text as string;
+  assert.match(daftar, /\nno\. \d+ · batalkan no\. \d+ · 10067 /);
+  assert.match(daftar, new RegExp(`no\\. ${izin} · IZIN · .+ · DIBATALKAN \\(no\\. \\d+\\)`));
+});
+
+test("7d: pesan Tercatat 7a memberi petunjuk /batalperintah; menu memuat batalperintah dan perintahku", async () => {
+  const k = (await kirimUpdate(teksPribadi(10410, HRD, "/cuti 10067 26-11-2026"))).pesan[0];
+  const r = await kirimUpdate(tekanTombol(10411, HRD, k.reply_markup.inline_keyboard[0][0].callback_data));
+  assert.match(r.pesan[0].text, /\nSalah catat\? Ketik \/batalperintah \d+$/);
+  for (const peran of ["hrd", "pembangun"]) {
+    for (const c of ["batalperintah", "perintahku"]) assert.ok(MENU[peran].some((m) => m.command === c), `${peran} ${c}`);
+  }
+});
