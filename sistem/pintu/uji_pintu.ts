@@ -1609,3 +1609,71 @@ test("7b: /batalperintah kasbon -> konfirmasi berisi isi kasbon -> Ya -> potonga
   assert.match(saldo, /pinjam Rp1\.000\.000 \(perintah no\. \d+, hrd\) DIBATALKAN/);
   for (const peran of ["hrd", "pembangun"]) for (const c of ["kasbon", "cicilan", "lunas"]) assert.ok(MENU[peran].some((m) => m.command === c));
 });
+
+// ---------------------------------------------------------------------------
+// Paket 7c-1: setujui/batalkan lembur lewat chat (docs/rencana-tahap-7.md bagian 9)
+// ---------------------------------------------------------------------------
+
+test("7c: /setujuilembur divisi di pengaturan otomatis -> konfirmasi memberi tahu tidak mengubah; divisi salah ditolak", async () => {
+  assert.match((await kirimUpdate(teksPribadi(10601, KARYAWAN_BARU, "/setujuilembur PRD 26-11-2026"))).pesan[0].text, /hanya untuk HRD/);
+  assert.match((await kirimUpdate(teksPribadi(10602, HRD, "/setujuilembur XYZ 26-11-2026"))).pesan[0].text, /^Divisi atau ID "XYZ" tidak ada/);
+  assert.match((await kirimUpdate(teksPribadi(10603, HRD, "/batalkanlembur PRD"))).pesan[0].text, /^Cara pakai: \/setujuilembur/);
+  const k = (await kirimUpdate(teksPribadi(10604, HRD, "/setujuilembur prd 26-11-2026"))).pesan[0];
+  assert.match(k.text, /^Setujui LEMBUR untuk divisi PRD \(Produksi\)\?\nTanggal: Kamis, 26 Nov 2026\nKeadaan sekarang:\n• Kamis, 26 Nov 2026: pengaturan otomatis; \d+ orang pulang 60 menit atau lebih lewat jadwal — lembur sudah dibayar otomatis/);
+  assert.equal((await kirimUpdate(tekanTombol(10605, HRD, k.reply_markup.inline_keyboard[0][1].callback_data))).pesan[0].text, "Tidak jadi dicatat.");
+  assert.equal(nilai("select count(*) from fakta.perintah_hrd where jenis in ('setujui_lembur', 'batalkan_lembur')"), "0");
+});
+
+let perintahLembur7c = "";
+let calonLembur: { id: string; tanggal: string } = { id: "", tanggal: "" };
+
+test("7c: /batalkanlembur orang (D05) -> lembur periode itu turun; /batalperintah -> kembali", async () => {
+  // Siapkan satu hari lembur di periode terbuka: tap 10068 lima menit sebelum masuk dan 130 menit sesudah jadwal pulang.
+  const tap = nilai(`select m.mesin || '|' || m.id_mesin || '|' || to_char(hh.jadwal_masuk at time zone 'Asia/Jakarta' - interval '5 minutes', 'YYYY-MM-DD HH24:MI:SS')
+      || '|' || to_char(hh.jadwal_pulang at time zone 'Asia/Jakarta' + interval '130 minutes', 'YYYY-MM-DD HH24:MI:SS') || '|' || p.id
+    from hitung.hasil_harian hh join hitung.versi_terakhir v on v.id = hh.versi_id and v.jenis = 'baca_tap'
+    join fakta.periode p on p.id = v.periode_id join induk.pemetaan_id_mesin m on m.id_karyawan = hh.id_karyawan
+    where hh.id_karyawan = '10068' and p.status not in ('dirilis', 'dikunci') and hh.kode_jadwal is not null
+      and hh.jenis_hari = 'kerja' order by hh.tanggal limit 1`);
+  assert.ok(tap, "ada hari kerja 10068 di periode terbuka");
+  const [mesin, idMesin, masuk, pulang, periode] = tap.split("|");
+  nilai(`select fakta.terima_kiriman('uji7c.csv', md5('uji7c') || md5('uji7c'), '${mesin}',
+    '[["${idMesin}", "${masuk}", "Masuk", 1], ["${idMesin}", "${pulang}", "Keluar", 2]]'::jsonb, null, now())`);
+  nilai(`select hitung.baca_tap(${periode}) + hitung.hitung_gaji(${periode})`);
+  const baris = nilai(`select hh.id_karyawan || '|' || to_char(hh.tanggal, 'DD-MM-YYYY') from hitung.hasil_harian hh
+    join hitung.versi_terakhir v on v.id = hh.versi_id and v.jenis = 'baca_tap' join fakta.periode p on p.id = v.periode_id
+    where p.status not in ('dirilis', 'dikunci') and hh.status = 'hadir' and hh.menit_lebih >= 120
+      and not fakta.rahasia_di_periode(hh.id_karyawan, p.id)
+      and fakta.karyawan_aktif(hh.id_karyawan, hh.tanggal) order by hh.tanggal, hh.id_karyawan limit 1`);
+  assert.ok(baris, "ada calon hari lembur di periode terbuka");
+  const [id, tgl] = baris.split("|");
+  calonLembur = { id, tanggal: tgl };
+  const k = (await kirimUpdate(teksPribadi(10606, HRD, `/batalkanlembur ${id} ${tgl} salah input`))).pesan[0];
+  assert.match(k.text, new RegExp(`^Batalkan LEMBUR untuk ${id} .+\\?\\nTanggal: .+\\nCatatan: salah input\\nKeadaan sekarang:\\n• .+: pengaturan otomatis; pulang \\d+ menit lewat jadwal\\n`));
+  assert.doesNotMatch(k.text, /tidak mengubah/);
+  const r = await kirimUpdate(tekanTombol(10607, HRD, k.reply_markup.inline_keyboard[0][0].callback_data));
+  const teks = r.pesan.map((p) => p.text as string);
+  assert.match(teks[0], new RegExp(`^Tercatat: perintah no\\. \\d+, BATALKAN LEMBUR ${id} `));
+  perintahLembur7c = /perintah no\. (\d+)/.exec(teks[0])![1];
+  const hasil = teks.find((t) => t.startsWith(`Hasil BATALKAN LEMBUR ${id}`));
+  assert.ok(hasil, JSON.stringify(teks));
+  const m = /• Lembur periode no\. \d+: Rp([\d.]+) → Rp([\d.]+)$/.exec(hasil!);
+  assert.ok(m, hasil);
+  assert.ok(Number(m![2].replace(/\./g, "")) < Number(m![1].replace(/\./g, "")), hasil);
+  assert.equal(nilai(`select x.jenis || ':' || x.id_karyawan || ':' || x.alasan from fakta.perintah_hrd x where x.id = ${perintahLembur7c}`),
+    `batalkan_lembur:${id}:salah input`);
+
+  const kb = (await kirimUpdate(teksPribadi(10608, HRD, `/batalperintah ${perintahLembur7c}`))).pesan[0];
+  assert.match(kb.text, new RegExp(`^Batalkan perintah no\\. ${perintahLembur7c}: BATALKAN LEMBUR ${id} .+\\?\\n`));
+  assert.match(kb.text, /\nKeadaan sekarang:\n• .+; sudah ada BATALKAN LEMBUR no\. \d+\n/);
+  const rb = await kirimUpdate(tekanTombol(10609, HRD, kb.reply_markup.inline_keyboard[0][0].callback_data));
+  const hb = rb.pesan.map((p) => p.text as string).find((t) => t.startsWith(`Hasil PEMBATALAN PERINTAH LEMBUR ${id}`));
+  assert.ok(hb, JSON.stringify(rb.pesan.map((p) => p.text)));
+  assert.match(hb!, new RegExp(`Rp${m![2].replace(/\./g, "\\.")} → Rp${m![1].replace(/\./g, "\\.")}$`));
+});
+
+test("7c: /perintahku dan menu memuat perintah lembur", async () => {
+  const daftar = (await kirimUpdate(teksPribadi(10610, HRD, "/perintahku"))).pesan[0].text as string;
+  assert.match(daftar, new RegExp(`no\\. ${perintahLembur7c} · BATALKAN LEMBUR · ${calonLembur.id} .+ DIBATALKAN`));
+  for (const peran of ["hrd", "pembangun"]) for (const c of ["setujuilembur", "batalkanlembur"]) assert.ok(MENU[peran].some((m) => m.command === c));
+});
