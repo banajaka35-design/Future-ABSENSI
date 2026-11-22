@@ -32,4 +32,7 @@
 | `/batalperintah 1608` (18.58) | Konfirmasi menyebut "sudah ada BATALKAN LEMBUR no. 1608"; perintah no. 1609 `batalkan_perintah` → 1608; periode 4 selesai 18.59.08 (versi 44): **sekitar 22 detik** | [Pasti] |
 | Kembali seperti semula | 10067 periode 4: lembur **Rp80.925**, dibayar **Rp4.460.925**; versi 44 dibanding 40 (sebelum uji): 0 orang berbeda. Sheets baris 10067: Lembur 80925, Dibayar 4460925 | [Pasti] |
 
-Sisa: uji tolak `/setujuilembur XYZ 26-11-2026` (belum dikirim pemilik pada 18.59).
+| Uji tolak `/setujuilembur XYZ 26-11-2026` (19.01.57) | Bot: "Divisi atau ID \"XYZ\" tidak ada. Kode divisi misalnya PRD, GDG, QC." Gudang: pesan diterima, 0 draf baru, 0 perintah baru | [Pasti] |
+| Temuan 7d terbukti diperbaiki | Kabar Sheets sesudah perintah chat menulis "Lama sejak perintah dicatat: 121 detik" | [Pasti] (tangkapan layar) |
+
+**Uji nyata 7c-1 selesai.**
