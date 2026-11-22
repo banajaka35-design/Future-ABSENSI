@@ -239,6 +239,17 @@ Contoh: jadwal 07.00–15.00, datang 05.30 (90 menit lebih awal), pulang 15.45 (
 | (b) Dihitung terpisah, masing-masing harus 60 menit atau lebih | pagi 90 → 90; sore 45 → 0; jumlah 90 menit | Dua potong lembur di satu hari; pengali jam ke-1 bisa terpakai dua kali |
 | Sekarang (tanpa persetujuan) | 45 → 0 | Tetap berlaku untuk hari yang tidak disetujui |
 
+Jawaban pemilik: **(a) digabung** (22 Nov 2026 19.05 WIB, sesudah penjelasan bahwa (a) tidak pernah membayar lebih kecil daripada (b): batas 60 menit, pembulatan sekali, dan jam pertama 1,5× tidak terpakai dua kali [Pasti, hitungan]).
+
+### Pertanyaan 2: apakah persetujuan lembur biasa ikut membuka jam datang awal?
+
+| Pilihan | Akibat |
+| --- | --- |
+| **(a) Terpisah** (saran): jam datang awal hanya dibayar bila ada persetujuan khusus "datang awal" (misalnya `/setujuiawal <ID atau divisi> <tanggal>`), di pengaturan otomatis maupun wajib perintah | Sesuai bunyi B5 ("kecuali disetujui"); persetujuan lembur sore untuk satu divisi tidak ikut membayar semua yang datang awal |
+| (b) Sekali setujui untuk keduanya: `/setujuilembur` membuka menit sesudah pulang dan sebelum masuk; di pengaturan otomatis, datang awal tetap perlu `/setujuilembur` | Satu perintah lebih ringkas, tetapi lebih mudah membayar datang awal tanpa sengaja |
+
+Catatan [Pasti]: tap yang lebih awal dari jendela tap (sekarang 120 menit sebelum masuk) tidak dibaca sebagai tap masuk, jadi datang awal yang bisa dibayar paling banyak 120 menit.
+
 Jawaban pemilik: (belum)
 
 ## 6. Yang tidak ikut paket mana pun
