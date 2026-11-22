@@ -140,7 +140,7 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 - **Pembatalan tidak bisa dibatalkan.** Kalau salah membatalkan, perintahnya diketik ulang (nomor baru).
 - **Tidak ikut 7d:** kasbon (7b), persetujuan lembur (7c), pembatalan jenis lain (tukar shift, lembur, absen manual).
 
-## 8. Daftar paket 7b (menunggu "buat"; ada 1 pertanyaan untuk pemilik)
+## 8. Daftar paket 7b (di-"buat" 22 Nov 2026 16.13 WIB dengan pilihan (a); terpasang, `docs/laporan-7b.md`)
 
 **Tujuan:** HRD mencatat kasbon lewat chat: pinjam dengan cicilan, ubah cicilan, pelunasan tunai, dan melihat saldo (PRD v2 C10: "saldo dan cicilan tercatat, beserta siapa yang memasukkan"; tanpa persetujuan bos, keputusan 21 Nov).
 
