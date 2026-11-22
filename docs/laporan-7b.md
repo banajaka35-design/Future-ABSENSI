@@ -23,6 +23,15 @@
 | GitHub "Pasang ke Supabase" run 45009451824 | Lulus: hanya 0034, pemeriksaan 33 lulus, Edge Function terpasang ulang |
 | Dicek di Supabase | 0034 sidik `f7ea788433d5` = repo; versi kode gaji `hitung_gaji 6 (paket 7b)`; kasbon 0 baris; periode hari ini no. 4 (21 Nov–20 Des, `dihitung`); 10067 periode 4 dibayar Rp4.460.925, bukan rahasia |
 
-## Uji nyata
+## Uji nyata (22 Nov 2026, akun pembangun)
 
-Belum. Langkah: `/kasbon 10067 1.000.000 250.000` → Ya; lalu `/batalperintah <nomor>` → Ya; uji tolak `/lunas 10067 5.000.000`.
+| Langkah | Hasil (dicek di Supabase dan Sheets) | Label |
+| --- | --- | --- |
+| `/kasbon 10067 1.000.000 250.000` | Konfirmasi: pinjam Rp1.000.000, cicilan Rp250.000, saldo Rp0 → Rp1.000.000, berlaku mulai periode no. 4 | [Pasti] (tangkapan layar pemilik) |
+| Ya, catat (17.03.08 WIB) | Perintah no. 1606 `kasbon` asal chat, `nilai = pinjam:1000000:250000`, `oleh` = pembangun; `buku_kasbon`: pinjam 1.000.000 dan cicilan 250.000, keduanya `perintah_id = 1606`; antrean periode 4 | [Pasti] |
+| Hitung ulang | Periode 4 selesai 17.03.30 (versi gaji 38): **sekitar 22 detik**. Isi Sheets dipicu 17.03.31, berhasil | [Pasti] |
+| Gaji 10067 periode 4 | Rincian kasbon −Rp250.000 ("saldo Rp1000000, diminta Rp250000, dipotong Rp250000 (batas potongan Rp2310462, sesudah denda); sisa saldo Rp750000"); dibayar Rp4.460.925 → **Rp4.210.925**. Versi 38 dibanding 36: hanya 1 orang berbeda | [Pasti] |
+| Keadaan kasbon | saldo 750.000, pinjam 1.000.000, terpotong 250.000, cicilan 250.000 | [Pasti] |
+| Sheets tab "Gaji 2026-11-21 sd 2026-12-20 transfer" | Baris 10067: Kasbon −250000, Total potongan −410000, Dibayar 4210925; cocok dengan gudang | [Pasti] |
+
+Sisa: `/batalperintah 1606` → potongan harus hilang; uji tolak `/lunas 10067 5.000.000`.
