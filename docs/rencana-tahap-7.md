@@ -257,7 +257,7 @@ Jawaban pemilik: **(a) terpisah** (22 Nov 2026 19.05 WIB).
 - Di data simulasi, hampir semua hari hadir punya datang awal 1–30 menit (periode 4: 21.423 hari; paling awal 30 menit). Jadi persetujuan datang awal untuk satu divisi bisa menambah lembur banyak orang sekaligus; karena itu konfirmasi wajib menyebut jumlah orang dan menitnya.
 - Calon uji nyata: **10060 Maya Sitorus, Sabtu 21 Nov 2026**: datang 29 menit lebih awal, pulang 94 menit lewat jadwal. Sekarang dibayar 90 menit; dengan persetujuan datang awal (digabung): 123 menit → **120 menit**.
 
-## 11. Daftar paket 7c-2 (menunggu "buat")
+## 11. Daftar paket 7c-2 (di-"buat" 22 Nov 2026 19.07 WIB bersama perbaikan celah di bawah)
 
 **Tujuan:** PRD v2 B5: jam sebelum jadwal masuk dibayar sebagai lembur hanya bila disetujui (keputusan pemilik: digabung dengan menit lewat jam pulang; persetujuan terpisah dari persetujuan lembur biasa).
 
@@ -289,6 +289,19 @@ Jawaban pemilik: **(a) terpisah** (22 Nov 2026 19.05 WIB).
 6. **Pasang ke Supabase** lewat cabang `pasang`.
 7. **Uji nyata**: `/setujuiawal 10060 21-11-2026` → lembur Maya Sitorus periode 4 naik (90 → 120 menit dibayar; rupiah dicek di Supabase dan Sheets); lalu `/batalperintah <nomor>` → kembali; uji tolak `/setujuiawal 10060 25-02-2026` (periode dikunci).
 8. **Dokumen**: `docs/laporan-7c2.md`, `docs/serah-terima.md`.
+
+### Pemeriksaan kelemahan dan celah (diminta pemilik 22 Nov 2026 19.07: "cek kelemahan dan celah baru, perbaiki dan buat")
+
+| No | Kelemahan / celah | Perbaikan yang masuk paket | Label |
+| --- | --- | --- | --- |
+| 1 | Datang awal bisa terbaca dari data tap yang tidak bisa dipercaya: lupa tap, tap tunggal yang ragu (B08), jendela tap bertumpuk (B10, tap pulang shift malam bisa terbaca sebagai tap masuk pagi), absen manual dari HRD | Menit datang awal **hanya** dihitung untuk hari `hadir`, asal `mesin`, tap masuk dan pulang ada, tanpa lupa tap, tidak ambigu, tanpa tanda `jendela_bertumpuk`. Hari lain: datang awal tidak dihitung walau disetujui | [Kemungkinan Besar] lebih aman; mengurangi pembayaran hanya untuk data yang meragukan |
+| 2 | Persetujuan divisi untuk rentang panjang bisa menaikkan lembur banyak orang tanpa disadari (data demo: hampir semua hari ada datang awal) | Konfirmasi divisi menyebut **jumlah hari-orang yang datang awal dan total menitnya untuk seluruh rentang**, bukan hanya per hari; hari yang datanya tidak dihitung (nomor 1) tidak ikut dijumlah | [Pasti] keputusan |
+| 3 | Lembur naik tanpa jejak yang terlihat di Sheets/halaman demo | Hari yang datang awalnya dibayar diberi tanda gaji `lembur_datang_awal_disetujui` (muncul di kolom Peringatan) | [Pasti] keputusan |
+| 4 | Versi kode 7 bisa tanpa sengaja mengubah angka orang yang tidak punya persetujuan | Perubahan kode hanya menyentuh baris hari yang punya persetujuan datang awal; dibuktikan dengan semua uji gaji lama, U1, dan perbandingan semua orang di Supabase sesudah uji nyata (hanya orang yang disetujui boleh berbeda) | [Pasti] keputusan |
+| 5 | Pengaturan wajib perintah: datang awal disetujui tetapi lembur sore tidak | Hanya menit pagi yang dihitung; tanda `lembur_tidak_dibayar_tanpa_izin` tetap untuk bagian sore | [Pasti] (sesuai jawaban pertanyaan 2) |
+| 6 | Shift malam lintas tengah malam dan tukar shift | Menit dihitung dari jadwal masuk dan tap masuk yang sudah tersimpan (sudah memperhitungkan tukar shift dan tanggal); diuji dengan shift malam | [Pasti] |
+| 7 | Persetujuan ganda (orang + divisinya, atau dua kali) | Dihitung sekali | [Pasti] |
+| 8 | Uji bot bisa mengganggu uji pengingat (pelajaran 7c-1) | Tap uji dikirim lewat mesin yang sudah mengirim | [Pasti] |
 
 ### Perlu diketahui pemilik
 
