@@ -257,7 +257,7 @@ Jawaban pemilik: **(a) terpisah** (22 Nov 2026 19.05 WIB).
 - Di data simulasi, hampir semua hari hadir punya datang awal 1–30 menit (periode 4: 21.423 hari; paling awal 30 menit). Jadi persetujuan datang awal untuk satu divisi bisa menambah lembur banyak orang sekaligus; karena itu konfirmasi wajib menyebut jumlah orang dan menitnya.
 - Calon uji nyata: **10060 Maya Sitorus, Sabtu 21 Nov 2026**: datang 29 menit lebih awal, pulang 94 menit lewat jadwal. Sekarang dibayar 90 menit; dengan persetujuan datang awal (digabung): 123 menit → **120 menit**.
 
-## 11. Daftar paket 7c-2 (di-"buat" 22 Nov 2026 19.07 WIB bersama perbaikan celah di bawah)
+## 11. Daftar paket 7c-2 (di-"buat" 22 Nov 2026 19.07 WIB bersama perbaikan celah di bawah; terpasang, `docs/laporan-7c2.md`)
 
 **Tujuan:** PRD v2 B5: jam sebelum jadwal masuk dibayar sebagai lembur hanya bila disetujui (keputusan pemilik: digabung dengan menit lewat jam pulang; persetujuan terpisah dari persetujuan lembur biasa).
 
