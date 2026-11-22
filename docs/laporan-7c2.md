@@ -22,6 +22,12 @@
 | **Bukti angka tidak berubah tanpa persetujuan** (Supabase) | Sesudah dipasang, periode 3 dan 4 dihitung ulang dengan versi 7: sidik hasil periode 3 versi 45 (v7) = versi 35 (v6) = versi 32 (v5) = `45a6ca644ca5`; periode 4 versi 46 (v7) = versi 44 (v6) = `c427e5a53c5f` [Pasti] |
 | Dicek di Supabase | 0036 sidik `80c7c7342d68` = repo; versi kode `hitung_gaji 7 (paket 7c-2)`; 10060 21 Nov 2026: hadir, datang awal 29 menit, lewat jam pulang 94 menit; lembur periode 4 690 menit Rp445.088; dibayar Rp4.472.088 |
 
-## Uji nyata
+## Uji nyata (22 Nov 2026, akun pembangun)
 
-Belum. Langkah: `/setujuiawal 10060 21-11-2026` → Ya (lembur 690 → 720 menit); `/batalperintah <nomor>` → kembali; uji tolak `/setujuiawal 10060 25-02-2026`.
+| Langkah | Hasil (dicek di Supabase dan Sheets) | Label |
+| --- | --- | --- |
+| `/setujuiawal 10060 21-11-2026` → Ya (20.31.15 WIB) | Perintah no. 1610 `setujui_datang_awal`, 10060, 21 Nov 2026, oleh pembangun; periode 4 selesai 20.31.41 (versi gaji 48): **sekitar 26 detik** | [Pasti] |
+| **B5 nyata (aturan D1b)** | 10060 periode 4: lembur **690 → 720 menit** (21 Nov: 29 + 94 = 123 → 120, sebelumnya 90), Rp445.088 → **Rp467.342**; dibayar Rp4.472.088 → **Rp4.494.342**; tanda `lembur_datang_awal_disetujui`. Versi 48 dibanding 46: **hanya 10060 yang berbeda** | [Pasti] |
+| Sheets tab periode 4 | Baris 10060: Lembur 467342, Dibayar 4494342, "Lembur 720 menit dibayar", Peringatan memuat `lembur_datang_awal_disetujui`; cocok dengan gudang | [Pasti] |
+
+Sisa: `/batalperintah 1610` → kembali 690 menit / Rp4.472.088; uji tolak `/setujuiawal 10060 25-02-2026`.
