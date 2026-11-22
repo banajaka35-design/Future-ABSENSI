@@ -187,7 +187,7 @@ Keputusan pemilik: **(a)**. Dasar PRD v2 yang ditempel pemilik: B4 "lembur wajib
 - Pilihan (a) **menyentuh mesin hitung gaji** untuk pertama kali sejak Tahap 4. Risikonya [Kemungkinan Besar] kecil karena hanya satu syarat dan semua uji gaji (K01–K25, U1 kunci jawaban) harus tetap lulus sebelum dipasang.
 - **Tidak ikut 7b:** persetujuan lembur (7c), kasbon yang dipotong dari THR, batas jumlah pinjaman.
 
-## 9. Daftar paket 7c-1 (menunggu "buat")
+## 9. Daftar paket 7c-1 (di-"buat" 22 Nov 2026 17.12 WIB; terpasang, `docs/laporan-7c.md`)
 
 **Tujuan:** HRD menyetujui atau membatalkan lembur lewat chat, per orang atau per divisi (PRD v2 B4; kasus D04, D05, F12). Paket ini **tidak mengubah aturan hitung**: efek `setujui_lembur` dan `batalkan_lembur` sudah ada di mesin hitung gaji sejak 4b-1 (aturan D5).
 
