@@ -13,7 +13,7 @@ import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
-  TOMBOL_TETAP, TANYA_PERINTAH, CARA_PERINTAH, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  TOMBOL_TETAP, TANYA_PERINTAH, CARA_PERINTAH, CARA_KASBON, bacaUang, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -1536,4 +1536,76 @@ test("7d: pesan Tercatat 7a memberi petunjuk /batalperintah; menu memuat batalpe
   for (const peran of ["hrd", "pembangun"]) {
     for (const c of ["batalperintah", "perintahku"]) assert.ok(MENU[peran].some((m) => m.command === c), `${peran} ${c}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Paket 7b: kasbon lewat chat (docs/rencana-tahap-7.md bagian 8)
+// ---------------------------------------------------------------------------
+
+test("7b: membaca jumlah uang", () => {
+  for (const [t, n] of [["1000000", 1000000], ["1.000.000", 1000000], ["1,000,000", 1000000], ["1jt", 1000000], ["1,5jt", 1500000],
+    ["1.5 juta".replace(" ", ""), 1500000], ["250rb", 250000], ["250ribu", 250000], ["500k", 500000], ["Rp250.000", 250000]] as const) {
+    assert.equal(bacaUang(t), n, t);
+  }
+  for (const t of ["0", "-5", "abc", "1.00.000", "1,2345678jt", "", "1.5"]) assert.equal(bacaUang(t), null, t);
+});
+
+// Kasbon berlaku menurut tanggal hari ini (WIB): pastikan ada periode yang memuat hari ini.
+const hariIni = () => nilai("select (now() at time zone 'Asia/Jakarta')::date");
+let periodeKasbon = "";
+let perintahKasbon = "";
+
+test("7b: /kasbon <ID> menampilkan saldo; cicilan wajib; pelunasan melebihi saldo ditolak; karyawan ditolak", async () => {
+  if (nilai(`select count(*) from fakta.periode where '${hariIni()}'::date between tanggal_awal and tanggal_akhir`) === "0") {
+    nilai(`insert into fakta.periode (tanggal_awal, tanggal_akhir, tanggal_bayar)
+           select greatest(max(tanggal_akhir) + 1, '${hariIni()}'::date - 20), '${hariIni()}'::date + 20, '${hariIni()}'::date + 25
+           from fakta.periode returning id`);
+  }
+  periodeKasbon = nilai(`select id from fakta.periode where '${hariIni()}'::date between tanggal_awal and tanggal_akhir`);
+  assert.match((await kirimUpdate(teksPribadi(10501, KARYAWAN_BARU, "/kasbon 10067 1jt 250rb"))).pesan[0].text, /hanya untuk HRD/);
+  const saldo = (await kirimUpdate(teksPribadi(10502, HRD, "/kasbon 10067"))).pesan[0].text as string;
+  assert.match(saldo, /^Kasbon 10067 .+:\nSaldo sesudah potongan yang sudah dihitung: Rp0\n/);
+  assert.match(saldo, /Belum ada catatan kasbon\.$/);
+  assert.match((await kirimUpdate(teksPribadi(10503, HRD, "/kasbon 10067 1.000.000"))).pesan[0].text, /^Cicilan per periode wajib diisi/);
+  assert.match((await kirimUpdate(teksPribadi(10504, HRD, "/kasbon 10067 sejuta 1"))).pesan[0].text, /^Jumlah "sejuta" tidak dikenali\. Cara pakai/);
+  assert.match((await kirimUpdate(teksPribadi(10505, HRD, "/lunas 10067 5jt"))).pesan[0].text,
+    /^Ditolak: pelunasan melebihi saldo kasbon 10067 .+ \(Rp0, sesudah potongan yang sudah dihitung\)/);
+  assert.equal((await kirimUpdate(teksPribadi(10506, HRD, "/cicilan"))).pesan[0].text, CARA_KASBON);
+  assert.equal(nilai("select count(*) from fakta.buku_kasbon"), "0");
+});
+
+test("7b: /kasbon pinjam -> konfirmasi -> Ya -> tercatat dengan pencatat, potongan muncul di periode berjalan", async () => {
+  const k = (await kirimUpdate(teksPribadi(10507, HRD, "/kasbon 10067 1jt 250rb biaya sekolah"))).pesan[0];
+  assert.match(k.text, /^Catat KASBON \(pinjam\) untuk 10067 .+ \(.+\)\?\nPinjam: Rp1\.000\.000\nCicilan per periode: Rp250\.000\nCatatan: biaya sekolah\n/);
+  assert.match(k.text, /\nSaldo kasbon \(sesudah potongan yang sudah dihitung\): Rp0 → Rp1\.000\.000\n/);
+  assert.match(k.text, new RegExp(`\\nBerlaku mulai periode no\\. ${periodeKasbon} `));
+  const r = await kirimUpdate(tekanTombol(10508, HRD, k.reply_markup.inline_keyboard[0][0].callback_data));
+  const teks = r.pesan.map((p) => p.text as string);
+  assert.match(teks[0], /^Tercatat: perintah no\. \d+, KASBON pinjam Rp1\.000\.000 \(cicilan Rp250\.000\), 10067 /);
+  assert.match(teks[0], /\nSalah catat\? Ketik \/batalperintah \d+$/);
+  perintahKasbon = /perintah no\. (\d+)/.exec(teks[0])![1];
+  const hasil = teks.find((t) => t.startsWith("Hasil KASBON 10067"));
+  assert.ok(hasil, JSON.stringify(teks));
+  assert.match(hasil!, new RegExp(`• Potongan kasbon periode no\\. ${periodeKasbon}: Rp0 → Rp[\\d.]+\\n• Sisa saldo sesudah potongan yang sudah dihitung: Rp[\\d.]+\\n• Cicilan per periode: Rp250\\.000$`));
+  assert.equal(nilai(`select string_agg(k.jenis || ':' || k.jumlah || ':' || u.telegram_id, ',' order by k.id) from fakta.buku_kasbon k
+                      join fakta.perintah_hrd x on x.id = k.perintah_id join induk.pengguna u on u.id = x.oleh`),
+    `pinjam:1000000:${HRD},cicilan:250000:${HRD}`);
+  const potong = nilai(`select coalesce(-sum(r.nominal), 0) from hitung.rincian_gaji r join hitung.versi_terakhir v on v.id = r.versi_id
+                        and v.jenis = 'hitung_gaji' where v.periode_id = ${periodeKasbon} and r.id_karyawan = '10067' and r.komponen = 'kasbon'`);
+  assert.ok(Number(potong) > 0 && Number(potong) <= 250000, potong);
+  assert.match(hasil!, new RegExp(`→ ${("Rp" + Number(potong).toLocaleString("id-ID")).replace(/\./g, "\\.")}\\n`));
+});
+
+test("7b: /batalperintah kasbon -> konfirmasi berisi isi kasbon -> Ya -> potongan hilang", async () => {
+  const k = (await kirimUpdate(teksPribadi(10509, PEMBANGUN, `/batalperintah ${perintahKasbon}`))).pesan[0];
+  assert.match(k.text, new RegExp(`^Batalkan perintah no\\. ${perintahKasbon}: KASBON 10067 `));
+  assert.match(k.text, /\nIsi: pinjam Rp1\.000\.000, cicilan Rp250\.000\nSaldo kasbon sekarang: Rp[\d.]+\nSesudah dibatalkan, catatan kasbon ini tidak dihitung lagi\. /);
+  const r = await kirimUpdate(tekanTombol(10510, PEMBANGUN, k.reply_markup.inline_keyboard[0][0].callback_data));
+  const hasil = r.pesan.map((p) => p.text as string).find((t) => t.startsWith("Hasil PEMBATALAN KASBON 10067"));
+  assert.ok(hasil, JSON.stringify(r.pesan.map((p) => p.text)));
+  assert.match(hasil!, new RegExp(`• Potongan kasbon periode no\\. ${periodeKasbon}: Rp[\\d.]+ → Rp0\\n• Sisa saldo sesudah potongan yang sudah dihitung: Rp0\\n`));
+  const saldo = (await kirimUpdate(teksPribadi(10511, HRD, "kasbon 10067"))).pesan[0].text as string;
+  assert.match(saldo, /Saldo sesudah potongan yang sudah dihitung: Rp0\n/);
+  assert.match(saldo, /pinjam Rp1\.000\.000 \(perintah no\. \d+, hrd\) DIBATALKAN/);
+  for (const peran of ["hrd", "pembangun"]) for (const c of ["kasbon", "cicilan", "lunas"]) assert.ok(MENU[peran].some((m) => m.command === c));
 });

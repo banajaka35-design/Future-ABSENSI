@@ -263,8 +263,13 @@ def main():
                 and all(p["text"].startswith("Sheets SELESAI diperbarui") and "Lama sejak file masuk:" in p["text"] for p in pesan),
                 pesan)
             cek("bot token tidak tercetak di keluaran", "TOKENUJI" not in keluar, keluar[-200:])
-            kode, _ = jalan("web/kabar_telegram.py", "GAGAL", e=dict(env_k, ADA_RUN_MENUNGGU="ya"))
+            kode, _ = jalan("web/kabar_telegram.py", "SELESAI", e=dict(env_k, PEMICU="perintah HRD"))
             pesan = admin("/uji/keadaan").get("pesan", [])[2:]
+            cek("7b: kabar SELESAI sesudah perintah HRD menulis lama sejak perintah dicatat, bukan file",
+                kode == 0 and len(pesan) == 2 and all("Lama sejak perintah dicatat:" in p["text"] and "file" not in p["text"] for p in pesan),
+                pesan)
+            kode, _ = jalan("web/kabar_telegram.py", "GAGAL", e=dict(env_k, ADA_RUN_MENUNGGU="ya"))
+            pesan = admin("/uji/keadaan").get("pesan", [])[4:]
             cek("kabar GAGAL: jangan dipakai, ada pengisian ulang menunggu",
                 kode == 0 and len(pesan) == 2 and all("JANGAN dipakai" in p["text"] and "menunggu" in p["text"] for p in pesan), pesan)
         finally:

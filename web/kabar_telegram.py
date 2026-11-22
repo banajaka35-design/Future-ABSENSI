@@ -18,13 +18,15 @@ import urllib.request
 WIB = datetime.timezone(datetime.timedelta(hours=7))
 
 
-def susun(status, sekarang, waktu_file, ada_menunggu):
+def susun(status, sekarang, waktu_file, ada_menunggu, pemicu=""):
     jam = sekarang.astimezone(WIB).strftime("%Y-%m-%d %H:%M WIB")
     lama = ""
     if waktu_file:
         try:
             awal = datetime.datetime.fromisoformat(waktu_file.replace("Z", "+00:00"))
-            lama = f" Lama sejak file masuk: {round((sekarang - awal).total_seconds())} detik."
+            # Paket 7b: pengisian yang dipicu perintah HRD lewat chat diukur dari tombol Ya, bukan dari file.
+            asal = "perintah dicatat" if pemicu == "perintah HRD" else "file masuk"
+            lama = f" Lama sejak {asal}: {round((sekarang - awal).total_seconds())} detik."
         except ValueError:
             lama = ""
     if status == "SELESAI":
@@ -49,7 +51,7 @@ def main():
         print("Kabar Telegram dilewati: TELEGRAM_BOT_TOKEN kosong")
         return
     teks = susun(sys.argv[1], datetime.datetime.now(datetime.timezone.utc), os.environ.get("WAKTU_FILE", ""),
-                 os.environ.get("ADA_RUN_MENUNGGU") == "ya")
+                 os.environ.get("ADA_RUN_MENUNGGU") == "ya", os.environ.get("PEMICU", ""))
     api = os.environ.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
     try:
         daftar = penerima()
