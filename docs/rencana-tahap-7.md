@@ -225,6 +225,22 @@ Persetujuan **jam sebelum jadwal masuk (B5)** dipisah menjadi **paket 7c-2**, ka
 - **Uji nyata mengubah gaji demo periode 4** untuk satu orang (lembur −Rp80.925, PPh ikut), lalu dikembalikan oleh pembatalan.
 - **Tidak ikut 7c-1:** jam sebelum jadwal masuk (7c-2), tukar shift lewat chat, perintah divisi untuk izin/sakit/cuti.
 
+## 10. Paket 7c-2: jam sebelum jadwal masuk (PRD v2 B5) — sedang ditanyakan ke pemilik
+
+PRD v2 B5: "jam sebelum jadwal masuk tidak dihitung kecuali disetujui". Sekarang [Pasti]: menit sebelum jadwal masuk tidak pernah menjadi lembur (baca tap 0016, kasus B05); `setujui_lembur` hanya membuka menit sesudah jam pulang (D1). Mengubahnya **mengubah angka gaji**, jadi setiap keputusan aturan ditanyakan ke pemilik, satu per satu.
+
+### Pertanyaan 1: cara menghitung menit datang awal yang disetujui
+
+Contoh: jadwal 07.00–15.00, datang 05.30 (90 menit lebih awal), pulang 15.45 (45 menit lewat). Aturan lembur sekarang: minimal 60 menit, kelipatan 30 menit, pengali per jam ke-1, ke-2, ... per hari.
+
+| Pilihan | Menit dibayar contoh | Catatan |
+| --- | --- | --- |
+| **(a) Digabung** dengan menit lewat jam pulang di hari yang sama, lalu aturan lembur biasa (saran) | 90 + 45 = 135 → 120 menit | Satu hari satu hitungan lembur, sama dengan cara tabel pengali sekarang (jam ke-1, ke-2 per hari) [Kemungkinan Besar paling sesuai] |
+| (b) Dihitung terpisah, masing-masing harus 60 menit atau lebih | pagi 90 → 90; sore 45 → 0; jumlah 90 menit | Dua potong lembur di satu hari; pengali jam ke-1 bisa terpakai dua kali |
+| Sekarang (tanpa persetujuan) | 45 → 0 | Tetap berlaku untuk hari yang tidak disetujui |
+
+Jawaban pemilik: (belum)
+
 ## 6. Yang tidak ikut paket mana pun
 
 Isi Sheets dan halaman demo tidak berubah bentuk. Data simulasi dan kasus jebakan tidak diubah.
