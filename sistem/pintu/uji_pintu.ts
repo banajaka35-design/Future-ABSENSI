@@ -1628,14 +1628,18 @@ let perintahLembur7c = "";
 let calonLembur: { id: string; tanggal: string } = { id: "", tanggal: "" };
 
 test("7c: /batalkanlembur orang (D05) -> lembur periode itu turun; /batalperintah -> kembali", async () => {
-  // Siapkan satu hari lembur di periode terbuka: tap 10068 lima menit sebelum masuk dan 130 menit sesudah jadwal pulang.
+  // Siapkan satu hari lembur di periode terbuka: tap satu orang lima menit sebelum masuk dan 130 menit sesudah jadwal pulang.
+  // Mesinnya dipilih yang sudah punya kiriman sampai tutup buku 20-04-2026, supaya uji pengingat (uji_sambung, P7) tidak terganggu.
   const tap = nilai(`select m.mesin || '|' || m.id_mesin || '|' || to_char(hh.jadwal_masuk at time zone 'Asia/Jakarta' - interval '5 minutes', 'YYYY-MM-DD HH24:MI:SS')
       || '|' || to_char(hh.jadwal_pulang at time zone 'Asia/Jakarta' + interval '130 minutes', 'YYYY-MM-DD HH24:MI:SS') || '|' || p.id
     from hitung.hasil_harian hh join hitung.versi_terakhir v on v.id = hh.versi_id and v.jenis = 'baca_tap'
     join fakta.periode p on p.id = v.periode_id join induk.pemetaan_id_mesin m on m.id_karyawan = hh.id_karyawan
-    where hh.id_karyawan = '10068' and p.status not in ('dirilis', 'dikunci') and hh.kode_jadwal is not null
-      and hh.jenis_hari = 'kerja' order by hh.tanggal limit 1`);
-  assert.ok(tap, "ada hari kerja 10068 di periode terbuka");
+    where hh.id_karyawan <> '10067' and p.status not in ('dirilis', 'dikunci') and hh.kode_jadwal is not null
+      and hh.jenis_hari = 'kerja' and not fakta.rahasia_di_periode(hh.id_karyawan, p.id) and fakta.karyawan_aktif(hh.id_karyawan, hh.tanggal)
+      and exists (select 1 from fakta.kiriman_file k where k.mesin = m.mesin and k.hasil = 'diterima' and k.tanggal_akhir >= '2026-04-20')
+      and hh.tanggal between m.berlaku_dari and coalesce(m.berlaku_sampai - 1, hh.tanggal)
+    order by hh.tanggal, hh.id_karyawan limit 1`);
+  assert.ok(tap, "ada hari kerja di periode terbuka dengan mesin yang sudah mengirim");
   const [mesin, idMesin, masuk, pulang, periode] = tap.split("|");
   nilai(`select fakta.terima_kiriman('uji7c.csv', md5('uji7c') || md5('uji7c'), '${mesin}',
     '[["${idMesin}", "${masuk}", "Masuk", 1], ["${idMesin}", "${pulang}", "Keluar", 2]]'::jsonb, null, now())`);
