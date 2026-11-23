@@ -40,6 +40,7 @@ const API_BOLEH = new Set([
   "pintu_batal", "pintu_daftar_pin", "pintu_hapus_pin", "pintu_undang", "pintu_gabung", "pintu_minta_pin", "pintu_ambil_pin",
   "pintu_pengingat_rilis", "pintu_cabut_daftar", "pintu_cabut_akun",
   "pintu_keberatan_siapkan", "pintu_keberatan_kirim", "pintu_keberatan_putuskan", "pintu_keberatan_daftar",
+  "web_sesi_buat", "web_hrd",
   "pintu_kirim_gaji_ambil", "pintu_kirim_gaji_hasil", "pintu_gaji_saya", "pintu_contoh_gaji",
   "pintu_periode_gaji", "pintu_total_lengkap",
   "pintu_perintah_siapkan", "pintu_perintah_simpan", "pintu_perintah_hasil", "pintu_batal_siapkan", "pintu_perintah_terakhir",
@@ -2375,7 +2376,7 @@ function kodeEnamAngka(): string {
 
 const emailSah = (e: string) => /^[^@\s]+@[^@\s]+$/.test(e) && e.length <= 254;
 
-export async function webMintaKode(alat: Alat, emailMasuk: string): Promise<JawabanWeb> {
+export async function webMintaKode(alat: Alat, emailMasuk: string, tujuan: "unggah" | "hrd" = "unggah"): Promise<JawabanWeb> {
   if (!alat.email) return { status: 503, isi: { alasan: "Masuk lewat email belum disiapkan." }, latar: null };
   const email = String(emailMasuk ?? "").trim().toLowerCase();
   if (!emailSah(email)) return { status: 400, isi: { alasan: "Tulis alamat email yang benar." }, latar: null };
@@ -2383,9 +2384,11 @@ export async function webMintaKode(alat: Alat, emailMasuk: string): Promise<Jawa
   const r = await alat.api("pintu_minta_kode_email", { email, sidik: await sidikTeks(`${email}:${kode}`) });
   if (r.kirim) {
     try {
-      await alat.email(email, `Kode masuk unggah file: ${kode}`,
-        `Kode masuk halaman unggah file mesin: ${kode}\n\nBerlaku 10 menit. Jangan berikan kode ini kepada siapa pun.\n` +
-          `Bila Anda tidak meminta kode ini, abaikan email ini.`);
+      // Paket 9a (C12): judul email mengikuti halaman yang meminta kode.
+      const halaman = tujuan === "hrd" ? "web HRD" : "unggah file";
+      await alat.email(email, `Kode masuk ${halaman}: ${kode}`,
+        `Kode masuk ${tujuan === "hrd" ? "web HRD" : "halaman unggah file mesin"}: ${kode}\n\nBerlaku 10 menit. ` +
+          `Jangan berikan kode ini kepada siapa pun.\nBila Anda tidak meminta kode ini, abaikan email ini.`);
     } catch (e) {
       console.error(e);
       // Paket 5e-2: kode yang tidak terkirim tidak menghabiskan jatah 3 kode per 15 menit dan tidak bisa dipakai.
@@ -2417,4 +2420,46 @@ export async function webTukarKode(alat: Alat, emailMasuk: string, kodeMasuk: st
     return { status: 401, isi: { alasan: `Kode salah. Sisa ${r.sisa} kali percobaan.` }, latar: null };
   }
   return { status: 401, isi: { alasan: "Kode tidak berlaku (salah 5 kali, lewat 10 menit, atau sudah dipakai). Minta kode baru." }, latar: null };
+}
+
+// ---------------------------------------------------------------------------
+// Paket 9a: web HRD lihat saja (docs/rencana-9a.md). Sesi 2 jam (30 menit diam), hanya sidiknya di database.
+// ---------------------------------------------------------------------------
+export async function webMasukHrd(alat: Alat, emailMasuk: string, kodeMasuk: string): Promise<JawabanWeb> {
+  const email = String(emailMasuk ?? "").trim().toLowerCase();
+  const kodeEmail = String(kodeMasuk ?? "").replace(/\s+/g, "");
+  if (!emailSah(email) || !/^\d{6}$/.test(kodeEmail)) {
+    return { status: 400, isi: { alasan: "Kode terdiri dari 6 angka." }, latar: null };
+  }
+  const kodeSesi = kodeAcak();
+  const r = await alat.api("web_sesi_buat", {
+    email,
+    sidik_kode: await sidikTeks(`${email}:${kodeEmail}`),
+    sidik_sesi: await sidikTeks(kodeSesi),
+  });
+  if (r.hasil === "masuk") {
+    return { status: 200, isi: { sesi: kodeSesi, berlaku_sampai: r.berlaku_sampai, peran: r.peran, label: r.label }, latar: null };
+  }
+  if (r.hasil === "salah") return { status: 401, isi: { alasan: `Kode salah. Sisa ${r.sisa} kali percobaan.` }, latar: null };
+  return { status: 401, isi: { alasan: "Kode tidak berlaku (salah 5 kali, lewat 10 menit, atau sudah dipakai). Minta kode baru." }, latar: null };
+}
+
+export const SESI_HABIS = "Sesi berakhir (lewat 2 jam, 30 menit tidak dipakai, keluar, atau akun dicabut). Masuk lagi.";
+export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
+  const sesi = String(badan?.sesi ?? "");
+  if (!/^[0-9a-f]{64}$/.test(sesi)) return { status: 401, isi: { hasil: "sesi_tidak_berlaku", alasan: SESI_HABIS }, latar: null };
+  const aksi = String(badan?.aksi ?? "");
+  const masukan: Record<string, unknown> = { sidik_sesi: await sidikTeks(sesi), aksi };
+  if (badan?.periode_id !== undefined) masukan.periode_id = String(badan.periode_id);
+  if (badan?.id_karyawan !== undefined) masukan.id_karyawan = String(badan.id_karyawan).slice(0, 40);
+  const r = await alat.api("web_hrd", masukan);
+  switch (r?.hasil) {
+    case "ok": return { status: 200, isi: { hasil: "ok", data: r.data }, latar: null };
+    case "keluar": return { status: 200, isi: { hasil: "keluar" }, latar: null };
+    case "terlalu_banyak":
+      return { status: 429, isi: { hasil: "terlalu_banyak", alasan: "Terlalu banyak permintaan dalam 1 jam; coba lagi nanti." }, latar: null };
+    case "tidak_ada": return { status: 404, isi: { hasil: "tidak_ada", alasan: "Periode atau karyawan tidak ditemukan." }, latar: null };
+    case "aksi_salah": return { status: 400, isi: { hasil: "aksi_salah", alasan: "Permintaan tidak dikenal." }, latar: null };
+    default: return { status: 401, isi: { hasil: "sesi_tidak_berlaku", alasan: SESI_HABIS }, latar: null };
+  }
 }

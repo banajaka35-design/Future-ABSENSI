@@ -2,8 +2,8 @@
 // dengan postgres.js sungguhan, sistem/pintu/uji_sambung.ts). Tidak memakai API khusus Deno.
 // index.ts hanya membuat sambungan database, membaca rahasia, dan memanggil `layani`.
 import {
-  apiBoleh, BATAS_UKURAN_WEB, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa, webStatus, webTukarKode,
-  webUnggah,
+  apiBoleh, BATAS_UKURAN_WEB, tanganiPengingat, tanganiPermintaan, webHrd, webMasukHrd, webMintaKode, webPeriksa, webStatus,
+  webTukarKode, webUnggah,
   type Alat, type HasilUraiRingkas, type JawabanWeb,
 } from "./inti.ts";
 
@@ -219,7 +219,10 @@ async function layaniWeb(
     return { respon: new Response(null, { status: 204, headers: kepala }), latar: null };
   }
   const json = (j: JawabanWeb) => ({
-    respon: new Response(JSON.stringify(j.isi), { status: j.status, headers: { ...kepala, "content-type": "application/json" } }),
+    // Paket 9a (C7): jawaban berisi data gaji tidak boleh disimpan cache peramban atau perantara.
+    respon: new Response(JSON.stringify(j.isi), {
+      status: j.status, headers: { ...kepala, "content-type": "application/json", "cache-control": "no-store" },
+    }),
     latar: j.latar,
   });
   try {
@@ -247,6 +250,10 @@ async function layaniWeb(
     if (jalur === "minta_kode") return json(await webMintaKode(alat, String(badan.email ?? "")));
     if (jalur === "tukar_kode") return json(await webTukarKode(alat, String(badan.email ?? ""), String(badan.kode ?? "")));
     if (jalur === "status") return json(await webStatus(alat, String(badan.kode ?? ""), Number(badan.kiriman_id)));
+    // Paket 9a: web HRD lihat saja.
+    if (jalur === "hrd_minta_kode") return json(await webMintaKode(alat, String(badan.email ?? ""), "hrd"));
+    if (jalur === "hrd_masuk") return json(await webMasukHrd(alat, String(badan.email ?? ""), String(badan.kode ?? "")));
+    if (jalur === "hrd") return json(await webHrd(alat, badan));
     return json({ status: 404, isi: { alasan: "Jalur tidak dikenal." }, latar: null });
   } catch (e) {
     console.error(e);

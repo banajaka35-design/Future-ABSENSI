@@ -13,7 +13,7 @@ import os
 import re
 import sys
 
-HALAMAN = ["index.html", "unggah/index.html"]
+HALAMAN = ["index.html", "unggah/index.html", "hrd/index.html"]
 
 
 punya_src = set()

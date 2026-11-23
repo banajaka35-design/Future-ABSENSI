@@ -13,7 +13,7 @@ import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
-  TOMBOL_TETAP, TANYA_PERINTAH, TANYA_TOLAK_KEBERATAN, tulisBukti, CARA_PERINTAH, CARA_KASBON, bacaUang, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  TOMBOL_TETAP, TANYA_PERINTAH, TANYA_TOLAK_KEBERATAN, tulisBukti, webHrd, webMasukHrd, CARA_PERINTAH, CARA_KASBON, bacaUang, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -1843,4 +1843,53 @@ test("8e: bukti keberatan ditulis dengan jam WIB dan nama status", () => {
   assert.deepEqual(baris, ["• Status: alpha (tidak hadir tanpa keterangan) (dari mesin)", "• Jadwal: P 07.00–15.00",
                            "• Masuk -, pulang -", "• Tap hari itu: 06.58 (tunggal)"]);
   assert.deepEqual(tulisBukti({ hari: null, tap: [] }), ["• Tidak ada catatan hari ini untuk Anda di hasil hitung terakhir.", "• Tap hari itu: tidak ada"]);
+});
+
+// ---------------------------------------------------------------------------
+// Paket 9a: web HRD (fungsi halaman, tanpa jaringan). Uji lewat penyambung ada di uji_sambung.ts.
+// ---------------------------------------------------------------------------
+test("9a: masuk web HRD dengan kode email -> sesi; ringkasan = Ringkasan Sheets; orang rahasia tanpa angka; keluar", async () => {
+  const email = "web9a-pintu@contoh.id";
+  nilai(`update induk.pengguna set email = '${email}' where telegram_id = ${HRD}`);
+  const idHrd = nilai(`select id from induk.pengguna where telegram_id = ${HRD}`);
+  nilai(`insert into fakta.kode_email (pengguna, email, sidik, berlaku_sampai)
+         values (${idHrd}, '${email}', '${sha256(`${email}:246810`)}', now() + interval '10 minutes')`);
+  assert.equal((await webMasukHrd(alat, email, "12 34")).status, 400);
+  const salah = await webMasukHrd(alat, email, "111111");
+  assert.equal(salah.status, 401);
+  assert.match(salah.isi.alasan, /^Kode salah\. Sisa 4 kali/);
+  const m = await webMasukHrd(alat, email, "246 810");
+  assert.equal(m.status, 200, JSON.stringify(m.isi));
+  const sesi = m.isi.sesi as string;
+  assert.equal(nilai(`select count(*) from fakta.sesi_web where sidik = '${sha256(sesi)}'`), "1");
+
+  const r = await webHrd(alat, { sesi, aksi: "ringkasan" });
+  assert.equal(r.status, 200);
+  // Sama dengan cara hitung Ringkasan Sheets (web/isi_sheets.py): tanpa orang rahasia (F15b/F15c).
+  for (const p of (r.isi.data as any[]).filter((x) => x.ada_gaji)) {
+    const harap = nilai(`select count(*) || '/' || sum(g.gaji_bersih) || '/' || count(*) filter (where false)
+      from hitung.ringkasan_gaji g join hitung.versi_terakhir v on v.id = g.versi_id and v.jenis = 'hitung_gaji' and v.periode_id = ${p.id}
+      where not fakta.rahasia_di_periode(g.id_karyawan, ${p.id})`);
+    assert.equal(`${p.orang}/${p.bersih}/0`, harap, `periode ${p.id}`);
+    assert.equal(Number(p.transfer) + Number(p.tunai), Number(p.dibayar), `periode ${p.id}`);
+  }
+  const p = (r.isi.data as any[]).find((x) => x.ada_gaji && x.rahasia > 0);
+  assert.ok(p, "ada periode dengan orang rahasia");
+  const g = await webHrd(alat, { sesi, aksi: "gaji", periode_id: p.id });
+  const rahasia = (g.isi.data as any[]).find((x) => x.rahasia);
+  assert.equal(rahasia.bersih, null);
+  const o = await webHrd(alat, { sesi, aksi: "orang", periode_id: p.id, id_karyawan: rahasia.id });
+  assert.equal(o.isi.data.gaji, null);
+  assert.equal(o.isi.data.komponen, null);
+  assert.ok(o.isi.data.harian.length > 0);
+  const biasa = (g.isi.data as any[]).find((x) => !x.rahasia);
+  const ob = await webHrd(alat, { sesi, aksi: "orang", periode_id: p.id, id_karyawan: biasa.id });
+  assert.equal(ob.isi.data.gaji.bersih, biasa.bersih);
+  assert.ok(ob.isi.data.komponen.length > 0);
+  assert.equal((await webHrd(alat, { sesi, aksi: "perlu_dicek", periode_id: p.id })).status, 200);
+  assert.equal((await webHrd(alat, { sesi, aksi: "keberatan" })).status, 200);
+  assert.equal((await webHrd(alat, { sesi, aksi: "hapus" })).status, 400);
+  assert.equal((await webHrd(alat, { sesi: "x", aksi: "ringkasan" })).status, 401);
+  assert.equal((await webHrd(alat, { sesi, aksi: "keluar" })).status, 200);
+  assert.equal((await webHrd(alat, { sesi, aksi: "ringkasan" })).status, 401);
 });

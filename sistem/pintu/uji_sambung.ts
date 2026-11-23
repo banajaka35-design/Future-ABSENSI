@@ -365,3 +365,52 @@ test("6e: tanpa token -> picuSheets tidak ada (belum disiapkan)", () => {
   const b = buatAlat(sql, "TOKEN-UJI", urai, fetchPalsu, "", [0, 0], null, { token: "", repo: "x/y" });
   assert.equal(b.picuSheets, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// Paket 9a: web HRD lewat penyambung (masuk email -> sesi -> baca; no-store; alamat lain 403; keluar).
+// ---------------------------------------------------------------------------
+test("9a: hrd_minta_kode (judul web HRD) -> hrd_masuk -> sesi -> ringkasan/gaji; no-store; keluar -> 401", async () => {
+  nilai(`update induk.pengguna set email = 'web9a@contoh.id' where telegram_id = ${PEMBANGUN}`);
+  const keBrevo: any[] = [];
+  const ambil = (async (alamat: string | URL, pilihan?: RequestInit) => {
+    if (String(alamat).startsWith("https://api.brevo.com/")) {
+      keBrevo.push(JSON.parse(String(pilihan?.body)));
+      return Response.json({ messageId: "<uji9a@brevo>" }, { status: 201 });
+    }
+    return fetchPalsu(alamat, pilihan);
+  }) as typeof fetch;
+  const a = buatAlat(sql, "TOKEN-UJI", urai, ambil, `${ASAL_WEB}/unggah/`, [0, 0],
+                     { kunci: "xkeysib-uji", pengirim: "pengirim@contoh.id" });
+  const panggil = async (jalur: string, badan: unknown, asal = ASAL_WEB) => {
+    const { respon } = await layani(new Request(`http://lokal/x?jalur=${jalur}`, {
+      method: "POST", headers: { origin: asal, "content-type": "text/plain" }, body: JSON.stringify(badan) }),
+      a, RAHASIA, RAHASIA_PENGINGAT, ASAL_WEB);
+    return { status: respon.status, kepala: respon.headers, isi: await respon.json().catch(() => null) };
+  };
+  assert.equal((await panggil("hrd_minta_kode", { email: "web9a@contoh.id" }, "https://jahat.contoh")).status, 403);
+  assert.equal((await panggil("hrd_minta_kode", { email: "web9a@contoh.id" })).status, 200);
+  assert.equal(keBrevo.length, 1);
+  assert.match(keBrevo[0].subject, /^Kode masuk web HRD: \d{6}$/);
+  const kode = /\b(\d{6})\b/.exec(keBrevo[0].textContent)![1];
+  const m = await panggil("hrd_masuk", { email: "web9a@contoh.id", kode });
+  assert.equal(m.status, 200, JSON.stringify(m.isi));
+  assert.match(m.isi.sesi, /^[0-9a-f]{64}$/);
+  assert.equal(m.isi.peran, "pembangun");
+  assert.equal(nilai(`select count(*) from fakta.sesi_web where sidik = '${m.isi.sesi}'`), "0");
+  const r = await panggil("hrd", { sesi: m.isi.sesi, aksi: "ringkasan" });
+  assert.equal(r.status, 200);
+  assert.equal(r.kepala.get("cache-control"), "no-store");
+  assert.ok(Array.isArray(r.isi.data) && r.isi.data.length > 0);
+  const p = r.isi.data.find((x: any) => x.ada_gaji);
+  const g = await panggil("hrd", { sesi: m.isi.sesi, aksi: "gaji", periode_id: p.id });
+  assert.equal(g.status, 200);
+  assert.equal(g.isi.data.filter((x: any) => !x.rahasia).length, p.orang);
+  assert.ok(g.isi.data.filter((x: any) => x.rahasia).every((x: any) => x.bersih === null && x.dibayar === null));
+  assert.equal((await panggil("hrd", { sesi: m.isi.sesi, aksi: "ringkasan" }, "https://jahat.contoh")).status, 403);
+  assert.equal((await panggil("hrd", { sesi: "0".repeat(64), aksi: "ringkasan" })).status, 401);
+  assert.equal((await panggil("hrd", { sesi: "bukan-hex", aksi: "ringkasan" })).status, 401);
+  assert.equal((await panggil("hrd", { sesi: m.isi.sesi, aksi: "gaji", periode_id: "999999" })).status, 404);
+  assert.equal((await panggil("hrd", { sesi: m.isi.sesi, aksi: "keluar" })).status, 200);
+  assert.equal((await panggil("hrd", { sesi: m.isi.sesi, aksi: "ringkasan" })).status, 401);
+  assert.equal((await panggil("hrd_masuk", { email: "web9a@contoh.id", kode })).status, 401);
+});

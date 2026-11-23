@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Future-ABSENSI · Web HRD</title>
+<style>
+  :root { --tinta: #1d2430; --redup: #5b6576; --garis: #dde2ea; --latar: #f5f7fa; --kartu: #fff;
+          --aksen: #1f5fbf; --awas: #b4232a; --awas-latar: #fdecec; --hati: #8a5a00; --hati-latar: #fff4dc; --baik: #1d7a46; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--tinta); background: var(--latar); }
+  .simulasi { background: var(--hati-latar); border-bottom: 2px solid #e7b84a; padding: 10px 20px; font-weight: 600; color: var(--hati); }
+  .simulasi span { font-weight: 400; }
+  header, main { max-width: 1100px; margin: 0 auto; padding: 14px 20px; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  h1 { font-size: 22px; margin: 4px 0; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  h3 { font-size: 15px; margin: 16px 0 6px; }
+  .kecil { color: var(--redup); font-size: 13px; }
+  section { background: var(--kartu); border: 1px solid var(--garis); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  input, select { font: inherit; padding: 6px; border: 1px solid var(--garis); border-radius: 6px; background: #fff; }
+  input[type=email] { width: 100%; max-width: 420px; }
+  button { font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--aksen); background: var(--aksen); color: #fff; cursor: pointer; }
+  button.biasa { background: #fff; color: var(--aksen); }
+  button:disabled { opacity: .5; cursor: default; }
+  .tab { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .tab button { background: #fff; color: var(--aksen); }
+  .tab button.aktif { background: var(--aksen); color: #fff; }
+  .alat { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .pesan { padding: 10px 12px; border-radius: 6px; margin-top: 12px; }
+  .pesan.salah { background: var(--awas-latar); color: var(--awas); }
+  .pesan.baik { background: #e8f5ee; color: var(--baik); }
+  .pesan.tunggu { background: var(--hati-latar); color: var(--hati); }
+  .gulir { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--garis); vertical-align: top; white-space: nowrap; }
+  td.lebar { white-space: normal; min-width: 220px; }
+  th { font-size: 13px; color: var(--redup); font-weight: 600; cursor: default; }
+  th.urut { cursor: pointer; text-decoration: underline dotted; }
+  td.angka, th.angka { text-align: right; }
+  tr.klik { cursor: pointer; }
+  tr.klik:hover { background: #eef3fb; }
+  .status-alpha { color: var(--awas); font-weight: 600; }
+  .status-libur { color: var(--redup); }
+  .rahasia { color: var(--hati); font-style: italic; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="simulasi" role="note">DEMO · <span>Pemasangan demo berisi data simulasi. Halaman ini hanya untuk melihat; tidak ada yang bisa diubah dari sini.</span></div>
+<header>
+  <div>
+    <h1>Web HRD</h1>
+    <div class="kecil" id="siapa">Masuk dengan kode yang dikirim ke email akun HRD. Sesi berlaku 2 jam, berakhir bila 30 menit tidak dipakai.</div>
+  </div>
+  <button class="biasa" id="keluar" hidden>Keluar</button>
+</header>
+<main>
+  <section id="bagian-masuk">
+    <h2>Masuk</h2>
+    <form id="form-email">
+      <label for="email">Email akun HRD</label>
+      <input type="email" id="email" required autocomplete="email">
+      <div><button type="submit" id="minta" style="margin-top:12px">Kirim kode</button></div>
+    </form>
+    <form id="form-kode" hidden>
+      <label for="kode-email">Kode 6 angka dari email</label>
+      <input type="text" id="kode-email" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" required autocomplete="one-time-code" style="width:160px">
+      <div><button type="submit" id="tukar" style="margin-top:12px">Masuk</button></div>
+    </form>
+    <div id="pesan-masuk"></div>
+  </section>
+
+  <div id="isi" hidden>
+    <div class="tab" role="tablist">
+      <button data-tab="periode" class="aktif">Periode</button>
+      <button data-tab="gaji">Gaji</button>
+      <button data-tab="cek">Perlu dicek</button>
+      <button data-tab="keberatan">Keberatan</button>
+    </div>
+    <div id="pesan-isi"></div>
+
+    <section id="tab-periode">
+      <h2>Periode gaji</h2>
+      <div class="kecil">Total tidak termasuk orang yang gajinya rahasia (sama dengan tab Ringkasan di Sheets). Total lengkap hanya untuk bos lewat bot dengan PIN.</div>
+      <div class="gulir"><table id="tabel-periode"></table></div>
+    </section>
+
+    <section id="tab-gaji" hidden>
+      <h2>Gaji per orang</h2>
+      <div class="alat">
+        <select id="pilih-periode-gaji" aria-label="Periode"></select>
+        <input type="search" id="cari" placeholder="Cari ID atau nama" aria-label="Cari">
+        <span class="kecil" id="jumlah-gaji"></span>
+      </div>
+      <div class="gulir"><table id="tabel-gaji"></table></div>
+      <div id="lebih-gaji"></div>
+    </section>
+
+    <section id="tab-orang" hidden>
+      <div class="alat"><button class="biasa" id="kembali">← Kembali ke daftar gaji</button></div>
+      <h2 id="judul-orang"></h2>
+      <div id="ringkas-orang"></div>
+      <h3>Komponen gaji</h3>
+      <div class="gulir"><table id="tabel-komponen"></table></div>
+      <h3>Status harian</h3>
+      <div class="gulir"><table id="tabel-harian"></table></div>
+      <h3>Perintah HRD untuk orang ini di periode ini</h3>
+      <div class="gulir"><table id="tabel-perintah"></table></div>
+    </section>
+
+    <section id="tab-cek" hidden>
+      <h2>Perlu dicek</h2>
+      <div class="alat"><select id="pilih-periode-cek" aria-label="Periode"></select><span class="kecil" id="jumlah-cek"></span></div>
+      <div class="gulir"><table id="tabel-cek"></table></div>
+    </section>
+
+    <section id="tab-keberatan" hidden>
+      <h2>Keberatan karyawan</h2>
+      <div class="kecil">Menjawab keberatan lewat bot Telegram (tombol Terima/Tolak atau /keberatan).</div>
+      <div class="gulir"><table id="tabel-keberatan"></table></div>
+    </section>
+  </div>
+</main>
+<script>
+(() => {
+  "use strict";
+  // Paket 9a (docs/rencana-9a.md). Semua isi dari server ditulis lewat textContent (C2); kode sesi hanya di memori
+  // dan sessionStorage, dikirim di isi POST, tidak pernah di alamat (C3).
+  const $ = (id) => document.getElementById(id);
+  const KUNCI = "future-absensi-sesi-hrd";
+  let fungsi = "";
+  let sesi = "";
+  let periode = [];
+  let gaji = [];
+  let urutGaji = { kolom: "id", naik: true };
+  let tampilGaji = 200;
+
+  function el(tag, teks, kelas) {
+    const e = document.createElement(tag);
+    if (teks !== undefined && teks !== null) e.textContent = String(teks);
+    if (kelas) e.className = kelas;
+    return e;
+  }
+  function pesan(wadah, jenis, teks) {
+    wadah.replaceChildren();
+    if (!teks) return;
+    wadah.appendChild(el("div", teks, "pesan " + jenis));
+  }
+  const rupiah = (n) => n === null || n === undefined ? "" : "Rp" + Number(n).toLocaleString("id-ID");
+  const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const HARI = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+  function tanggal(iso, hari) {
+    if (!iso) return "";
+    const t = new Date(String(iso).slice(0, 10) + "T00:00:00Z");
+    return (hari ? HARI[t.getUTCDay()] + ", " : "") + t.getUTCDate() + " " + BULAN[t.getUTCMonth()] + " " + t.getUTCFullYear();
+  }
+  function jam(iso) {
+    if (!iso) return "";
+    const t = new Date(new Date(iso).getTime() + 7 * 3600 * 1000);
+    return String(t.getUTCHours()).padStart(2, "0") + "." + String(t.getUTCMinutes()).padStart(2, "0");
+  }
+  function waktu(iso) {
+    return iso ? tanggal(iso) + " " + jam(iso) : "";
+  }
+  const STATUS = { hadir: "hadir", alpha: "alpha", sakit: "sakit", izin: "izin", cuti: "cuti", dinas_luar: "dinas luar", libur: "libur",
+                   lembur_hari_libur: "masuk di hari libur", menunggu: "menunggu data", tanpa_tap_massal: "mesin tidak mengirim" };
+  const STATUS_PERIODE = { terbuka: "terbuka", menunggu_data: "menunggu data", dihitung: "dihitung", diajukan: "diajukan",
+                           disetujui: "disetujui", dirilis: "dirilis", dikunci: "dirilis, pesan gaji terkirim" };
+
+  function baris(tabel, judul, isiBaris, angka) {
+    tabel.replaceChildren();
+    const kepala = el("tr");
+    judul.forEach((j, i) => kepala.appendChild(el("th", j, angka && angka.includes(i) ? "angka" : "")));
+    tabel.appendChild(kepala);
+    for (const sel of isiBaris) {
+      const tr = el("tr");
+      sel.forEach((s, i) => {
+        if (s instanceof Node) { const td = el("td"); td.appendChild(s); tr.appendChild(td); }
+        else tr.appendChild(el("td", s, angka && angka.includes(i) ? "angka" : ""));
+      });
+      tabel.appendChild(tr);
+    }
+    if (!isiBaris.length) {
+      const tr = el("tr");
+      const td = el("td", "Tidak ada data.", "kecil");
+      td.colSpan = judul.length;
+      tr.appendChild(td);
+      tabel.appendChild(tr);
+    }
+  }
+
+  async function panggil(jalur, badan) {
+    const r = await fetch(fungsi + "?jalur=" + jalur, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: JSON.stringify(badan),
+      cache: "no-store",
+    });
+    let isi = {};
+    try { isi = await r.json(); } catch { isi = { alasan: "Jawaban server tidak terbaca (" + r.status + ")." }; }
+    return { status: r.status, isi };
+  }
+
+  async function baca(aksi, tambahan) {
+    let r;
+    try { r = await panggil("hrd", Object.assign({ sesi, aksi }, tambahan || {})); } catch {
+      pesan($("pesan-isi"), "salah", "Server tidak bisa dihubungi. Coba lagi sebentar.");
+      return null;
+    }
+    if (r.status === 401) { keluarLokal(r.isi.alasan || "Sesi berakhir. Masuk lagi."); return null; }
+    if (r.status !== 200) { pesan($("pesan-isi"), "salah", r.isi.alasan || "Permintaan gagal (" + r.status + ")."); return null; }
+    pesan($("pesan-isi"), "", "");
+    return r.isi.data;
+  }
+
+  function keluarLokal(alasan) {
+    sesi = "";
+    try { sessionStorage.removeItem(KUNCI); } catch {}
+    $("isi").hidden = true;
+    $("keluar").hidden = true;
+    $("bagian-masuk").hidden = false;
+    $("form-email").hidden = false;
+    $("form-kode").hidden = true;
+    pesan($("pesan-masuk"), alasan ? "tunggu" : "", alasan || "");
+  }
+
+  // ---- Masuk -------------------------------------------------------------------------------------------------
+  $("form-email").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("minta").disabled = true;
+    try {
+      const r = await panggil("hrd_minta_kode", { email: $("email").value });
+      if (r.status === 200) {
+        pesan($("pesan-masuk"), "baik", r.isi.pesan || "Bila email terdaftar, kode sudah dikirim.");
+        $("form-kode").hidden = false;
+        $("kode-email").focus();
+      } else pesan($("pesan-masuk"), "salah", r.isi.alasan || "Gagal meminta kode.");
+    } catch { pesan($("pesan-masuk"), "salah", "Server tidak bisa dihubungi."); }
+    $("minta").disabled = false;
+  });
+  $("form-kode").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("tukar").disabled = true;
+    try {
+      const r = await panggil("hrd_masuk", { email: $("email").value, kode: $("kode-email").value });
+      if (r.status === 200 && r.isi.sesi) {
+        sesi = r.isi.sesi;
+        try { sessionStorage.setItem(KUNCI, sesi); } catch {}
+        $("kode-email").value = "";
+        await mulaiIsi(r.isi.label);
+      } else pesan($("pesan-masuk"), "salah", r.isi.alasan || "Gagal masuk.");
+    } catch { pesan($("pesan-masuk"), "salah", "Server tidak bisa dihubungi."); }
+    $("tukar").disabled = false;
+  });
+  $("keluar").addEventListener("click", async () => {
+    try { await panggil("hrd", { sesi, aksi: "keluar" }); } catch {}
+    keluarLokal("Sudah keluar.");
+  });
+
+  // ---- Tab ---------------------------------------------------------------------------------------------------
+  function bukaTab(nama) {
+    for (const b of document.querySelectorAll(".tab button")) b.classList.toggle("aktif", b.dataset.tab === nama);
+    for (const t of ["periode", "gaji", "orang", "cek", "keberatan"]) $("tab-" + t).hidden = t !== nama;
+  }
+  for (const b of document.querySelectorAll(".tab button")) {
+    b.addEventListener("click", async () => {
+      bukaTab(b.dataset.tab);
+      if (b.dataset.tab === "gaji") await muatGaji();
+      if (b.dataset.tab === "cek") await muatCek();
+      if (b.dataset.tab === "keberatan") await muatKeberatan();
+    });
+  }
+
+  async function mulaiIsi(label) {
+    const data = await baca("ringkasan");
+    if (!data) return;
+    periode = data;
+    $("bagian-masuk").hidden = true;
+    $("isi").hidden = false;
+    $("keluar").hidden = false;
+    if (label) $("siapa").textContent = "Masuk sebagai " + label + ". Sesi 2 jam, berakhir bila 30 menit tidak dipakai.";
+    tulisPeriode();
+    isiPilihan($("pilih-periode-gaji"));
+    isiPilihan($("pilih-periode-cek"));
+    bukaTab("periode");
+  }
+
+  function namaPeriode(p) { return "No. " + p.id + " · " + tanggal(p.awal) + " – " + tanggal(p.akhir); }
+  function isiPilihan(sel) {
+    sel.replaceChildren();
+    const ada = periode.filter((p) => p.ada_gaji);
+    for (const p of ada) { const o = el("option", namaPeriode(p)); o.value = p.id; sel.appendChild(o); }
+    if (ada.length) sel.value = ada[ada.length - 1].id;
+  }
+
+  function tulisPeriode() {
+    baris($("tabel-periode"),
+      ["No.", "Tanggal", "Bayar", "Status", "Orang", "Pendapatan", "Potongan", "Gaji bersih", "Transfer", "Tunai", "Orang rahasia", ""],
+      periode.map((p) => {
+        const lihat = el("button", "Lihat gaji", "biasa");
+        lihat.disabled = !p.ada_gaji;
+        lihat.addEventListener("click", async () => {
+          $("pilih-periode-gaji").value = p.id;
+          bukaTab("gaji");
+          await muatGaji();
+        });
+        return [p.id, tanggal(p.awal) + " – " + tanggal(p.akhir), tanggal(p.bayar), p.status_rilis || STATUS_PERIODE[p.status] || p.status,
+                p.ada_gaji ? p.orang : "", p.ada_gaji ? rupiah(p.pendapatan) : "", p.ada_gaji ? rupiah(p.potongan) : "",
+                p.ada_gaji ? rupiah(p.bersih) : "", p.ada_gaji ? rupiah(p.transfer) : "", p.ada_gaji ? rupiah(p.tunai) : "",
+                p.ada_gaji ? p.rahasia : "", lihat];
+      }), [4, 5, 6, 7, 8, 9, 10]);
+  }
+
+  // ---- Gaji --------------------------------------------------------------------------------------------------
+  async function muatGaji() {
+    const id = $("pilih-periode-gaji").value;
+    if (!id) return;
+    const data = await baca("gaji", { periode_id: id });
+    if (!data) return;
+    gaji = data;
+    tampilGaji = 200;
+    tulisGaji();
+  }
+  $("pilih-periode-gaji").addEventListener("change", muatGaji);
+  $("cari").addEventListener("input", () => { tampilGaji = 200; tulisGaji(); });
+
+  function tulisGaji() {
+    const kata = $("cari").value.trim().toLowerCase();
+    let daftar = gaji.filter((o) => !kata || String(o.id).toLowerCase().includes(kata) || String(o.nama).toLowerCase().includes(kata));
+    const k = urutGaji.kolom;
+    daftar = daftar.slice().sort((a, b) => {
+      // Orang rahasia selalu di bawah saat diurutkan menurut uang (tidak ada angka untuk dibandingkan).
+      if (k === "bersih" || k === "dibayar") {
+        if (a.rahasia !== b.rahasia) return a.rahasia ? 1 : -1;
+        return (Number(a[k]) - Number(b[k])) * (urutGaji.naik ? 1 : -1);
+      }
+      return String(a[k] || "").localeCompare(String(b[k] || ""), "id") * (urutGaji.naik ? 1 : -1);
+    });
+    $("jumlah-gaji").textContent = daftar.length + " orang" + (daftar.length > tampilGaji ? " (tampil " + tampilGaji + ")" : "");
+    const tabel = $("tabel-gaji");
+    const kolom = [["id", "ID"], ["nama", "Nama"], ["divisi", "Divisi"], ["cara", "Cara bayar"], ["bersih", "Gaji bersih"], ["dibayar", "Dibayar"]];
+    tabel.replaceChildren();
+    const kepala = el("tr");
+    for (const [kunci, judul] of kolom) {
+      const th = el("th", judul + (urutGaji.kolom === kunci ? (urutGaji.naik ? " ▲" : " ▼") : ""), "urut" + (kunci === "bersih" || kunci === "dibayar" ? " angka" : ""));
+      th.addEventListener("click", () => { urutGaji = { kolom: kunci, naik: urutGaji.kolom === kunci ? !urutGaji.naik : true }; tulisGaji(); });
+      kepala.appendChild(th);
+    }
+    kepala.appendChild(el("th", "Peringatan"));
+    tabel.appendChild(kepala);
+    for (const o of daftar.slice(0, tampilGaji)) {
+      const tr = el("tr", null, "klik");
+      tr.appendChild(el("td", o.id));
+      tr.appendChild(el("td", o.nama));
+      tr.appendChild(el("td", o.divisi || ""));
+      tr.appendChild(el("td", o.cara || ""));
+      if (o.rahasia) {
+        const td = el("td", "rahasia", "rahasia");
+        td.colSpan = 2;
+        tr.appendChild(td);
+      } else {
+        tr.appendChild(el("td", rupiah(o.bersih), "angka"));
+        tr.appendChild(el("td", rupiah(o.dibayar), "angka"));
+      }
+      tr.appendChild(el("td", (o.peringatan || []).join(", "), "kecil"));
+      tr.addEventListener("click", () => bukaOrang(o.id));
+      tabel.appendChild(tr);
+    }
+    const lebih = $("lebih-gaji");
+    lebih.replaceChildren();
+    if (daftar.length > tampilGaji) {
+      const b = el("button", "Tampilkan 200 lagi", "biasa");
+      b.style.marginTop = "10px";
+      b.addEventListener("click", () => { tampilGaji += 200; tulisGaji(); });
+      lebih.appendChild(b);
+    }
+  }
+
+  // ---- Rincian orang -----------------------------------------------------------------------------------------
+  async function bukaOrang(id) {
+    const data = await baca("orang", { periode_id: $("pilih-periode-gaji").value, id_karyawan: id });
+    if (!data) return;
+    bukaTab("orang");
+    for (const b of document.querySelectorAll(".tab button")) b.classList.toggle("aktif", b.dataset.tab === "gaji");
+    $("judul-orang").textContent = data.id + " · " + data.nama + " · periode no. " + data.periode.id + " (" +
+      tanggal(data.periode.awal) + " – " + tanggal(data.periode.akhir) + ")";
+    const ringkas = $("ringkas-orang");
+    ringkas.replaceChildren();
+    if (data.rahasia) {
+      ringkas.appendChild(el("div", "Gaji orang ini rahasia. Angkanya hanya untuk bos lewat bot (Total lengkap, dengan PIN).", "pesan tunggu"));
+    } else if (data.gaji) {
+      const g = data.gaji;
+      ringkas.appendChild(el("div", "Pendapatan " + rupiah(g.pendapatan) + " · potongan " + rupiah(g.potongan) + " · gaji bersih " +
+        rupiah(g.bersih) + " · sisa lalu " + rupiah(g.sisa_lalu) + " · dibayar " + rupiah(g.dibayar) + " · sisa pembulatan " + rupiah(g.sisa)));
+      if (g.peringatan && g.peringatan.length) ringkas.appendChild(el("div", "Peringatan: " + g.peringatan.join(", "), "kecil"));
+    } else {
+      ringkas.appendChild(el("div", "Belum ada hitungan gaji untuk orang ini di periode ini.", "kecil"));
+    }
+    baris($("tabel-komponen"), ["Komponen", "Kelompok", "Nominal", "Dasar hitung"],
+      data.rahasia ? [] : (data.komponen || []).map((k) => [k.komponen, k.kelompok, rupiah(k.nominal), el("span", k.bukti, "kecil")]), [2]);
+    if (data.rahasia) {
+      $("tabel-komponen").replaceChildren(el("tr"));
+      $("tabel-komponen").firstChild.appendChild(el("td", "Rahasia.", "rahasia"));
+    }
+    baris($("tabel-harian"), ["Tanggal", "Status", "Asal", "Jadwal", "Masuk", "Pulang", "Telat", "Pulang cepat", "Lebih", "Lupa tap"],
+      (data.harian || []).map((h) => {
+        const s = el("span", STATUS[h.status] || h.status, h.status === "alpha" ? "status-alpha" : (h.status === "libur" ? "status-libur" : ""));
+        return [tanggal(h.tanggal, true), s, h.asal, h.kode_jadwal ? h.kode_jadwal + " " + jam(h.jadwal_masuk) + "–" + jam(h.jadwal_pulang) : "",
+                jam(h.masuk), jam(h.pulang), h.menit_telat ? h.menit_telat + " mnt" : "", h.menit_pulang_cepat ? h.menit_pulang_cepat + " mnt" : "",
+                h.menit_lebih ? h.menit_lebih + " mnt" : "", h.lupa_tap || ""];
+      }));
+    baris($("tabel-perintah"), ["No.", "Jenis", "Tanggal", "Asal", "Keadaan"],
+      (data.perintah || []).map((p) => [p.id, p.jenis, tanggal(p.mulai) + (p.selesai !== p.mulai ? " – " + tanggal(p.selesai) : ""), p.asal,
+                                        p.dibatalkan ? "dibatalkan" : "berlaku"]));
+  }
+  $("kembali").addEventListener("click", () => bukaTab("gaji"));
+
+  // ---- Perlu dicek -------------------------------------------------------------------------------------------
+  async function muatCek() {
+    const id = $("pilih-periode-cek").value;
+    if (!id) return;
+    const data = await baca("perlu_dicek", { periode_id: id });
+    if (!data) return;
+    $("jumlah-cek").textContent = data.length + " catatan";
+    baris($("tabel-cek"), ["Tingkat", "Jenis", "Karyawan", "Divisi/Mesin", "Tanggal", "Keterangan"],
+      data.map((a) => [a.tingkat, a.jenis, a.id_karyawan ? a.id_karyawan + " " + (a.nama || "") : "", [a.divisi, a.mesin].filter(Boolean).join(" / "),
+                       tanggal(a.tanggal) + (a.tanggal_akhir && a.tanggal_akhir !== a.tanggal ? " – " + tanggal(a.tanggal_akhir) : ""),
+                       el("span", a.keterangan)]));
+  }
+  $("pilih-periode-cek").addEventListener("change", muatCek);
+
+  // ---- Keberatan ---------------------------------------------------------------------------------------------
+  async function muatKeberatan() {
+    const data = await baca("keberatan");
+    if (!data) return;
+    baris($("tabel-keberatan"), ["No.", "Dikirim", "Karyawan", "Tanggal", "Alasan", "Keadaan", "Catatan HRD"],
+      data.map((k) => {
+        const alasan = el("span", k.alasan);
+        return [k.keberatan_id, waktu(k.waktu), k.id_karyawan + " " + k.nama, tanggal(k.tanggal, true), alasan,
+                k.terbuka ? "menunggu jawaban" : k.keputusan + " (" + waktu(k.diputuskan) + ")", k.catatan || ""];
+      }));
+    for (const td of $("tabel-keberatan").querySelectorAll("td:nth-child(5), td:nth-child(7)")) td.className = "lebar";
+  }
+
+  // ---- Awal --------------------------------------------------------------------------------------------------
+  async function mulai() {
+    try {
+      const a = await fetch("../unggah/alamat.json", { cache: "no-store" });
+      fungsi = (await a.json()).fungsi;
+    } catch {
+      pesan($("pesan-masuk"), "salah", "Halaman belum disiapkan (alamat server tidak ditemukan).");
+      return;
+    }
+    try { sesi = sessionStorage.getItem(KUNCI) || ""; } catch { sesi = ""; }
+    if (sesi) await mulaiIsi(null);
+  }
+  mulai();
+})();
+</script>
+</body>
+</html>

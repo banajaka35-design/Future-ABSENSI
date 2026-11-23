@@ -73,8 +73,8 @@ cek "tidak ada nilai dari luar di perintah run: workflow" \
 echo "== Header keamanan halaman (paket 6f, S3)"
 HDR="$(mktemp -d)"; cp -r web/demo/. "$HDR/"
 python3 web/buat_headers.py "$HDR" https://contoh.supabase.co > /dev/null 2>&1
-cek "_headers dibuat dengan sidik skrip kedua halaman + skrip dari halaman sendiri, tanpa unsafe-inline untuk skrip" \
-  "$(grep -c "script-src 'sha256-[^ ]*' 'sha256-[^ ]*' 'self';" "$HDR/_headers" 2>/dev/null)/$(grep -c "frame-ancestors 'none'" "$HDR/_headers" 2>/dev/null)" "1/1"
+cek "_headers dibuat dengan sidik skrip ketiga halaman (demo, unggah, web HRD 9a) + skrip dari halaman sendiri, tanpa unsafe-inline untuk skrip" \
+  "$(grep -c "script-src 'sha256-[^ ]*' 'sha256-[^ ]*' 'sha256-[^ ]*' 'self';" "$HDR/_headers" 2>/dev/null)/$(grep -c "frame-ancestors 'none'" "$HDR/_headers" 2>/dev/null)" "1/1"
 cp web/demo/index.html "$HDR/luar.html"; sed -i 's#<script src="grafik_inti.js">#<script src="https://jahat.example/x.js">#' "$HDR/index.html"
 cek "skrip dari situs lain ditolak pembuat header (G1)" \
   "$(python3 web/buat_headers.py "$HDR" https://contoh.supabase.co > /dev/null 2>&1; echo $?)" "1"
@@ -85,6 +85,13 @@ cek "halaman dengan penangan kejadian langsung (onclick) ditolak pembuat header"
 cek "asal Edge Function palsu ditolak pembuat header" \
   "$(python3 web/buat_headers.py "$HDR" https://jahat.example.com > /dev/null 2>&1; echo $?)" "1"
 rm -rf "$HDR"
+echo "== Web HRD (paket 9a, C2/C3)"
+cek "web HRD: tidak memakai innerHTML/outerHTML/insertAdjacentHTML/document.write (isi server hanya lewat textContent)" \
+  "$(grep -cE "innerHTML|outerHTML|insertAdjacentHTML|document\.write" web/demo/hrd/index.html || true)" "0"
+cek "web HRD: kode sesi tidak di localStorage dan tidak di alamat" \
+  "$(grep -cE "localStorage|[?&]sesi=|#sesi" web/demo/hrd/index.html || true)" "0"
+cek "web HRD: tidak memuat apa pun dari situs lain" \
+  "$(grep -cE "(src|href)=[\"']https?:" web/demo/hrd/index.html || true)" "0"
 
 echo "== F15b: kebocoran gaji rahasia Pabrik A (3 orang rahasia; tanda lembur divisi KTR periode Nov-Des)"
 KODE_BOCOR_A=0

@@ -363,6 +363,7 @@ Workflow pasang-supabase bentuknya sudah bisa dipakai ulang, tetapi isinya masih
 | Hak akun pembangun | Akun pembangun (pemilik) bisa semua, termasuk menyetujui rilis seperti bos (keputusan pemilik 19 Nov 2026) | Diputuskan ulang: aturan "dua orang" (HRD mengajukan, bos menyetujui) tidak berlaku bila pembangun mengajukan dan menyetujui sendiri | Saat pemasangan pertama |
 | Halaman demo publik (D1) | Terbit otomatis ke pages.dev sesudah setiap Isi Sheets; pengaman `db/cek_hanya_simulasi.sh` menolak terbit bila ada satu saja karyawan bukan simulasi | Proyek perusahaan tidak memakai workflow Terbitkan demo sama sekali; pengaman tetap dipasang di proyek demo | Sebelum klien pertama |
 | Akses Sheets untuk HRD (T2) | Editor hanya akun pemilik, akun konektor Claude, dan akun layanan | HRD diberi akses **lihat saja**: riwayat versi (yang bisa memuat gaji orang yang belakangan dijadikan rahasia) hanya terbuka untuk akun dengan hak edit [Kemungkinan Besar] | Saat pemasangan pertama |
+| Web HRD (9a) | Halaman `/hrd/` di situs demo publik, masuk dengan kode email, sesi 2 jam | Web HRD perusahaan memakai alamat sendiri (bukan situs demo, sesuai D1); sesi dan batasnya ditinjau ulang | Paket 9d / sebelum klien pertama |
 | Akses pembangun dan Claude ke gaji | Pembangun dan sesi Claude (penyambung Supabase, Sheets) bisa membaca semua gaji, termasuk orang rahasia | Pembangun tidak membaca gaji perusahaan kecuali diizinkan; penyambung Claude hanya dipakai untuk proyek demo | Saat pemasangan pertama |
 
 ## Belum dikerjakan, ditunda
