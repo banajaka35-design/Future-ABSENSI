@@ -39,6 +39,7 @@ const API_BOLEH = new Set([
   "pintu_atur_pin", "pintu_daftar_periode", "pintu_ajukan", "pintu_setujui", "pintu_rilis",
   "pintu_batal", "pintu_daftar_pin", "pintu_hapus_pin", "pintu_undang", "pintu_gabung", "pintu_minta_pin", "pintu_ambil_pin",
   "pintu_pengingat_rilis", "pintu_cabut_daftar", "pintu_cabut_akun",
+  "pintu_keberatan_siapkan", "pintu_keberatan_kirim", "pintu_keberatan_putuskan", "pintu_keberatan_daftar",
   "pintu_kirim_gaji_ambil", "pintu_kirim_gaji_hasil", "pintu_gaji_saya", "pintu_contoh_gaji",
   "pintu_periode_gaji", "pintu_total_lengkap",
   "pintu_perintah_siapkan", "pintu_perintah_simpan", "pintu_perintah_hasil", "pintu_batal_siapkan", "pintu_perintah_terakhir",
@@ -212,6 +213,16 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       await hapusPin(alat, chat, tg, Number(mesin));
       return null;
     }
+    // Paket 8e: keberatan (karyawan Kirim/Batal; HRD Terima/Tolak).
+    if (jenis === "e" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
+      await kirimKeberatan(alat, chat, tg, Number(mesin), asal === "y", tombol.message?.message_id);
+      return null;
+    }
+    if (jenis === "f" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
+      if (asal === "y") await putuskanKeberatan(alat, chat, tg, Number(mesin), true, null);
+      else await tanyaAlasanTolak(alat, chat, tg, Number(mesin));
+      return null;
+    }
     // Paket 8f: cabut akun (pilih -> konfirmasi Ya/Tidak).
     if (jenis === "k" && (asal === "p" || asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
       await tombolCabut(alat, chat, tg, asal, Number(mesin));
@@ -262,6 +273,11 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       await kirim(alat, pesan.chat.id, lebih !== undefined
         ? "Format salah. Buat PIN: 6 angka. Ganti PIN: PIN lama, spasi, PIN baru."
         : await aturPin(alat, pesan.from?.id, info.hrd, a, b), await papanAkun(alat, pesan.from?.id));
+      return null;
+    }
+    const tolakKeberatan = new RegExp(`^${TANYA_TOLAK_KEBERATAN} (\\d+)`).exec(ditanya);
+    if (tolakKeberatan) {
+      await putuskanKeberatan(alat, pesan.chat.id, pesan.from?.id, Number(tolakKeberatan[1]), false, jawab);
       return null;
     }
     if (ditanya.startsWith(TANYA_ID)) {
@@ -372,6 +388,11 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       else if (!/^\d+$/.test(lengkap[1])) await kirim(alat, pesan.chat.id, "Cara pakai: /lengkap <nomor periode>, lalu ketik PIN.");
       else if (!lengkap[2]) await mintaPin(alat, pesan.chat.id, pesan.from?.id, "lengkap", Number(lengkap[1]));
       else await totalLengkap(alat, pesan.chat.id, pesan.from?.id, Number(lengkap[1]), lengkap[2]);
+      return null;
+    }
+    const keberatan = /^\/keberatan(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(teks);
+    if (keberatan) {
+      await siapkanKeberatan(alat, pesan.chat.id, pesan.from?.id, (keberatan[1] ?? "").trim());
       return null;
     }
     const gaji = /^\/gaji(?:@\w+)?(?:\s+(\S+))?\s*$/i.exec(teks);
@@ -769,12 +790,14 @@ const MENU_HRD = [
   P("batalkanlembur", "Batalkan lembur: /batalkanlembur <ID atau divisi> <tanggal> [tanggal selesai]"),
   P("setujuiawal", "Setujui jam datang lebih awal jadi lembur: /setujuiawal <ID atau divisi> <tanggal>"),
   P("batalperintah", "Batalkan izin/sakit/cuti/kasbon/lembur: /batalperintah <nomor perintah>"), P("perintahku", "10 perintah chat terakhir"),
+  P("keberatan", "Keberatan karyawan yang belum dijawab"),
   P("bantuan", "Daftar perintah"),
 ];
 export const MENU: Record<string, Perintah[]> = {
   umum: [P("daftar", "Daftar karyawan dengan kode dari HRD"), P("gabung", "Gabung sebagai HRD/bos dengan kode undangan"),
          P("bantuan", "Daftar perintah")],
-  karyawan: [P("gaji", "Rincian gaji terakhir (atau /gaji <nomor>)"), P("bantuan", "Daftar perintah")],
+  karyawan: [P("gaji", "Rincian gaji terakhir (atau /gaji <nomor>)"),
+             P("keberatan", "Keberatan atas satu tanggal: /keberatan <tanggal> <alasan>"), P("bantuan", "Daftar perintah")],
   hrd: MENU_HRD,
   bos: [P("lengkap", "Total lengkap termasuk orang rahasia (dengan PIN)"), P("pin", "Buat atau ganti PIN"),
         P("bantuan", "Daftar perintah")],
@@ -805,13 +828,16 @@ const BANTUAN: Record<string, string> = {
     "misalnya /setujuilembur PRD 05-12-2026\n" +
     "/setujuiawal <ID atau kode divisi> <tanggal> [tanggal selesai] jam datang lebih awal ikut dihitung lembur\n" +
     "/batalperintah <nomor perintah> batalkan izin, sakit, cuti, kasbon, atau perintah lembur yang salah\n/perintahku 10 perintah chat terakhir\n" +
+    "/keberatan keberatan karyawan yang belum dijawab (dijawab dengan tombol Terima/Tolak)\n" +
     "Kirim file mesin sebagai dokumen untuk menghitung gaji.",
   bos: "Pengajuan rilis gaji dikirim ke chat ini dengan tombol Setujui dan Tolak. Bila belum dijawab, bot mengingatkan setiap pagi.\n" +
     "Total lengkap termasuk orang rahasia: tombol Total lengkap (atau /lengkap <nomor>), lalu ketik PIN. " +
     "PIN dibuat dengan tombol PIN (atau /pin <6 angka>).",
   pembangun: "",
   karyawan: "Rincian gaji dikirim lewat chat ini setelah gaji dirilis.\nTombol Gaji saya (atau /gaji) mengirim ulang " +
-    "rincian gaji terakhir; /gaji <nomor> untuk periode tertentu.",
+    "rincian gaji terakhir; /gaji <nomor> untuk periode tertentu.\n" +
+    "Ada yang tidak sesuai? /keberatan <tanggal> <alasan>, misalnya /keberatan 05-04-2026 saya masuk tapi tercatat alpha. " +
+    "Paling lambat 14 hari sesudah tanggal bayar. Tombol Keberatan (atau /keberatan saja) menampilkan keberatan Anda dan jawabannya.",
   umum: "Karyawan: minta kode daftar ke HRD, lalu ketik /daftar KODE.\nHRD atau bos: minta kode undangan ke pembangun, lalu ketik /gabung KODE.",
 };
 BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /tolak <nomor> (lalu ketik PIN)\n" +
@@ -823,7 +849,7 @@ BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /
 const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
   "kode", "unggah", "bantuan", "gaji", "contohgaji", "lengkap", "izin", "sakit", "cuti", "batalperintah", "perintahku", "kasbon",
   "cicilan", "lunas", "setujuilembur", "batalkanlembur",
-  "setujuiawal", "cabutakun"]);
+  "setujuiawal", "cabutakun", "keberatan"]);
 export function rapikanPerintah(teks: string): string {
   const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
@@ -835,7 +861,7 @@ export const TOMBOL_TETAP: Record<string, string[][]> = {
   pembangun: [["Kirim file", "Ajukan", "Rilis"], ["Perintah HRD", "Kode karyawan", "PIN"], ["Undang", "Hapus PIN", "Total lengkap"],
               ["Bantuan"]],
   bos: [["Total lengkap", "PIN"], ["Bantuan"]],
-  karyawan: [["Gaji saya", "Bantuan"]],
+  karyawan: [["Gaji saya", "Keberatan"], ["Bantuan"]],
 };
 export function papanTombol(peran: string | null): Record<string, unknown> {
   const baris = TOMBOL_TETAP[peran ?? ""];
@@ -851,7 +877,7 @@ const TEKS_TOMBOL: Record<string, string> = {
   "kirim file": "/unggah", "ajukan": "/ajukan", "rilis": "/rilis", "bantuan": "/bantuan", "hapus pin": "/hapuspin",
   "kode karyawan": "/tombol_kode", "pin": "/tombol_pin", "undang": "/tombol_undang",
   "gaji saya": "/gaji", "menu": "/bantuan", "total lengkap": "/lengkap", "perintah hrd": "/tombol_perintah",
-  "cabut akun": "/cabutakun",
+  "cabut akun": "/cabutakun", "keberatan": "/keberatan",
 };
 export function teksTombol(teks: string): string {
   return TEKS_TOMBOL[teks.trim().toLowerCase()] ?? teks;
@@ -860,6 +886,7 @@ export function teksTombol(teks: string): string {
 export const TANYA_ID = "Ketik ID karyawan yang dibuatkan kode daftar";
 export const TANYA_PIN = "Buat PIN: ketik 6 angka. Ganti PIN: ketik PIN lama, spasi, PIN baru";
 export const TANYA_PERINTAH = "Ketik perintah HRD sebagai balasan pesan ini";
+export const TANYA_TOLAK_KEBERATAN = "Ketik alasan menolak keberatan no.";
 
 const tombolRilis = (periode: number) => ({ reply_markup: { inline_keyboard: [[{ text: "Rilis (PIN)", callback_data: `r|y|${periode}` }]] } });
 // Paket 8b-4: baris tombol "Batalkan pengajuan" ditambahkan di bawah tombol lain.
@@ -1163,6 +1190,190 @@ async function daftarHapusPin(alat: Alat, chat: number, tg: number): Promise<voi
       callback_data: `h|y|${a.id}`,
     }]) },
   });
+}
+
+// Paket 8e: keberatan karyawan (docs/rencana-8e.md).
+const NAMA_STATUS_HARI: Record<string, string> = {
+  hadir: "hadir", alpha: "alpha (tidak hadir tanpa keterangan)", sakit: "sakit", izin: "izin", cuti: "cuti",
+  dinas_luar: "dinas luar", libur: "libur", lembur_hari_libur: "lembur di hari libur", menunggu: "menunggu data",
+  tanpa_tap_massal: "tanpa tap (mesin tidak mengirim)",
+};
+const NAMA_ASAL: Record<string, string> = {
+  mesin: "dari mesin", manual: "catatan manual", perintah: "perintah HRD", tidak_wajib_tap: "tidak wajib tap", jadwal: "dari jadwal",
+};
+export function jamTitik(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const t = new Date(new Date(iso).getTime() + 7 * 3600 * 1000);
+  return `${String(t.getUTCHours()).padStart(2, "0")}.${String(t.getUTCMinutes()).padStart(2, "0")}`;
+}
+export function tulisBukti(bukti: any): string[] {
+  const h = bukti?.hari;
+  const baris: string[] = [];
+  if (!h) {
+    baris.push("• Tidak ada catatan hari ini untuk Anda di hasil hitung terakhir.");
+  } else {
+    baris.push(`• Status: ${NAMA_STATUS_HARI[h.status] ?? h.status} (${NAMA_ASAL[h.asal] ?? h.asal})`);
+    if (h.kode_jadwal) baris.push(`• Jadwal: ${h.kode_jadwal} ${jamTitik(h.jadwal_masuk)}–${jamTitik(h.jadwal_pulang)}`);
+    else baris.push(`• Jadwal: tidak ada (${h.jenis_hari === "kerja" ? "hari kerja" : "hari libur"})`);
+    baris.push(`• Masuk ${jamTitik(h.masuk)}, pulang ${jamTitik(h.pulang)}`);
+    const menit: string[] = [];
+    if (Number(h.menit_telat) > 0) menit.push(`telat ${h.menit_telat} menit`);
+    if (Number(h.menit_pulang_cepat) > 0) menit.push(`pulang cepat ${h.menit_pulang_cepat} menit`);
+    if (Number(h.menit_lebih) > 0) menit.push(`lebih ${h.menit_lebih} menit`);
+    if (h.lupa_tap) menit.push(`lupa tap ${h.lupa_tap}`);
+    if (menit.length) baris.push(`• ${menit.join(", ")}`);
+  }
+  const tap = (bukti?.tap ?? []) as any[];
+  baris.push(tap.length ? `• Tap hari itu: ${tap.map((t) => `${jamTitik(t.waktu)} (${t.peran})`).join(", ")}` : "• Tap hari itu: tidak ada");
+  return baris;
+}
+function tulisPeriode(p: any): string {
+  return `periode no. ${p.id}, ${tulisTanggal(String(p.awal), false)} – ${tulisTanggal(String(p.akhir), false)}`;
+}
+const CARA_KEBERATAN = "Cara pakai: /keberatan <tanggal> <alasan>, misalnya /keberatan 05-04-2026 saya masuk tapi tercatat alpha.";
+
+async function siapkanKeberatan(alat: Alat, chat: number, tg: number, isi: string): Promise<void> {
+  if (!isi) {
+    await daftarKeberatan(alat, chat, tg);
+    return;
+  }
+  const [kataTanggal, ...sisa] = isi.split(/\s+/);
+  const tanggal = bacaTanggal(kataTanggal, alat.sekarang());
+  if (!tanggal) {
+    await kirim(alat, chat, `Tanggal "${kataTanggal}" tidak dikenali atau tidak ada. ${CARA_KEBERATAN}`);
+    return;
+  }
+  const r = await alat.api("pintu_keberatan_siapkan", { telegram_id: tg, tanggal, alasan: sisa.join(" ") });
+  switch (r.hasil) {
+    case "siap":
+      await kirim(alat, chat, [
+        `Keberatan untuk ${tulisTanggal(String(r.tanggal))} (${tulisPeriode(r.periode)}):`,
+        `Alasan: ${r.alasan}`, "", "Catatan sistem untuk hari itu:", ...tulisBukti(r.bukti), "",
+        "Kirim keberatan ini ke HRD?",
+      ].join("\n"), { reply_markup: { inline_keyboard: [[{ text: "Kirim", callback_data: `e|y|${r.draf_id}` },
+                                                         { text: "Batal", callback_data: `e|n|${r.draf_id}` }]] } });
+      return;
+    default:
+      await kirim(alat, chat, alasanTolakKeberatan(r));
+  }
+}
+
+function alasanTolakKeberatan(r: any): string {
+  switch (r?.hasil) {
+    case "bukan_karyawan": return "Keberatan hanya untuk akun karyawan. Karyawan: minta kode daftar ke HRD, lalu ketik /daftar KODE.";
+    case "alasan_kosong": return `Tulis alasannya. ${CARA_KEBERATAN}`;
+    case "alasan_panjang": return "Alasan terlalu panjang (paling banyak 300 huruf).";
+    case "tanggal_depan": return "Tanggal itu belum lewat.";
+    case "tanpa_periode": return "Tanggal itu tidak termasuk periode gaji mana pun.";
+    case "belum_dihitung": return "Hari itu belum dihitung sistem. Coba lagi setelah data mesin masuk.";
+    case "lewat_batas": return `Batas keberatan untuk periode itu sudah lewat (paling lambat ${tulisTanggal(String(r.batas))}). Hubungi HRD langsung.`;
+    case "sudah_ada": return `Keberatan no. ${r.keberatan_id} untuk tanggal itu masih menunggu jawaban HRD.`;
+    case "terlalu_banyak": return "Paling banyak 5 keberatan per hari. Coba lagi besok.";
+    default: return "Keberatan ini sudah tidak berlaku (dikirim, dibatalkan, atau lewat 10 menit). Ketik /keberatan lagi.";
+  }
+}
+
+async function kirimKeberatan(alat: Alat, chat: number, tg: number, draf: number, ya: boolean, pesanId?: number): Promise<void> {
+  const r = await alat.api("pintu_keberatan_kirim", { telegram_id: tg, draf_id: draf, ya });
+  if (pesanId !== undefined && r?.hasil !== "tidak_ada") {
+    try {
+      await alat.telegram("editMessageReplyMarkup", { chat_id: chat, message_id: pesanId, reply_markup: { inline_keyboard: [] } });
+    } catch {
+      // tombol yang tertinggal tidak berlaku lagi (dijaga database)
+    }
+  }
+  if (r.hasil === "dibatalkan") {
+    await kirim(alat, chat, "Keberatan tidak jadi dikirim.");
+    return;
+  }
+  if (r.hasil !== "dikirim") {
+    await kirim(alat, chat, alasanTolakKeberatan(r));
+    return;
+  }
+  await kirim(alat, chat, `Keberatan no. ${r.keberatan_id} terkirim ke HRD. Jawabannya akan dikirim ke chat ini.`);
+  const teks = [
+    `Keberatan no. ${r.keberatan_id} dari ${r.id_karyawan} ${r.nama}`,
+    `Tanggal: ${tulisTanggal(String(r.tanggal))} (${tulisPeriode(r.periode)}${r.dirilis ? ", gaji sudah dirilis" : ""})`,
+    `Alasan: ${r.alasan}`, "", "Catatan sistem saat keberatan dikirim:", ...tulisBukti(r.bukti),
+  ].join("\n");
+  const tombol = { reply_markup: { inline_keyboard: [[{ text: "Terima", callback_data: `f|y|${r.keberatan_id}` },
+                                                      { text: "Tolak", callback_data: `f|n|${r.keberatan_id}` }]] } };
+  for (const t of (r.penerima ?? []) as number[]) await kirimAman2(alat, t, teks, tombol);
+}
+
+async function tanyaAlasanTolak(alat: Alat, chat: number, tg: number, keberatan: number): Promise<void> {
+  const r = await alat.api("pintu_keberatan_daftar", { telegram_id: tg });
+  if (r.hasil !== "hrd") {
+    await kirim(alat, chat, "Hanya HRD atau pembangun yang bisa menjawab keberatan.");
+    return;
+  }
+  await kirim(alat, chat, `${TANYA_TOLAK_KEBERATAN} ${keberatan} (balas pesan ini). Alasan dikirim ke karyawan.`,
+    { reply_markup: { force_reply: true, input_field_placeholder: "alasan penolakan" } });
+}
+
+async function putuskanKeberatan(alat: Alat, chat: number, tg: number, keberatan: number, terima: boolean,
+                                 catatan: string | null): Promise<void> {
+  const r = await alat.api("pintu_keberatan_putuskan", { telegram_id: tg, keberatan_id: keberatan, terima, catatan });
+  switch (r.hasil) {
+    case "diputuskan": break;
+    case "bukan_hrd": await kirim(alat, chat, "Hanya HRD atau pembangun yang bisa menjawab keberatan."); return;
+    case "tidak_ada": await kirim(alat, chat, "Keberatan tidak ditemukan."); return;
+    case "sudah_diputuskan":
+      await kirim(alat, chat, `Keberatan no. ${r.keberatan_id} sudah dijawab (${r.keputusan}) oleh ${r.oleh}.`); return;
+    case "alasan_wajib": await kirim(alat, chat, "Alasan penolakan wajib diisi. Tekan Tolak lagi lalu balas dengan alasannya."); return;
+    case "catatan_panjang": await kirim(alat, chat, "Alasan terlalu panjang (paling banyak 300 huruf)."); return;
+    default: await kirim(alat, chat, "Keberatan tidak bisa dijawab."); return;
+  }
+  const hari = tulisTanggal(String(r.tanggal));
+  const diterima = r.keputusan === "diterima";
+  const tindak = diterima
+    ? (r.dirilis
+      ? "Gaji periode itu sudah dirilis dan tidak bisa dihitung ulang sistem; selisihnya dibayar HRD di luar gaji periode ini."
+      : "Perbaiki lewat perintah HRD (misalnya /izin, /sakit, /setujuilembur) supaya gaji dihitung ulang.")
+    : "";
+  await kirim(alat, chat, `Keberatan no. ${r.keberatan_id} (${r.id_karyawan} ${r.nama}, ${hari}) ${r.keputusan}.` +
+    (tindak ? `\n${tindak}` : "") + (r.karyawan_telegram ? "" : "\nKaryawan ini tidak punya akun aktif; jawaban tidak terkirim."));
+  for (const t of (r.penerima ?? []) as number[]) {
+    await kirimAman2(alat, t, `Keberatan no. ${r.keberatan_id} (${r.id_karyawan}, ${hari}) sudah ${r.keputusan}` +
+      (r.catatan ? `: ${r.catatan}` : "."), {});
+  }
+  if (r.karyawan_telegram) {
+    const teks = diterima
+      ? `Keberatan no. ${r.keberatan_id} untuk ${hari} DITERIMA HRD.` + (r.catatan ? ` Catatan: ${r.catatan}` : "") +
+        (r.dirilis ? "\nGaji periode itu sudah dirilis; selisihnya dibayar HRD di luar gaji periode ini." :
+                     "\nHRD akan memperbaiki catatannya; gaji dihitung ulang sebelum dirilis.")
+      : `Keberatan no. ${r.keberatan_id} untuk ${hari} DITOLAK HRD.\nAlasan: ${r.catatan}`;
+    await kirimAman2(alat, Number(r.karyawan_telegram), teks, {});
+  }
+}
+
+async function daftarKeberatan(alat: Alat, chat: number, tg: number): Promise<void> {
+  const r = await alat.api("pintu_keberatan_daftar", { telegram_id: tg });
+  if (r.hasil === "karyawan") {
+    const d = (r.daftar ?? []) as any[];
+    await kirim(alat, chat, (d.length
+      ? ["Keberatan Anda (10 terakhir):", ...d.map((k) => `• No. ${k.keberatan_id}, ${tulisTanggal(String(k.tanggal))}: ` +
+          (k.keputusan ? `${k.keputusan}${k.catatan ? ` (${k.catatan})` : ""}` : "menunggu jawaban HRD"))].join("\n") + "\n\n"
+      : "Belum ada keberatan.\n\n") + CARA_KEBERATAN);
+    return;
+  }
+  if (r.hasil === "hrd") {
+    const d = (r.daftar ?? []) as any[];
+    if (!d.length) {
+      await kirim(alat, chat, "Tidak ada keberatan yang menunggu jawaban.");
+      return;
+    }
+    await kirim(alat, chat, `Keberatan menunggu jawaban: ${r.jumlah}` + (Number(r.jumlah) > d.length ? ` (${d.length} terlama ditampilkan)` : "") + ".", {
+      reply_markup: { inline_keyboard: d.map((k) => [
+        { text: `Terima no. ${k.keberatan_id} ${k.id_karyawan} ${tulisTanggal(String(k.tanggal), false)}`, callback_data: `f|y|${k.keberatan_id}` },
+        { text: "Tolak", callback_data: `f|n|${k.keberatan_id}` }]) },
+    });
+    for (const k of d.slice(0, 5)) {
+      await kirim(alat, chat, `No. ${k.keberatan_id}: ${k.id_karyawan} ${k.nama}, ${tulisTanggal(String(k.tanggal))}\nAlasan: ${k.alasan}`);
+    }
+    return;
+  }
+  await kirim(alat, chat, alasanTolakKeberatan({ hasil: "bukan_karyawan" }));
 }
 
 // Paket 8f: pembangun mencabut akun HRD, bos, atau karyawan.
@@ -1803,7 +2014,7 @@ export function susunPesanGaji(x: any, judul = "RINCIAN GAJI"): string[] {
     baris.push("", "Dibayar perusahaan untuk Anda (tidak memotong gaji):");
     for (const c of perusahaan) baris.push(`- ${labelKomponen(c.komponen)}: ${rupiah(c.nominal)}`);
   }
-  baris.push("", "Ada yang tidak sesuai? Hubungi HRD.");
+  baris.push("", "Ada yang tidak sesuai? Ketik /keberatan <tanggal> <alasan>, misalnya /keberatan 05-04-2026 saya masuk tapi tercatat alpha.");
   const pesan: string[] = [];
   let kini = "";
   for (const b of baris) {

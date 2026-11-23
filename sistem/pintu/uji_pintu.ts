@@ -13,7 +13,7 @@ import { gunzipSync } from "node:zlib";
 import { PESAN, urai } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
-  TOMBOL_TETAP, TANYA_PERINTAH, CARA_PERINTAH, CARA_KASBON, bacaUang, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
+  TOMBOL_TETAP, TANYA_PERINTAH, TANYA_TOLAK_KEBERATAN, tulisBukti, CARA_PERINTAH, CARA_KASBON, bacaUang, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
   webStatus, webTukarKode, webUnggah, type Alat,
 } from "./inti.ts";
 
@@ -1767,4 +1767,80 @@ test("8f: /cabutakun hanya pembangun; bos dicabut lewat tombol (pilih -> Ya), di
   assert.match((await kirimUpdate(teksPribadi(10811, BOS_CABUT, `/gabung ${await undang(10810)}`))).pesan[0].text, /^Terdaftar sebagai bos\./);
   assert.equal(nilai(`select count(*) from induk.pengguna where telegram_id = ${BOS_CABUT} and aktif and id <> ${idBos}`), "1");
   assert.ok(MENU.pembangun.some((x) => x.command === "cabutakun") && !MENU.hrd.some((x) => x.command === "cabutakun"));
+});
+
+// ---------------------------------------------------------------------------
+// Paket 8e: keberatan karyawan (docs/rencana-8e.md).
+// ---------------------------------------------------------------------------
+test("8e: karyawan /keberatan -> bukti -> Kirim; HRD dan pembangun menerima Terima/Tolak; tolak beralasan; karyawan dikabari", async () => {
+  const hari = hariIni();
+  if (nilai(`select count(*) from fakta.periode where '${hari}'::date between tanggal_awal and tanggal_akhir`) === "0") {
+    nilai(`insert into fakta.periode (tanggal_awal, tanggal_akhir, tanggal_bayar)
+           select greatest(max(tanggal_akhir) + 1, '${hari}'::date - 20), '${hari}'::date + 20, '${hari}'::date + 25 from fakta.periode`);
+  }
+  const periode = nilai(`select id from fakta.periode where '${hari}'::date between tanggal_awal and tanggal_akhir`);
+  nilai(`select hitung.baca_tap(${periode})`);
+  const [kTg, kId] = nilai(`select telegram_id || '|' || id_karyawan from induk.pengguna where peran = 'karyawan' and aktif
+                            and telegram_id is not null and id_karyawan is not null order by id limit 1`).split("|");
+  const K = Number(kTg);
+  const [y, m, d] = hari.split("-");
+  const tgl = `${d}-${m}-${y}`;
+
+  assert.match((await kirimUpdate(teksPribadi(10901, K, "/keberatan"))).pesan[0].text, /^Belum ada keberatan\.\n\nCara pakai: \/keberatan/);
+  assert.match((await kirimUpdate(teksPribadi(10902, K, "/keberatan 31-02-2026 salah"))).pesan[0].text, /^Tanggal "31-02-2026" tidak dikenali/);
+  assert.match((await kirimUpdate(teksPribadi(10903, K, `/keberatan ${tgl}`))).pesan[0].text, /^Tulis alasannya\./);
+  assert.match((await kirimUpdate(teksPribadi(10904, HRD, `/keberatan ${tgl} coba`))).pesan[0].text, /^Keberatan hanya untuk akun karyawan/);
+
+  const draf = (await kirimUpdate(teksPribadi(10905, K, `keberatan ${tgl} saya masuk tapi tercatat alpha`))).pesan[0];
+  assert.match(draf.text, new RegExp(`^Keberatan untuk .+ \\(periode no\\. ${periode}, .+\\):\\nAlasan: saya masuk tapi tercatat alpha\\n\\nCatatan sistem untuk hari itu:\\n• `));
+  assert.match(draf.text, /• Tap hari itu: /);
+  assert.match(draf.text, /\n\nKirim keberatan ini ke HRD\?$/);
+  assert.doesNotMatch(draf.text, /Rp/);
+  const [kirimTombol] = draf.reply_markup.inline_keyboard[0];
+  assert.match((await kirimUpdate(tekanTombol(10906, HRD, kirimTombol.callback_data))).pesan[0].text, /sudah tidak berlaku/);
+
+  const k = await kirimUpdate(tekanTombol(10907, K, kirimTombol.callback_data));
+  const no = /^Keberatan no\. (\d+) terkirim ke HRD\./.exec(pesanKe(k, K)[0].text)?.[1];
+  assert.ok(no, JSON.stringify(k.pesan));
+  for (const tg of [HRD, PEMBANGUN]) {
+    const p = pesanKe(k, tg)[0];
+    assert.match(p.text, new RegExp(`^Keberatan no\\. ${no} dari ${kId} .+\\nTanggal: `), JSON.stringify(k.pesan));
+    assert.doesNotMatch(p.text, /Rp/);
+    assert.deepEqual(p.reply_markup.inline_keyboard[0].map((t: any) => t.callback_data), [`f|y|${no}`, `f|n|${no}`]);
+  }
+  assert.equal(pesanKe(k, BOS).length, 0);
+  assert.match((await kirimUpdate(teksPribadi(10908, K, `/keberatan ${tgl} lagi`))).pesan[0].text, new RegExp(`^Keberatan no\\. ${no} untuk tanggal itu masih menunggu`));
+  assert.match((await kirimUpdate(tekanTombol(10909, K, `f|y|${no}`))).pesan[0].text, /^Hanya HRD atau pembangun/);
+  assert.match((await kirimUpdate(teksPribadi(10910, HRD, "/keberatan"))).pesan[0].text, /^Keberatan menunggu jawaban: \d+/);
+
+  const tanya = (await kirimUpdate(tekanTombol(10911, HRD, `f|n|${no}`))).pesan[0];
+  assert.ok(tanya.text.startsWith(`${TANYA_TOLAK_KEBERATAN} ${no} `), tanya.text);
+  assert.equal(tanya.reply_markup.force_reply, true);
+  const t = await kirimUpdate(balas(10912, HRD, "tidak ada tap di mesin hari itu", tanya.text));
+  assert.match(pesanKe(t, HRD)[0].text, new RegExp(`^Keberatan no\\. ${no} \\(${kId} .+\\) ditolak\\.`));
+  assert.match(pesanKe(t, K)[0].text, new RegExp(`^Keberatan no\\. ${no} untuk .+ DITOLAK HRD\\.\\nAlasan: tidak ada tap di mesin hari itu$`));
+  assert.match(pesanKe(t, PEMBANGUN)[0].text, new RegExp(`^Keberatan no\\. ${no} \\(${kId}, .+\\) sudah ditolak: tidak ada tap di mesin hari itu$`));
+  assert.match((await kirimUpdate(tekanTombol(10913, PEMBANGUN, `f|y|${no}`))).pesan[0].text, new RegExp(`^Keberatan no\\. ${no} sudah dijawab \\(ditolak\\)`));
+  assert.equal(nilai(`select hasil || '|' || catatan from fakta.keputusan_keberatan where keberatan_id = ${no}`), "ditolak|tidak ada tap di mesin hari itu");
+  assert.match((await kirimUpdate(teksPribadi(10914, K, "Keberatan"))).pesan[0].text, new RegExp(`• No\\. ${no}, .+: ditolak \\(tidak ada tap di mesin hari itu\\)`));
+
+  // Diajukan lagi lalu diterima pembangun: periode belum dirilis -> HRD diingatkan memperbaiki lewat perintah.
+  const draf2 = (await kirimUpdate(teksPribadi(10915, K, `/keberatan ${tgl} ini fotonya ada`))).pesan[0];
+  const no2 = /^Keberatan no\. (\d+)/.exec(pesanKe(await kirimUpdate(tekanTombol(10916, K, draf2.reply_markup.inline_keyboard[0][0].callback_data)), K)[0].text)![1];
+  const terima = await kirimUpdate(tekanTombol(10917, PEMBANGUN, `f|y|${no2}`));
+  assert.match(pesanKe(terima, PEMBANGUN)[0].text, /diterima\.\nPerbaiki lewat perintah HRD/);
+  assert.match(pesanKe(terima, K)[0].text, /DITERIMA HRD\.\nHRD akan memperbaiki catatannya/);
+
+  assert.deepEqual(TOMBOL_TETAP.karyawan, [["Gaji saya", "Keberatan"], ["Bantuan"]]);
+  for (const peran of ["karyawan", "hrd", "pembangun"]) assert.ok(MENU[peran].some((x) => x.command === "keberatan"), peran);
+  assert.ok(!MENU.bos.some((x) => x.command === "keberatan"));
+});
+
+test("8e: bukti keberatan ditulis dengan jam WIB dan nama status", () => {
+  const baris = tulisBukti({ hari: { status: "alpha", asal: "mesin", jenis_hari: "kerja", kode_jadwal: "P",
+    jadwal_masuk: "2026-04-05T00:00:00Z", jadwal_pulang: "2026-04-05T08:00:00Z", masuk: null, pulang: null,
+    menit_telat: 0, menit_pulang_cepat: 0, menit_lebih: 0, lupa_tap: null }, tap: [{ waktu: "2026-04-04T23:58:00Z", peran: "tunggal" }] });
+  assert.deepEqual(baris, ["• Status: alpha (tidak hadir tanpa keterangan) (dari mesin)", "• Jadwal: P 07.00–15.00",
+                           "• Masuk -, pulang -", "• Tap hari itu: 06.58 (tunggal)"]);
+  assert.deepEqual(tulisBukti({ hari: null, tap: [] }), ["• Tidak ada catatan hari ini untuk Anda di hasil hitung terakhir.", "• Tap hari itu: tidak ada"]);
 });

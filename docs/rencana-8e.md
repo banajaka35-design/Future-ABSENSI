@@ -1,6 +1,6 @@
 # Rencana paket 8e: keberatan karyawan lewat bot
 
-Ditulis 23 Nov 2026 14.55 WIB atas permintaan pemilik ("ya lanjut"). Acuan: PRD v2 Tahap 8 ("keberatan") dan `docs/kontrak-data.md` tabel `keberatan` (karyawan, tanggal, isi, bukti tap, keputusan HRD). **Belum di-"buat".**
+Ditulis 23 Nov 2026 14.55 WIB atas permintaan pemilik ("ya lanjut"). Acuan: PRD v2 Tahap 8 ("keberatan") dan `docs/kontrak-data.md` tabel `keberatan` (karyawan, tanggal, isi, bukti tap, keputusan HRD). **Di-"buat" pemilik 23 Nov 2026 14.56 WIB dengan semua saran (14 hari, pilihan (i), bos tidak diberi tahu).**
 
 ## Keadaan sekarang [Pasti, dicek di kode 23 Nov]
 
@@ -47,7 +47,7 @@ Ditulis 23 Nov 2026 14.55 WIB atas permintaan pemilik ("ya lanjut"). Acuan: PRD 
    - Peran `pintu` tidak bisa membaca tabel langsung.
 4. **Pasang ke Supabase** lewat cabang `pasang` setelah uji GitHub lulus.
 5. **Uji nyata**
-   - Akun kedua (karyawan 10735) mengirim keberatan untuk satu tanggal di periode 2, lalu pembangun menolak dengan alasan.
+   - Akun kedua (karyawan 10735) mengirim keberatan untuk satu tanggal di periode 4 (21 Nov 2026 atau sesudahnya), lalu pembangun menolak dengan alasan. Catatan saat membuat (23 Nov): periode 2 dan 3 sudah lewat batas 14 hari sesudah tanggal bayar (keputusan 1), jadi uji memakai periode 4.
    - Keberatan kedua dikirim, lalu pembangun menerimanya.
    - Diperiksa di Supabase. Gaji dipastikan tidak berubah.
 6. **Dokumen:** `docs/laporan-8e.md`, `docs/serah-terima.md`, dan `docs/rencana-tahap-8.md`.
