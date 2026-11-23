@@ -18,4 +18,18 @@ Rencana: `docs/rencana-8f.md`. "Buat" dari pemilik: 23 Nov 2026 14.06 WIB.
 
 ## Uji nyata
 
-(diisi setelah dilakukan: akun ketiga `/gabung` sebagai bos, uji bos, lalu `/cabutakun`)
+Uji nyata 23 Nov 2026 dengan akun Telegram ketiga milik pemilik, semuanya dicek di Supabase [Pasti]:
+
+| Jam WIB | Langkah | Bukti di Supabase / Sheets |
+| --- | --- | --- |
+| 14.00 | `/daftar salah12345` dari akun ketiga | ditolak; `fakta.percobaan_daftar` no. 2 berhasil = false; akun tetap 2 |
+| 14.40–14.42 | `/undang bos` → `/gabung` akun ketiga | undangan no. 2 dipakai akun no. 3 (bos, Telegram ...9322); undangan no. 1 (14.01) dibiarkan hangus |
+| 14.43 | `/pin` bos | `pin_tersamar` bcrypt 60 karakter |
+| 14.44 | pembangun mengajukan periode 3 | pengajuan no. 4, versi gaji 45, status `diajukan` |
+| 14.45 | bos menekan Setujui + PIN | status `disetujui`, "disetujui bos" oleh pengguna 3; angka bot (1.007 orang, bersih 5.691.968.045, transfer 4.994.759.580, tunai 697.207.000, 3 rahasia) sama dengan gudang |
+| 14.47 | bos Total lengkap periode 3 + PIN | `fakta.lihat_rahasia` no. 2 (pengguna 3, periode 3, versi 45); angka yang diharapkan: 1.010 orang, bersih 5.707.653.408, transfer 5.010.444.943, tunai 697.207.000; pemilik melanjutkan tanpa melaporkan beda [Kemungkinan Besar cocok] |
+| 14.48 | pembangun `/batal 3` | status kembali `dihitung` ("dibatalkan pembangun"); tidak ada yang dirilis |
+| 14.50 | Sheets otomatis | Ringkasan: SELESAI 14.50.07, periode 3 total bersih 5.691.968.045 = gudang |
+| 14.50 | pembangun `/cabutakun` → bos ...9322 → Ya | `fakta.cabut_akun` no. 1; akun no. 3 nonaktif, Telegram dan PIN kosong; tunggu PIN 0 |
+
+**Uji nyata 8f lulus. Sisa Tahap 8 (gerbang kode salah ditolak, undang/gabung bos, bos menyetujui, bos melihat total lengkap) lulus.** Keadaan sesudahnya: akun aktif = pembangun dan karyawan 10735, sama dengan sebelum uji.
