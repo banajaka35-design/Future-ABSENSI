@@ -27,6 +27,6 @@ Rentang memeriksa jumlah, bukan isi. Bila dalam satu tabel ada baris dihapus dan
 | Uji | Hasil |
 | --- | --- |
 | Lokal `uji_pemulihan_rentang.sh` | 10 lulus, 0 gagal |
-| CI Uji database | (diisi setelah run) |
-| Cadangan malam manual | (diisi setelah run) |
+| CI Uji database (run 45124778346, commit f423fd2) | hijau; E2: 10 lulus, 0 gagal |
+| Cadangan malam manual (run 45126710228, 23 Nov ±13.55 WIB) | hijau; "Pemulihan berhasil: 66 tabel, 2489267 baris, semuanya di dalam rentang ... (0 tabel berubah selama cadangan)" |
 | Cadangan malam sesudah Pasang/Isi Sheets berikutnya | berjalan di belakang (aturan 10) |
