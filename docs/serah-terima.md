@@ -2,11 +2,11 @@
 
 File ini ditulis supaya siapa pun yang melanjutkan proyek (manusia, Claude di chat lain, atau Claude di sesi baru) tahu posisi terakhir tanpa harus membaca riwayat chat. **Perbarui file ini setiap kali satu langkah selesai.**
 
-Terakhir diperbarui: 22 November 2026 malam (paket 7c-2 terpasang; 7b, 7c-1, 7d selesai diuji; gerbang Tahap 7 lulus untuk izin; paket 7a terpasang, `docs/laporan-7a.md`; pemeriksaan Tahap 7 dan gerbang 8 hari, `docs/rencana-tahap-7.md`); sebelumnya 20 November 2026 siang, cabang `main` (Tahap 6: 6a, 6a-2, 6a-3, 6a-4, 6e, 6f selesai; G1, H1, G1-2 selesai; **G1-3 selesai dan terpasang**, `docs/laporan-g1-3.md`; **D1 pengaman halaman demo publik selesai**, `docs/laporan-d1.md`; **E1 enkripsi cadangan selesai**, `docs/laporan-e1.md`; **Tahap 8: 8a selesai**, `docs/laporan-8a.md`; **8b terpasang**, `docs/laporan-8b.md`; **8b-2 terpasang dan lulus uji nyata 20 Nov 2026**, `docs/laporan-8b-2.md`; **8b-3 terpasang 20 Nov 2026**, `docs/laporan-8b-3.md`; **8b-4 tombol tetap terpasang 20 Nov 2026**, `docs/laporan-8b-4.md`; **8b-5 terpasang 20 Nov 2026**, `docs/laporan-8b-5.md`; uji nyata berjalan).
+Terakhir diperbarui: 23 November 2026 (**Tahap 7 ditutup**, `docs/laporan-tahap-7.md`); sebelumnya 22 November 2026 malam (paket 7c-2 terpasang; 7b, 7c-1, 7d selesai diuji; gerbang Tahap 7 lulus untuk izin; paket 7a terpasang, `docs/laporan-7a.md`; pemeriksaan Tahap 7 dan gerbang 8 hari, `docs/rencana-tahap-7.md`); sebelumnya 20 November 2026 siang, cabang `main` (Tahap 6: 6a, 6a-2, 6a-3, 6a-4, 6e, 6f selesai; G1, H1, G1-2 selesai; **G1-3 selesai dan terpasang**, `docs/laporan-g1-3.md`; **D1 pengaman halaman demo publik selesai**, `docs/laporan-d1.md`; **E1 enkripsi cadangan selesai**, `docs/laporan-e1.md`; **Tahap 8: 8a selesai**, `docs/laporan-8a.md`; **8b terpasang**, `docs/laporan-8b.md`; **8b-2 terpasang dan lulus uji nyata 20 Nov 2026**, `docs/laporan-8b-2.md`; **8b-3 terpasang 20 Nov 2026**, `docs/laporan-8b-3.md`; **8b-4 tombol tetap terpasang 20 Nov 2026**, `docs/laporan-8b-4.md`; **8b-5 terpasang 20 Nov 2026**, `docs/laporan-8b-5.md`; uji nyata berjalan).
 
 ## MULAI DARI SINI (sesi berikutnya, disiapkan 22 Nov 2026 20.40 WIB)
 
-**Posisi:** Tahap 7 (perintah HRD lewat chat) — semua isi PRD v2 Tahap 7 sudah terpasang di Supabase dan lulus uji nyata 21–22 Nov 2026. **Gerbang Tahap 7 ("izin susulan mengubah hasil setelah hitung ulang") LULUS 22 Nov 2026** (`docs/laporan-7a.md`).
+**Posisi:** Tahap 7 (perintah HRD lewat chat) **SELESAI 23 Nov 2026** — semua isi PRD v2 Tahap 7 sudah terpasang di Supabase dan lulus uji nyata 21–22 Nov 2026. **Gerbang Tahap 7 ("izin susulan mengubah hasil setelah hitung ulang") LULUS 22 Nov 2026** (`docs/laporan-7a.md`).
 
 | Paket | Isi | Migrasi | Laporan | Uji nyata |
 | --- | --- | --- | --- | --- |
@@ -14,14 +14,14 @@ Terakhir diperbarui: 22 November 2026 malam (paket 7c-2 terpasang; 7b, 7c-1, 7d 
 | 7d | `/batalperintah`, `/perintahku` | 0033 | `docs/laporan-7d.md` | Selesai |
 | 7b | `/kasbon`, `/cicilan`, `/lunas`; kasbon bisa dibatalkan (mesin hitung v6) | 0034 | `docs/laporan-7b.md` | Selesai |
 | 7c-1 | `/setujuilembur`, `/batalkanlembur` per orang/divisi (B4) | 0035 | `docs/laporan-7c.md` | Selesai |
-| 7c-2 | `/setujuiawal`: jam datang awal disetujui jadi lembur (B5, PP06, kasus B05b; mesin hitung v7) | 0036 | `docs/laporan-7c2.md` | Selesai kecuali uji tolak |
+| 7c-2 | `/setujuiawal`: jam datang awal disetujui jadi lembur (B5, PP06, kasus B05b; mesin hitung v7) | 0036 | `docs/laporan-7c2.md` | Selesai |
 
 **Keadaan demo sekarang [Pasti, 22 Nov 20.37]:** semua perintah uji sudah dibatalkan; sidik hasil gaji periode 3 = `45a6ca644ca5`, periode 4 = `c427e5a53c5f` (sama dengan sebelum uji). Perintah chat no. 1604–1611 tetap tercatat (fakta hanya bertambah).
 
-**Langkah berikutnya, berurutan:**
-1. Uji tolak 7c-2: pemilik mengetik `/setujuiawal 10060 25-02-2026` → harus ditolak (periode 2 dikunci); Claude cek di Supabase tidak ada draf/perintah baru.
-2. Tutup Tahap 7: tulis `docs/laporan-tahap-7.md` (gerbang, ringkasan paket, angka waktu yang diukur: 21–51 detik per perintah, temuan yang sudah dan belum diperbaiki) dan perbarui tabel tahap di file ini.
-3. Pilih tahap berikutnya bersama pemilik. Yang masih terbuka (tidak menghalangi Tahap 7):
+**23 Nov 2026 13.26 WIB:** uji tolak 7c-2 lulus [Pasti] (bot menolak, gudang: 0 draf, 0 perintah, 0 antrean baru). **TAHAP 7 DITUTUP** — `docs/laporan-tahap-7.md`.
+
+**Langkah berikutnya:**
+1. Pilih tahap berikutnya bersama pemilik. Yang masih terbuka (tidak menghalangi Tahap 7):
    - sisa Tahap 8 menunggu akun Telegram ketiga (`/undang bos` → `/gabung`, bos menyetujui, bos melihat total lengkap); 8e (keberatan) ditunda;
    - gerbang "demo hidup 8 hari tanpa dipakai" belum pernah benar-benar teruji (proyek dipakai tiap hari);
    - temuan Cadangan malam: run sesudah Pasang/Isi Sheets kadang gagal karena selisih 1 baris tabel yang sedang diisi bot (perlu paket kecil);
@@ -338,7 +338,7 @@ Dipecah (urutan sekarang): **5a** ukur dan percepat hitung · **5b** pintu Teleg
 | 4 | 4a ✓ cek hukum + TER/PTKP · 4b-1 ✓ inti hitung gaji Pabrik A · 4b-2 ✓ THR, kasbon, tunai · 4b-3 ✓ PPh Desember, saldo cuti, U12 · 4b-4 ✓ Pabrik B, U10 · 4b-5 ✓ perbaikan temuan · 4c ✓ halaman demo (unggah cadangan lewat web pindah ke Tahap 5) | Angka gaji per orang dan halaman web pertama (U2, U3, U5, U10) | ~~TER/PTKP~~ ✓; ~~batas JP, kalender 2027~~ ✓; naskah resmi UU 27/2026 di Drive; keputusan permintaan perubahan 01; U2 pembanding manusia dipindah ke berjalan berdampingan |
 | 5 | Pintu Telegram untuk file, antrean kerja, pemberitahuan segera, unggah cadangan lewat web (dari Tahap 4), hitung di bawah batas 8 detik API | Bot menjawab "file diterima" | Pemilik membuat bot di @BotFather dan memasukkan token ke secret GitHub |
 | 6 | Rekap Sheets, lembar siap cetak, file bank, bahan tunai | Sheets terisi otomatis | Keputusan (a)/(b) di atas |
-| 7 | Perintah HRD lewat chat | Koreksi lewat chat | — |
+| 7 | ~~Perintah HRD lewat chat~~ **Selesai 23 Nov 2026** (gerbang lulus 22 Nov; 7a, 7b, 7c-1, 7c-2, 7d; `docs/laporan-tahap-7.md`) | Koreksi lewat chat | — |
 | 8 | Pendaftaran karyawan, pesan gaji, keberatan, rilis dengan PIN | Rincian gaji sampai ke Telegram | — |
 | 9 | Web penuh, coba aturan, paket pasang | Web siap didemokan | U11 waktu operator; wawancara 2–3 HRD (hanya untuk angka penghematan) |
 

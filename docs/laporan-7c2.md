@@ -33,4 +33,6 @@
 | `/batalperintah 1610` → Ya (20.36.08) | Perintah no. 1611 membatalkan 1610; periode 4 selesai 20.36.39 (versi 50): **sekitar 31 detik** | [Pasti] |
 | Kembali seperti semula | 10060: lembur 690 menit / Rp445.088, dibayar Rp4.472.088; **sidik hasil seluruh periode 4 = `c427e5a53c5f`, sama persis dengan sebelum uji** (versi 44 dan 46) | [Pasti] |
 
-Sisa: uji tolak `/setujuiawal 10060 25-02-2026` (sampai 20.37 belum ada pesan baru di gudang).
+| Uji tolak `/setujuiawal 10060 25-02-2026` (23 Nov 13.26) | Bot: "Ditolak: Rabu, 25 Feb 2026 masuk periode no. 2 ... sudah dikunci ... Tidak ada yang dicatat." Gudang: perintah terakhir tetap 1611, 0 draf, 0 antrean baru | [Pasti] |
+
+**Uji nyata 7c-2 selesai.**
