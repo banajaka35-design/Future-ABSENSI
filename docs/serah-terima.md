@@ -22,7 +22,8 @@ Terakhir diperbarui: 23 November 2026 (**Tahap 7 ditutup**, `docs/laporan-tahap-
 
 **Langkah berikutnya:**
 1. Pilih tahap berikutnya bersama pemilik. Yang masih terbuka (tidak menghalangi Tahap 7):
-   - sisa Tahap 8 menunggu akun Telegram ketiga (`/undang bos` → `/gabung`, bos menyetujui, bos melihat total lengkap); 8e (keberatan) ditunda;
+   - **23 Nov 14.00 WIB: akun Telegram ketiga ada.** Uji nyata `/daftar salah12345` dari akun ketiga LULUS [Pasti]: bot menolak (sisa percobaan 4), `fakta.percobaan_daftar` no. 2 berhasil = false (07.00.06 UTC), akun terdaftar tetap 2 (pembangun, karyawan). **Gerbang Tahap 8 "kode salah ditolak" LULUS.** Berikutnya: `/undang bos` → `/gabung` → bos setujui periode 3 lewat tombol (lalu `/batal`, tanpa rilis) → bos `/lengkap`.
+   - (catatan lama) sisa Tahap 8 menunggu akun Telegram ketiga (`/undang bos` → `/gabung`, bos menyetujui, bos melihat total lengkap); 8e (keberatan) ditunda;
    - gerbang "demo hidup 8 hari tanpa dipakai" belum pernah benar-benar teruji (proyek dipakai tiap hari);
    - ~~temuan Cadangan malam~~ → **paket E2 SELESAI 23 Nov:** CI hijau (10 uji), Cadangan malam manual hijau dengan cara baru (run 45126710228). Sisa yang berjalan di belakang (aturan 10): pastikan run Cadangan malam sesudah Pasang/Isi Sheets berikutnya juga hijau; bila tabel berubah, log menulis "Catatan". Lihat `docs/laporan-e2.md`;
    - usulan kecil: kata `menu` dikenali sebagai `/bantuan`.
