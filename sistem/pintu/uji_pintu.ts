@@ -1728,3 +1728,43 @@ test("7c-2: /setujuiawal orang -> konfirmasi menit datang awal -> Ya -> lembur n
                       and v.jenis = 'hitung_gaji' where v.periode_id = ${periode} and g.id_karyawan = '${id}'`), /lembur_datang_awal_disetujui/);
   for (const peran of ["hrd", "pembangun"]) assert.ok(MENU[peran].some((x) => x.command === "setujuiawal"));
 });
+
+// ---------------------------------------------------------------------------
+// Paket 8f: pembangun mencabut akun (docs/rencana-8f.md).
+// ---------------------------------------------------------------------------
+test("8f: /cabutakun hanya pembangun; bos dicabut lewat tombol (pilih -> Ya), diberi tahu, menu umum, bisa bergabung lagi", async () => {
+  const BOS_CABUT = 6050;
+  const undang = async (n: number) => /Kode undangan bos: ([A-Z0-9]{10})/.exec(
+    (await kirimUpdate(teksPribadi(n, PEMBANGUN, "/undang bos"))).pesan[0].text)![1];
+  assert.match((await kirimUpdate(teksPribadi(10801, BOS_CABUT, `/gabung ${await undang(10800)}`))).pesan[0].text, /^Terdaftar sebagai bos\./);
+  const idBos = nilai(`select id from induk.pengguna where telegram_id = ${BOS_CABUT}`);
+
+  assert.match((await kirimUpdate(teksPribadi(10802, HRD, "/cabutakun"))).pesan[0].text, /hanya untuk akun pembangun/);
+  assert.match((await kirimUpdate(tekanTombol(10803, HRD, `k|y|${idBos}`))).pesan[0].text, /hanya untuk akun pembangun/);
+  const d = (await kirimUpdate(teksPribadi(10804, PEMBANGUN, "cabut akun"))).pesan[0];
+  const tombol = d.reply_markup.inline_keyboard.flat();
+  assert.ok(tombol.some((t: any) => t.callback_data === `k|p|${idBos}`), JSON.stringify(tombol));
+  assert.ok(!tombol.some((t: any) => /pembangun/i.test(t.text)), JSON.stringify(tombol));
+
+  const tanya = (await kirimUpdate(tekanTombol(10805, PEMBANGUN, `k|p|${idBos}`))).pesan[0];
+  assert.match(tanya.text, /^Cabut akun bos Telegram \.\.\.6050\?/);
+  assert.equal((await kirimUpdate(tekanTombol(10806, PEMBANGUN, `k|n|${idBos}`))).pesan[0].text, "Dibatalkan. Tidak ada akun yang dicabut.");
+  assert.equal(nilai(`select aktif from induk.pengguna where id = ${idBos}`), "t");
+
+  const awal = terkirim.length;
+  const c = await kirimUpdate(tekanTombol(10807, PEMBANGUN, tanya.reply_markup.inline_keyboard[0][0].callback_data));
+  assert.match(pesanKe(c, PEMBANGUN)[0].text, /^Akun bos Telegram \.\.\.6050 dicabut\. Untuk bergabung lagi: buat undangan baru dengan \/undang bos\./);
+  const kabar = pesanKe(c, BOS_CABUT)[0];
+  assert.match(kabar.text, /^Akun bos Anda dicabut oleh pembangun\./);
+  assert.deepEqual(kabar.reply_markup, { remove_keyboard: true });
+  const menu = disetel(awal);
+  assert.equal(menu.length, 1);
+  assert.deepEqual(menu[0], { commands: MENU.umum, scope: { type: "chat", chat_id: BOS_CABUT } });
+  assert.equal(nilai(`select concat_ws('/', aktif, telegram_id is null) from induk.pengguna where id = ${idBos}`), "f/t");
+  assert.match((await kirimUpdate(tekanTombol(10808, PEMBANGUN, `k|y|${idBos}`))).pesan[0].text, /sudah dicabut/);
+  assert.doesNotMatch((await kirimUpdate(teksPribadi(10809, BOS_CABUT, "/lengkap"))).pesan[0].text, /PIN/);
+
+  assert.match((await kirimUpdate(teksPribadi(10811, BOS_CABUT, `/gabung ${await undang(10810)}`))).pesan[0].text, /^Terdaftar sebagai bos\./);
+  assert.equal(nilai(`select count(*) from induk.pengguna where telegram_id = ${BOS_CABUT} and aktif and id <> ${idBos}`), "1");
+  assert.ok(MENU.pembangun.some((x) => x.command === "cabutakun") && !MENU.hrd.some((x) => x.command === "cabutakun"));
+});

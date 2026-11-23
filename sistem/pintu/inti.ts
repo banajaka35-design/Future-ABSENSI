@@ -38,7 +38,7 @@ const API_BOLEH = new Set([
   "pintu_buat_kode", "pintu_daftar", "pintu_daftar_jawab", "pintu_akun",
   "pintu_atur_pin", "pintu_daftar_periode", "pintu_ajukan", "pintu_setujui", "pintu_rilis",
   "pintu_batal", "pintu_daftar_pin", "pintu_hapus_pin", "pintu_undang", "pintu_gabung", "pintu_minta_pin", "pintu_ambil_pin",
-  "pintu_pengingat_rilis",
+  "pintu_pengingat_rilis", "pintu_cabut_daftar", "pintu_cabut_akun",
   "pintu_kirim_gaji_ambil", "pintu_kirim_gaji_hasil", "pintu_gaji_saya", "pintu_contoh_gaji",
   "pintu_periode_gaji", "pintu_total_lengkap",
   "pintu_perintah_siapkan", "pintu_perintah_simpan", "pintu_perintah_hasil", "pintu_batal_siapkan", "pintu_perintah_terakhir",
@@ -212,6 +212,11 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       await hapusPin(alat, chat, tg, Number(mesin));
       return null;
     }
+    // Paket 8f: cabut akun (pilih -> konfirmasi Ya/Tidak).
+    if (jenis === "k" && (asal === "p" || asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
+      await tombolCabut(alat, chat, tg, asal, Number(mesin));
+      return null;
+    }
     // Paket 7a: tombol Ya/Batal perintah HRD (izin, sakit, cuti).
     if (jenis === "c" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
       return jawabPerintah(alat, chat, tg, Number(mesin), asal === "y", tombol.message?.message_id);
@@ -382,6 +387,10 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     const batal = /^\/batal(?:@\w+)?(?:\s+(\S+))?\s*$/i.exec(teks);
     if (batal) {
       await batalAjukan(alat, pesan.chat.id, pesan.from?.id, info.hrd, batal[1]);
+      return null;
+    }
+    if (/^\/cabutakun(?:@\w+)?\s*$/i.test(teks)) {
+      await daftarCabut(alat, pesan.chat.id, pesan.from?.id);
       return null;
     }
     if (/^\/hapuspin(?:@\w+)?\s*$/i.test(teks)) {
@@ -771,6 +780,7 @@ export const MENU: Record<string, Perintah[]> = {
         P("bantuan", "Daftar perintah")],
   pembangun: [...MENU_HRD.slice(0, -1), P("setujui", "Setujui pengajuan: /setujui <nomor>"), P("tolak", "Tolak pengajuan: /tolak <nomor>"),
               P("undang", "Undang akun: /undang hrd atau /undang bos"), P("hapuspin", "Hapus PIN akun yang lupa PIN"),
+              P("cabutakun", "Cabut akun HRD, bos, atau karyawan"),
               P("lengkap", "Total lengkap termasuk orang rahasia (dengan PIN)"),
               P("bantuan", "Daftar perintah")],
 };
@@ -806,13 +816,14 @@ const BANTUAN: Record<string, string> = {
 };
 BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /tolak <nomor> (lalu ketik PIN)\n" +
   "/undang hrd atau /undang bos kode undangan akun\n/hapuspin hapus PIN akun yang lupa PIN\n" +
+  "/cabutakun cabut akun HRD, bos, atau karyawan (bisa bergabung lagi dengan kode baru)\n" +
   "/lengkap <nomor> total lengkap termasuk orang rahasia (lalu ketik PIN)";
 
 // Perintah yang diketik tanpa garis miring tetap dikenali (paket 8b-3, temuan 6).
 const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
   "kode", "unggah", "bantuan", "gaji", "contohgaji", "lengkap", "izin", "sakit", "cuti", "batalperintah", "perintahku", "kasbon",
   "cicilan", "lunas", "setujuilembur", "batalkanlembur",
-  "setujuiawal"]);
+  "setujuiawal", "cabutakun"]);
 export function rapikanPerintah(teks: string): string {
   const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
@@ -840,6 +851,7 @@ const TEKS_TOMBOL: Record<string, string> = {
   "kirim file": "/unggah", "ajukan": "/ajukan", "rilis": "/rilis", "bantuan": "/bantuan", "hapus pin": "/hapuspin",
   "kode karyawan": "/tombol_kode", "pin": "/tombol_pin", "undang": "/tombol_undang",
   "gaji saya": "/gaji", "menu": "/bantuan", "total lengkap": "/lengkap", "perintah hrd": "/tombol_perintah",
+  "cabut akun": "/cabutakun",
 };
 export function teksTombol(teks: string): string {
   return TEKS_TOMBOL[teks.trim().toLowerCase()] ?? teks;
@@ -1151,6 +1163,66 @@ async function daftarHapusPin(alat: Alat, chat: number, tg: number): Promise<voi
       callback_data: `h|y|${a.id}`,
     }]) },
   });
+}
+
+// Paket 8f: pembangun mencabut akun HRD, bos, atau karyawan.
+const NAMA_PERAN: Record<string, string> = { hrd: "HRD", bos: "bos", karyawan: "karyawan" };
+async function daftarCabut(alat: Alat, chat: number, tg: number): Promise<void> {
+  const r = await alat.api("pintu_cabut_daftar", { telegram_id: tg });
+  if (r.hasil !== "ada") {
+    await kirim(alat, chat, BUKAN_PEMBANGUN);
+    return;
+  }
+  const akun = r.akun as any[];
+  if (!akun.length) {
+    await kirim(alat, chat, "Tidak ada akun HRD, bos, atau karyawan yang aktif.");
+    return;
+  }
+  await kirim(alat, chat, "Pilih akun yang dicabut. Akun pembangun tidak bisa dicabut.", {
+    reply_markup: { inline_keyboard: akun.map((a) => [{
+      text: `Cabut: ${NAMA_PERAN[a.peran] ?? a.peran} ${a.label}`, callback_data: `k|p|${a.id}`,
+    }]) },
+  });
+}
+
+async function tombolCabut(alat: Alat, chat: number, tg: number, langkah: string, pengguna: number): Promise<void> {
+  if (langkah === "n") {
+    await kirim(alat, chat, "Dibatalkan. Tidak ada akun yang dicabut.");
+    return;
+  }
+  if (langkah === "p") {
+    const r = await alat.api("pintu_cabut_daftar", { telegram_id: tg });
+    if (r.hasil !== "ada") {
+      await kirim(alat, chat, BUKAN_PEMBANGUN);
+      return;
+    }
+    const a = (r.akun as any[]).find((x) => Number(x.id) === pengguna);
+    if (!a) {
+      await kirim(alat, chat, "Akun tidak ditemukan atau sudah dicabut.");
+      return;
+    }
+    await kirim(alat, chat, `Cabut akun ${NAMA_PERAN[a.peran] ?? a.peran} ${a.label}? ` +
+      "Akun ini tidak bisa memakai bot lagi sampai bergabung atau mendaftar ulang dengan kode baru. Riwayatnya tetap tersimpan.", {
+      reply_markup: { inline_keyboard: [[{ text: "Ya, cabut", callback_data: `k|y|${pengguna}` },
+                                         { text: "Tidak", callback_data: `k|n|${pengguna}` }]] },
+    });
+    return;
+  }
+  const r = await alat.api("pintu_cabut_akun", { telegram_id: tg, pengguna_id: pengguna });
+  switch (r.hasil) {
+    case "dicabut": {
+      const peran = NAMA_PERAN[r.peran] ?? r.peran;
+      await kirim(alat, chat, `Akun ${peran} ${r.label} dicabut. Untuk bergabung lagi: ` +
+        (r.peran === "karyawan" ? "buat kode daftar baru dengan /kode." : `buat undangan baru dengan /undang ${r.peran}.`));
+      if (r.telegram_id && Number(r.telegram_id) !== tg) {
+        await kirimAman2(alat, Number(r.telegram_id), `Akun ${peran} Anda dicabut oleh pembangun. ` + BANTUAN.umum, papanTombol(null));
+        await pasangMenu(alat, Number(r.telegram_id), null);
+      }
+      return;
+    }
+    case "tidak_ada": await kirim(alat, chat, "Akun tidak ditemukan atau sudah dicabut."); return;
+    default: await kirim(alat, chat, BUKAN_PEMBANGUN);
+  }
 }
 
 async function hapusPin(alat: Alat, chat: number, tg: number, pengguna: number): Promise<void> {
