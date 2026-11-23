@@ -56,5 +56,16 @@ jobs:
         env:
           ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: sistem/uji/uji_pintu.sh
+      # Paket E2: pg_dump harus sama versinya dengan server (17); klien 17 hanya dipakai di langkah ini.
+      - name: Uji pemulihan cadangan dengan rentang sebelum/sesudah (paket E2)
+        env:
+          ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsS -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-client-17
+          PATH="/usr/lib/postgresql/17/bin:$PATH" db/uji/uji_pemulihan_rentang.sh
       - name: Pemeriksaan kewajaran data simulasi (isi data harus identik dengan yang tersimpan)
         run: cd generator && python3 buat_data.py > /dev/null && python3 periksa_kewajaran.py && git diff --exit-code -- ../data/simulasi/sidik_isi.txt

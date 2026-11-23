@@ -24,7 +24,7 @@ Terakhir diperbarui: 23 November 2026 (**Tahap 7 ditutup**, `docs/laporan-tahap-
 1. Pilih tahap berikutnya bersama pemilik. Yang masih terbuka (tidak menghalangi Tahap 7):
    - sisa Tahap 8 menunggu akun Telegram ketiga (`/undang bos` → `/gabung`, bos menyetujui, bos melihat total lengkap); 8e (keberatan) ditunda;
    - gerbang "demo hidup 8 hari tanpa dipakai" belum pernah benar-benar teruji (proyek dipakai tiap hari);
-   - temuan Cadangan malam: run sesudah Pasang/Isi Sheets kadang gagal karena selisih 1 baris tabel yang sedang diisi bot (perlu paket kecil);
+   - ~~temuan Cadangan malam~~ → **paket E2 (23 Nov, sedang dikerjakan):** kode + uji CI selesai; sisa: uji nyata Cadangan malam hijau (manual) dan hijau lagi sesudah Pasang/Isi Sheets berikutnya (berjalan di belakang, aturan 10). Lihat `docs/laporan-e2.md`;
    - usulan kecil: kata `menu` dikenali sebagai `/bantuan`.
 
 **Cara kerja yang disepakati (tetap berlaku):** keputusan di Tahap 7 diambil Claude dan dicatat dengan label, kecuali yang tidak bisa dibatalkan, mengubah gaji/uang, atau membatasi akun pemilik (ditanyakan). "Buat" hanya untuk daftar paket yang sudah ditulis. Setiap uji nyata dicek di Supabase dan Sheets.

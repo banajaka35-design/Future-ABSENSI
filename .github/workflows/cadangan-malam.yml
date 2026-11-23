@@ -1,7 +1,8 @@
 name: Cadangan malam
 
 # Setiap malam (dan setelah setiap pemasangan atau reset berhasil): cadangkan skema proyek dari Supabase, buktikan cadangan itu bisa dipulihkan ke
-# Postgres 17 kosong dengan jumlah baris yang sama, lalu sentuh Supabase lewat jalur API supaya
+# Postgres 17 kosong dengan jumlah baris yang sama dengan sumber saat cadangan diambil (paket E2: di antara hitungan
+# tepat sebelum dan sesudah cadangan), lalu sentuh Supabase lewat jalur API supaya
 # proyek gratis tidak dijeda (PRD celah D7, aturan pondasi 11).
 # Jadwal hanya berjalan dari cabang main.
 on:
@@ -63,7 +64,10 @@ jobs:
           db/kunci_cadangan.sh periksa
           mkdir -p cadangan
           FILE="cadangan/malam-$(date -u +%Y%m%d-%H%M%S).dump"
+          # Paket E2: jumlah baris sumber tepat sebelum dan sesudah cadangan (bot bisa menulis selama cadangan diambil).
+          psql "$DB_URL" -X -q -t -A -v ON_ERROR_STOP=1 -f db/hitung_baris.sql > "$RUNNER_TEMP/baris_sebelum.txt"
           db/pasang_supabase.sh cadangan "$FILE"
+          psql "$DB_URL" -X -q -t -A -v ON_ERROR_STOP=1 -f db/hitung_baris.sql > "$RUNNER_TEMP/baris_sesudah.txt"
           if [ ! -s "$FILE" ]; then
             echo "GAGAL: file cadangan tidak terbentuk (Supabase tidak berisi skema proyek?)." >&2
             exit 1
@@ -85,6 +89,8 @@ jobs:
           SUMBER_URL: ${{ secrets.SUPABASE_DB_URL }}
           TUJUAN_URL: postgresql://postgres:postgres@localhost:5432/postgres
           CADANGAN_KUNCI: ${{ secrets.CADANGAN_KUNCI }}
+          BARIS_SEBELUM: ${{ runner.temp }}/baris_sebelum.txt
+          BARIS_SESUDAH: ${{ runner.temp }}/baris_sesudah.txt
         run: |
           BUKA="$RUNNER_TEMP/pulih.dump"
           db/kunci_cadangan.sh buka "$FILE_CADANGAN" "$BUKA"

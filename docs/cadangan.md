@@ -32,4 +32,4 @@ Sejak E1 isinya satu file `….dump.gpg`: cadangan `pg_dump` yang dikunci gpg (A
 3. Pulihkan ke database **kosong** (bukan Supabase utama), dengan cara yang sama seperti uji pemulihan malam: `SUMBER_URL=... TUJUAN_URL=... db/uji_pemulihan.sh cadangan.dump`. Memulihkan ke Supabase utama hanya lewat paket tersendiri yang di-"buat" pemilik.
 4. Hapus `cadangan.dump` sesudah selesai; file itu tidak terenkripsi.
 
-Setiap malam workflow Cadangan malam membuktikan langkah 2–3 otomatis: file terenkripsi yang diunggah dibuka lalu dipulihkan ke Postgres 17 kosong, dan jumlah baris setiap tabel harus sama dengan Supabase.
+Setiap malam workflow Cadangan malam membuktikan langkah 2–3 otomatis: file terenkripsi yang diunggah dibuka lalu dipulihkan ke Postgres 17 kosong, dan jumlah baris setiap tabel harus sama dengan Supabase pada saat cadangan diambil. Sejak paket E2 (`docs/laporan-e2.md`), Supabase dihitung tepat sebelum dan tepat sesudah cadangan; hasil pemulihan tiap tabel harus berada di antara dua hitungan itu. Tabel yang bertambah selama cadangan diambil (bot sedang menulis) dicatat sebagai "Catatan", bukan kegagalan. Baris yang hilang tetap GAGAL.
