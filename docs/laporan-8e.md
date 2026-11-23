@@ -30,4 +30,14 @@ Catatan saat membuat: periode 2 dan 3 sudah lewat batas 14 hari, jadi uji nyata 
 
 ## Uji nyata
 
-(diisi setelah dilakukan)
+Uji nyata dilakukan pada 23 Nov 2026 dengan akun kedua (karyawan 10735) dan akun pembangun. Semua langkah dicek di Supabase [Pasti]:
+
+| Jam WIB | Langkah | Bukti di Supabase |
+| --- | --- | --- |
+| 15.42 | `/keberatan 21-11-2026 jam pulang saya salah` | Draf no. 1. Bukti sama dengan gudang (hadir; jadwal S 15.00–23.00; masuk 14.44, pulang 23.12; lebih 12 menit; 2 tap) |
+| 15.43 | Karyawan menekan Kirim | Keberatan no. 1 tercatat (pengguna 2, periode 4). Draf berubah menjadi `dikirim`. Pembangun menerima pesan dengan tombol Terima/Tolak |
+| 15.45–15.46 | Pembangun menekan Tolak dan membalas dengan alasan | Keputusan: ditolak, "tap pulang 23.12 sesuai mesin", oleh pengguna 1. Karyawan menerima "DITOLAK HRD" beserta alasannya |
+| 15.47 | `/keberatan 23-11-2026 saya lembur tapi tidak tercatat`, lalu Kirim, lalu pembangun menekan Terima | Keberatan no. 2 diterima tanpa catatan. Pemilik melaporkan pesan di kedua akun sesuai harapan |
+| Sesudahnya | Gaji tidak berubah | Sidik hasil gaji periode 4 tetap `c427e5a53c5f`. Tidak ada perintah HRD baru (nomor terakhir tetap 1611) |
+
+**Uji nyata 8e lulus.** Keberatan no. 1 dan 2 tetap tercatat, karena data fakta hanya bertambah.

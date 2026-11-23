@@ -12,6 +12,7 @@
 | 8b | Rilis gaji: HRD mengajukan → bos menyetujui (bila pengaturan `hrd_lalu_bos`) → HRD merilis dengan PIN, ringkasan total dan konfirmasi kedua (K5) | belum; masalah: semua periode demo "belum bisa diajukan" karena data pajak Januari tidak ada (sejak 4b-3) |
 | 8c | Pesan rincian gaji ke tiap karyawan sesudah rilis (bagian 10): antrean, pesan panjang dipecah, minta ulang | terpasang 20 Nov 2026, `docs/laporan-8c.md` |
 | 8d | Jalur bos: total lengkap dan gaji orang rahasia (F15, F15b); aturan "orang rahasia wajib transfer" | terpasang 20 Nov 2026 (keputusan (a) bot dengan PIN, (i) wajib transfer), `docs/laporan-8d.md` |
-| 8e | Keberatan karyawan (`docs/kontrak-data.md` tabel `keberatan`) | ditunda sampai Tahap 8 ditutup (20 Nov 2026); pesan gaji sudah menulis "Hubungi HRD" |
+| 8e | Keberatan karyawan (`docs/kontrak-data.md` tabel `keberatan`) | terpasang dan lulus uji nyata 23 Nov 2026, `docs/laporan-8e.md` |
+| 8f | Pembangun mencabut akun HRD/bos/karyawan (`/cabutakun`) | terpasang dan lulus uji nyata 23 Nov 2026, `docs/laporan-8f.md` |
 
 Setiap paket punya daftar dan "buat" sendiri.
