@@ -1893,3 +1893,39 @@ test("9a: masuk web HRD dengan kode email -> sesi; ringkasan = Ringkasan Sheets;
   assert.equal((await webHrd(alat, { sesi, aksi: "keluar" })).status, 200);
   assert.equal((await webHrd(alat, { sesi, aksi: "ringkasan" })).status, 401);
 });
+
+// ---------------------------------------------------------------------------
+// Paket 9c: coba aturan lewat fungsi web (data Pabrik A lengkap; tidak ada yang tersimpan).
+// ---------------------------------------------------------------------------
+test("9c: coba aturan lewat web: nilai sekarang, percobaan tanpa menyimpan, isian salah 400, antrean ditolak", async () => {
+  const sesi = "9c".repeat(32);
+  nilai(`insert into fakta.sesi_web (sidik, pengguna, berlaku_sampai)
+         select '${sha256(sesi)}', id, now() + interval '1 hour' from induk.pengguna where telegram_id = ${PEMBANGUN}`);
+  nilai("update fakta.antrean_kerja set status = 'selesai', selesai = now() where status = 'menunggu'");
+  const periode = nilai(`select p.id from fakta.periode p where p.status not in ('dirilis', 'dikunci')
+    and exists (select 1 from hitung.versi_terakhir g where g.periode_id = p.id and g.jenis = 'hitung_gaji') order by p.tanggal_awal limit 1`);
+  const awal = await webHrd(alat, { sesi, aksi: "aturan_sekarang", periode_id: periode });
+  assert.equal(awal.status, 200, JSON.stringify(awal.isi));
+  assert.equal(awal.isi.data.boleh, true);
+  const potret = () => nilai(`select (select count(*) from hitung.versi_hitung) || '|' || (select string_agg(id || ':' || telat_menit, ',' order by id)
+    from aturan.toleransi) || '|' || (select string_agg(id || ':' || status, ',' order by id) from fakta.periode)`);
+  const sebelum = potret();
+  const telat = Number(awal.isi.data.telat_menit) + 10;
+  const r = await webHrd(alat, { sesi, aksi: "coba_aturan", periode_id: periode, aturan: { telat_menit: telat, bukan_aturan: 1 } });
+  assert.equal(r.status, 200, JSON.stringify(r.isi));
+  assert.equal(r.isi.data.aturan.telat_menit, telat);
+  assert.ok(Number(r.isi.data.ringkasan.orang) > 900, JSON.stringify(r.isi.data.ringkasan));
+  // Data uji pintu hampir tanpa tap; yang dibuktikan di sini jalurnya. Kebenaran angka dibuktikan uji database 320 (gerbang 2).
+  assert.equal(Number(r.isi.data.ringkasan.turun), 0, "toleransi telat lebih longgar tidak menurunkan gaji siapa pun");
+  assert.equal(Number(r.isi.data.ringkasan.naik) + Number(r.isi.data.ringkasan.turun) + Number(r.isi.data.ringkasan.sama),
+               Number(r.isi.data.ringkasan.orang));
+  assert.equal(potret(), sebelum, "gudang tidak berubah");
+  assert.equal(nilai(`select hasil || '/' || (aturan ->> 'telat_menit') from fakta.coba_aturan order by id desc limit 1`), `selesai/${telat}`);
+  assert.equal((await webHrd(alat, { sesi, aksi: "coba_aturan", periode_id: periode, aturan: { lembur_kelipatan: 0 } })).status, 400);
+  assert.equal((await webHrd(alat, { sesi, aksi: "coba_aturan", periode_id: periode, aturan: {} })).status, 400);
+  nilai(`insert into fakta.antrean_kerja (periode_id) values (${periode})`);
+  const q = await webHrd(alat, { sesi, aksi: "coba_aturan", periode_id: periode, aturan: { telat_menit: telat } });
+  assert.equal(q.status, 409);
+  assert.match(q.isi.alasan, /menunggu hitung ulang/);
+  nilai("update fakta.antrean_kerja set status = 'selesai', selesai = now() where status = 'menunggu'");
+});

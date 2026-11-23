@@ -46,6 +46,11 @@
   .status-alpha { color: var(--awas); font-weight: 600; }
   .status-libur { color: var(--redup); }
   .rahasia { color: var(--hati); font-style: italic; }
+  .kisi { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 16px; }
+  .kisi label { font-weight: 600; font-size: 14px; }
+  .kisi input, .kisi select { display: block; width: 100%; margin-top: 4px; font-weight: 400; }
+  .naik { color: var(--baik); }
+  .turun { color: var(--awas); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -80,6 +85,7 @@
       <button data-tab="gaji">Gaji</button>
       <button data-tab="cek">Perlu dicek</button>
       <button data-tab="keberatan">Keberatan</button>
+      <button data-tab="coba">Coba aturan</button>
     </div>
     <div id="pesan-isi"></div>
 
@@ -116,6 +122,32 @@
       <h2>Perlu dicek</h2>
       <div class="alat"><select id="pilih-periode-cek" aria-label="Periode"></select><span class="kecil" id="jumlah-cek"></span></div>
       <div class="gulir"><table id="tabel-cek"></table></div>
+    </section>
+
+    <section id="tab-coba" hidden>
+      <h2>Coba aturan</h2>
+      <div class="pesan tunggu">Percobaan, tidak disimpan: gaji sungguhan dan aturan tidak berubah. Percobaan bukan izin memakai aturan;
+        batas bawah hukum tetap dijaga mesin hitung saat aturan benar-benar dipasang.</div>
+      <div class="alat" style="margin-top:12px"><select id="pilih-periode-coba" aria-label="Periode"></select><span class="kecil" id="info-coba"></span></div>
+      <form id="form-coba">
+        <div class="kisi">
+          <label>Toleransi telat (menit)<input type="number" id="c-telat_menit" min="0" max="240" required></label>
+          <label>Lembur minimal (menit)<input type="number" id="c-lembur_minimal" min="0" max="480" required></label>
+          <label>Kelipatan lembur (menit)<input type="number" id="c-lembur_kelipatan" min="1" max="60" required></label>
+          <label>Pembulatan lembur<select id="c-lembur_bulat"><option value="bawah">ke bawah</option><option value="terdekat">terdekat</option></select></label>
+          <label>Uang makan per hari (Rp)<input type="number" id="c-uang_makan" min="0" max="1000000" required></label>
+          <label>Premi hadir per periode (Rp)<input type="number" id="c-premi_hadir" min="0" max="10000000" required></label>
+          <label>Tunjangan shift malam per hari (Rp)<input type="number" id="c-shift_malam" min="0" max="1000000" required></label>
+        </div>
+        <div class="alat" style="margin-top:12px"><button type="submit" id="hitung-coba">Hitung percobaan</button>
+          <button type="button" class="biasa" id="ulang-coba">Kembalikan nilai sekarang</button></div>
+      </form>
+      <div id="pesan-coba"></div>
+      <div id="hasil-coba" hidden>
+        <h3>Hasil percobaan</h3>
+        <div id="ringkas-coba"></div>
+        <div class="gulir"><table id="tabel-coba"></table></div>
+      </div>
     </section>
 
     <section id="tab-keberatan" hidden>
@@ -193,12 +225,13 @@
     }
   }
 
-  async function panggil(jalur, badan) {
+  async function panggil(jalur, badan, sinyal) {
     const r = await fetch(fungsi + "?jalur=" + jalur, {
       method: "POST",
       headers: { "content-type": "text/plain" },
       body: JSON.stringify(badan),
       cache: "no-store",
+      signal: sinyal,
     });
     let isi = {};
     try { isi = await r.json(); } catch { isi = { alasan: "Jawaban server tidak terbaca (" + r.status + ")." }; }
@@ -264,7 +297,7 @@
   // ---- Tab ---------------------------------------------------------------------------------------------------
   function bukaTab(nama) {
     for (const b of document.querySelectorAll(".tab button")) b.classList.toggle("aktif", b.dataset.tab === nama);
-    for (const t of ["periode", "gaji", "orang", "cek", "keberatan"]) $("tab-" + t).hidden = t !== nama;
+    for (const t of ["periode", "gaji", "orang", "cek", "keberatan", "coba"]) $("tab-" + t).hidden = t !== nama;
   }
   for (const b of document.querySelectorAll(".tab button")) {
     b.addEventListener("click", async () => {
@@ -272,6 +305,7 @@
       if (b.dataset.tab === "gaji") await muatGaji();
       if (b.dataset.tab === "cek") await muatCek();
       if (b.dataset.tab === "keberatan") await muatKeberatan();
+      if (b.dataset.tab === "coba") await muatAturan();
     });
   }
 
@@ -286,13 +320,14 @@
     tulisPeriode();
     isiPilihan($("pilih-periode-gaji"));
     isiPilihan($("pilih-periode-cek"));
+    isiPilihan($("pilih-periode-coba"), (p) => !["dirilis", "dikunci"].includes(p.status));
     bukaTab("periode");
   }
 
   function namaPeriode(p) { return "No. " + p.id + " · " + tanggal(p.awal) + " – " + tanggal(p.akhir); }
-  function isiPilihan(sel) {
+  function isiPilihan(sel, saring) {
     sel.replaceChildren();
-    const ada = periode.filter((p) => p.ada_gaji);
+    const ada = periode.filter((p) => p.ada_gaji && (!saring || saring(p)));
     for (const p of ada) { const o = el("option", namaPeriode(p)); o.value = p.id; sel.appendChild(o); }
     if (ada.length) sel.value = ada[ada.length - 1].id;
   }
@@ -444,6 +479,64 @@
                 k.terbuka ? "menunggu jawaban" : k.keputusan + " (" + waktu(k.diputuskan) + ")", k.catatan || ""];
       }));
     for (const td of $("tabel-keberatan").querySelectorAll("td:nth-child(5), td:nth-child(7)")) td.className = "lebar";
+  }
+
+  // ---- Coba aturan (paket 9c) -------------------------------------------------------------------------------
+  const KUNCI_COBA = ["telat_menit", "lembur_minimal", "lembur_kelipatan", "lembur_bulat", "uang_makan", "premi_hadir", "shift_malam"];
+  let aturanSekarang = null;
+  async function muatAturan() {
+    const id = $("pilih-periode-coba").value;
+    if (!id) { pesan($("pesan-coba"), "tunggu", "Tidak ada periode yang bisa dicoba (sudah dihitung dan belum dirilis)."); return; }
+    const data = await baca("aturan_sekarang", { periode_id: id });
+    if (!data) return;
+    aturanSekarang = data;
+    isiNilaiSekarang();
+    $("info-coba").textContent = "Percobaan hari ini: " + data.hari_ini + " dari " + data.batas_hari + ".";
+    $("hitung-coba").disabled = !data.boleh;
+    if (!data.boleh) pesan($("pesan-coba"), "tunggu", "Periode ini tidak bisa dicoba.");
+  }
+  function isiNilaiSekarang() {
+    if (!aturanSekarang) return;
+    for (const k of KUNCI_COBA) $("c-" + k).value = aturanSekarang[k] === null || aturanSekarang[k] === undefined ? (k === "lembur_bulat" ? "bawah" : 0) : aturanSekarang[k];
+  }
+  $("pilih-periode-coba").addEventListener("change", muatAturan);
+  $("ulang-coba").addEventListener("click", isiNilaiSekarang);
+  $("form-coba").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const aturan = {};
+    for (const k of KUNCI_COBA) aturan[k] = k === "lembur_bulat" ? $("c-" + k).value : Number($("c-" + k).value);
+    $("hitung-coba").disabled = true;
+    $("hasil-coba").hidden = true;
+    pesan($("pesan-coba"), "tunggu", "Sedang menghitung seluruh karyawan, sekitar 30 detik. Tidak ada yang disimpan.");
+    const henti = new AbortController();
+    const waktuHabis = setTimeout(() => henti.abort(), 110000);
+    let r;
+    try { r = await panggil("hrd", { sesi, aksi: "coba_aturan", periode_id: $("pilih-periode-coba").value, aturan }, henti.signal); }
+    catch { r = null; }
+    clearTimeout(waktuHabis);
+    $("hitung-coba").disabled = false;
+    if (!r) { pesan($("pesan-coba"), "salah", "Tidak ada jawaban dalam 110 detik atau server tidak bisa dihubungi. Tidak ada yang tersimpan."); return; }
+    if (r.status === 401) { keluarLokal(r.isi.alasan || "Sesi berakhir. Masuk lagi."); return; }
+    if (r.status !== 200) { pesan($("pesan-coba"), "salah", r.isi.alasan || "Percobaan gagal (" + r.status + ")."); return; }
+    pesan($("pesan-coba"), "baik", "Selesai dalam " + Math.round(r.isi.data.lama_ms / 1000) + " detik. Tidak ada yang disimpan.");
+    tulisCoba(r.isi.data);
+    await muatAturan();
+  });
+  function tulisCoba(d) {
+    const g = d.ringkasan;
+    const ringkas = $("ringkas-coba");
+    ringkas.replaceChildren();
+    const ubah = Object.keys(d.aturan).map((k) => k + ": " + aturanSekarang[k] + " → " + d.aturan[k]).join(", ");
+    ringkas.appendChild(el("div", "Aturan dicoba: " + ubah));
+    ringkas.appendChild(el("div", g.orang + " orang dihitung: " + g.naik + " naik, " + g.turun + " turun, " + g.sama + " sama."));
+    ringkas.appendChild(el("div", "Total gaji bersih: " + rupiah(g.total_lama) + " → " + rupiah(g.total_baru) + " (selisih " + rupiah(g.selisih) + ")."));
+    if (g.rahasia) ringkas.appendChild(el("div", g.rahasia + " orang rahasia ikut dihitung tetapi tidak ditampilkan dan tidak masuk total.", "kecil"));
+    baris($("tabel-coba"), ["ID", "Nama", "Gaji bersih sekarang", "Percobaan", "Selisih", "Komponen berubah"],
+      d.daftar.map((o) => [o.id, o.nama, rupiah(o.lama), rupiah(o.baru),
+        el("span", (o.selisih > 0 ? "+" : "") + rupiah(o.selisih), o.selisih > 0 ? "naik" : (o.selisih < 0 ? "turun" : "")),
+        el("span", (o.komponen || []).map((k) => k.komponen + " " + rupiah(k.lama || 0) + " → " + rupiah(k.baru || 0)).join("; "), "kecil")]),
+      [2, 3]);
+    $("hasil-coba").hidden = false;
   }
 
   // ---- Awal --------------------------------------------------------------------------------------------------

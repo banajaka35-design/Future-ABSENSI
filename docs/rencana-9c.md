@@ -1,6 +1,6 @@
 # Rencana paket 9c: coba aturan
 
-Ditulis 23 November 2026. Acuan: `docs/rencana-tahap-9.md`, gerbang 2 ("coba aturan menunjukkan selisih yang sama dengan hitungan sungguhan bila aturan itu benar-benar dipakai"). **Belum di-"buat".**
+Ditulis 23 November 2026. Acuan: `docs/rencana-tahap-9.md`, gerbang 2 ("coba aturan menunjukkan selisih yang sama dengan hitungan sungguhan bila aturan itu benar-benar dipakai"). **Di-"buat" pemilik 23 Nov 2026 17.15 WIB.** Catatan saat membuat: aturan bertanggal tidak boleh diubah isinya (`jejak.jaga_bertanggal`), jadi percobaan menutup baris terbuka di tanggal awal periode dan menambah baris percobaan, sama dengan cara resmi mengganti aturan; bila aturan sudah berganti di tengah periode, percobaan ditolak dengan alasan jelas.
 
 ## Gunanya
 

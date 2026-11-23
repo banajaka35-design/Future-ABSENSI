@@ -2444,6 +2444,7 @@ export async function webMasukHrd(alat: Alat, emailMasuk: string, kodeMasuk: str
   return { status: 401, isi: { alasan: "Kode tidak berlaku (salah 5 kali, lewat 10 menit, atau sudah dipakai). Minta kode baru." }, latar: null };
 }
 
+export const KUNCI_COBA = ["telat_menit", "lembur_minimal", "lembur_kelipatan", "lembur_bulat", "uang_makan", "premi_hadir", "shift_malam"];
 export const SESI_HABIS = "Sesi berakhir (lewat 2 jam, 30 menit tidak dipakai, keluar, atau akun dicabut). Masuk lagi.";
 export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
   const sesi = String(badan?.sesi ?? "");
@@ -2452,6 +2453,15 @@ export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
   const masukan: Record<string, unknown> = { sidik_sesi: await sidikTeks(sesi), aksi };
   if (badan?.periode_id !== undefined) masukan.periode_id = String(badan.periode_id);
   if (badan?.id_karyawan !== undefined) masukan.id_karyawan = String(badan.id_karyawan).slice(0, 40);
+  // Paket 9c: isian coba aturan; hanya kunci yang dikenal dan nilai sederhana (diperiksa lagi oleh database).
+  if (badan?.aturan && typeof badan.aturan === "object" && !Array.isArray(badan.aturan)) {
+    const aturan: Record<string, string | number> = {};
+    for (const k of KUNCI_COBA) {
+      const v = (badan.aturan as any)[k];
+      if (typeof v === "number" || typeof v === "string") aturan[k] = typeof v === "string" ? v.slice(0, 20) : v;
+    }
+    masukan.aturan = aturan;
+  }
   const r = await alat.api("web_hrd", masukan);
   switch (r?.hasil) {
     case "ok": return { status: 200, isi: { hasil: "ok", data: r.data }, latar: null };
@@ -2460,6 +2470,11 @@ export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
       return { status: 429, isi: { hasil: "terlalu_banyak", alasan: "Terlalu banyak permintaan dalam 1 jam; coba lagi nanti." }, latar: null };
     case "tidak_ada": return { status: 404, isi: { hasil: "tidak_ada", alasan: "Periode atau karyawan tidak ditemukan." }, latar: null };
     case "aksi_salah": return { status: 400, isi: { hasil: "aksi_salah", alasan: "Permintaan tidak dikenal." }, latar: null };
+    // Paket 9c: penolakan coba aturan membawa alasan dari database.
+    case "tidak_boleh": case "antrean": case "sibuk": case "gagal":
+      return { status: 409, isi: { hasil: r.hasil, alasan: r.alasan }, latar: null };
+    case "isian_salah": case "tanpa_perubahan": return { status: 400, isi: { hasil: r.hasil, alasan: r.alasan }, latar: null };
+    case "batas_harian": return { status: 429, isi: { hasil: r.hasil, alasan: r.alasan }, latar: null };
     default: return { status: 401, isi: { hasil: "sesi_tidak_berlaku", alasan: SESI_HABIS }, latar: null };
   }
 }
