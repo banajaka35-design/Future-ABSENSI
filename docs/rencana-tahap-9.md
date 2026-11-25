@@ -19,6 +19,8 @@ Ditulis 23 November 2026. Isi dan gerbang Tahap 9 dari PRD v2 bagian 13 **tidak 
 | 9a-2 | Perbaikan tampilan web HRD (T1–T8): kartu di HP, tabel Periode dipecah, urutan komponen, pilihan periode bawaan, kamus nama | selesai 25 Nov (uji nyata lulus 13.13), `docs/laporan-9a-2.md` |
 | 9d | Kerangka pasang untuk PT baru: daftar pertanyaan HRD, daftar periksa akun, templat karyawan, cara uji banding, petunjuk HRD, perawatan tahunan, dan cara pasang yang bisa memilih perusahaan (bawaan tetap Pabrik A) | selesai 25 Nov, `docs/laporan-9d.md`; gerbang 3 lulus |
 
+**Tahap 9 ditutup 25 Nov 2026** (`docs/laporan-tahap-9.md`).
+
 ## Gerbang (usulan Claude, disetujui 23 Nov)
 
 1. HRD bisa menjalankan satu bulan penuh lewat web dan bot tanpa bantuan Claude atau pembangun.
