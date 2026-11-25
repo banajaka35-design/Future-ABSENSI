@@ -27,6 +27,10 @@ Database **917 lulus** (+33), pintu **123 lulus** (+1), simulasi **133 lulus**; 
 - "Tolak meminta alasan singkat" (rencana bagian 2) belum dibuat: tolak cukup dengan PIN, pengaju menerima kabar "ditolak oleh bos/pembangun". [Pasti] Alasan bisa ditambah di paket tampilan berikutnya bila perlu.
 - Pembatalan ubah gaji sesudah disetujui tidak meminta persetujuan lagi: pembatalan hanya mengembalikan gaji ke nilai yang sebelumnya sudah berlaku (tidak ada angka baru). [Kemungkinan Besar] aman; dicatat supaya bisa diubah bila pemilik ingin.
 
+## Pemasangan [Pasti, 25 Nov]
+
+Uji GitHub 45544580069 lulus (database 917, simulasi 133, pintu 123, penyambung 24); Pasang 45546035061 sukses (0042, menu bot); Isi Sheets, Cadangan, dan Terbitkan demo 45547031358 sukses. Dicek di Supabase: 7 fungsi baru, belum ada pengajuan, sidik gaji periode 4 tetap `c427e5a53c5f`.
+
 ## Yang belum
 
-- Pemasangan, terbit, dan uji nyata.
+- Uji nyata oleh pemilik.
