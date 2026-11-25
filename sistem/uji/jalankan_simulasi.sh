@@ -10,6 +10,7 @@
 #   6a  rekap Sheets: isi ke Sheets tiruan, pemeriksa "isi Sheets sama dengan gudang" (sistem/uji/uji_sheets.py)
 #   8b  isian pajak awal tahun karangan: periode 1-3 bisa diajukan, pembanding tetap sama
 #   D1  pengaman halaman demo publik: hanya data simulasi yang boleh terbit (db/cek_hanya_simulasi.sh)
+#   9d  kerangka pasang PT: penjaga Pasang (Pabrik A tidak masuk ke database PT), Pabrik B lewat jalur PT, docs/pasang/
 # Setiap uji memakai database baru. Pemakaian:
 #   ADMIN_URL=postgresql://postgres:postgres@localhost:5432/postgres sistem/uji/jalankan_simulasi.sh
 set -euo pipefail
@@ -212,13 +213,79 @@ siapkan uji_sim_attlog attlog ya
 ATTLOG="$(nilai "$SIDIK_HASIL")"
 cek "hasil per orang per hari sama persis" "$ATTLOG" "$EKSPOR"
 
-echo "== U5: Pabrik B dengan kode yang sama (180 karyawan, 4 periode bulan kalender)"
+echo "== 9d: penjaga pemasangan (data simulasi Pabrik A tidak boleh masuk ke database PT)"
+cek "9d: repo demo tanpa susunan -> pemasangan demo Pabrik A" \
+  "$(GITHUB_REPOSITORY=banajaka35-design/Future-ABSENSI SUSUNAN_PERUSAHAAN= db/pasang_supabase.sh mode)" "demo"
+cek "9d: repo lain tanpa susunan -> ditolak" \
+  "$(GITHUB_REPOSITORY=pt-contoh/absensi SUSUNAN_PERUSAHAAN= db/pasang_supabase.sh mode | cut -c1-5)" "tolak"
+cek "9d: tanpa nama repo (di luar GitHub) tanpa susunan -> ditolak" \
+  "$(env -u GITHUB_REPOSITORY SUSUNAN_PERUSAHAAN= db/pasang_supabase.sh mode | cut -c1-5)" "tolak"
+cek "9d: susunan tanpa folder data karyawan -> ditolak" \
+  "$(GITHUB_REPOSITORY=pt-contoh/absensi SUSUNAN_PERUSAHAAN=db/data_awal/pabrik_b_struktur.sql DATA_KARYAWAN= db/pasang_supabase.sh mode | cut -c1-5)" "tolak"
+psql "$ADMIN_URL" -X -q -c "drop database if exists uji_sim_tolak" -c "create database uji_sim_tolak" 2> /dev/null
+KODE_TOLAK=0
+GITHUB_REPOSITORY=pt-contoh/absensi SUSUNAN_PERUSAHAAN= DB_URL="$DASAR/uji_sim_tolak" db/pasang_supabase.sh pasang > /dev/null 2>&1 || KODE_TOLAK=$?
+cek "9d: pemasangan di repo PT tanpa susunan berhenti dengan galat dan database tetap kosong" \
+  "$KODE_TOLAK/$(psql "$DASAR/uji_sim_tolak" -X -q -t -A -c "select count(*) from pg_namespace where nspname in ('induk', 'aturan', 'fakta', 'hitung')")" "3/0"
+
+echo "== 9d: kerangka pasang (docs/pasang/)"
+KELUAR_KERANGKA="$(python3 - <<'PY'
+import csv, os, re
+d = "docs/pasang"
+hasil = []
+# Setiap dokumen yang ditunjuk README ada.
+readme = open(f"{d}/README.md", encoding="utf-8").read()
+hilang = [f for f in sorted(set(re.findall(r"`([0-9]-[a-z-]+\.md)`", readme))) if not os.path.exists(f"{d}/{f}")]
+hasil.append("dokumen:" + (",".join(hilang) or "lengkap"))
+# Daftar pertanyaan: setiap tabel yang diisi susunan Pabrik A/B dan setiap kunci pengaturan disebut di paragraf "Isian".
+teks = open(f"{d}/1-pertanyaan-hrd.md", encoding="utf-8").read()
+isian = " ".join(p for p in re.split(r"\n\s*\n", teks) if re.search(r"^Isian:", p, re.M))
+tabel = set()
+for f in ("pabrik_a_struktur.sql", "pabrik_b_struktur.sql"):
+    tabel |= set(re.findall(r"insert into ([a-z_]+\.[a-z_]+)", open(f"db/data_awal/{f}", encoding="utf-8").read()))
+kunci = set()
+for f in sorted(os.listdir("db/migrasi")):
+    for blok in re.findall(r"insert into aturan\.daftar_pengaturan.*?\);\s*$", open(f"db/migrasi/{f}", encoding="utf-8").read(), re.S | re.M):
+        kunci |= set(re.findall(r"^\s*\('([a-z_0-9]+)',", blok, re.M))
+kurang = sorted(t for t in tabel if f"`{t}`" not in isian) + sorted(k for k in kunci if f"`{k}`" not in isian)
+hasil.append("pertanyaan:%d:%d:%s" % (len(tabel), len(kunci), ",".join(kurang) or "lengkap"))
+# Templat: judul kolom sama persis dengan data simulasi (dimuat pemuat yang sama).
+beda = [f for f in ("karyawan.csv", "pemetaan_id_mesin.csv", "mutasi_regu.csv")
+        if next(csv.reader(open(f"{d}/templat/{f}", encoding="utf-8"))) != next(csv.reader(open(f"data/simulasi/A/induk/{f}", encoding="utf-8")))]
+hasil.append("templat:" + (",".join(beda) or "sama"))
+# Dokumen isi templat menjelaskan setiap kolom karyawan.csv.
+isi = open(f"{d}/4-isi-templat.md", encoding="utf-8").read()
+kolom = next(csv.reader(open(f"{d}/templat/karyawan.csv", encoding="utf-8")))
+hasil.append("kolom:" + (",".join(k for k in kolom if f"| `{k}` |" not in isi) or "lengkap"))
+print(" ".join(hasil))
+PY
+)"
+cek "9d: semua dokumen yang ditunjuk panduan pasang ada" "$(echo "$KELUAR_KERANGKA" | grep -o 'dokumen:[^ ]*')" "dokumen:lengkap"
+cek "9d: daftar tabel dan kunci pengaturan terbaca (bukan kosong karena pola berubah)" \
+  "$(echo "$KELUAR_KERANGKA" | grep -o 'pertanyaan:[^ ]*' | awk -F: '{print ($2 >= 15 && $3 >= 16) ? "ya" : "tidak: " $2 " tabel, " $3 " kunci"}')" "ya"
+cek "9d: setiap tabel susunan dan setiap kunci pengaturan punya pertanyaan untuk HRD" \
+  "$(echo "$KELUAR_KERANGKA" | grep -o 'pertanyaan:[^ ]*' | cut -d: -f4)" "lengkap"
+cek "9d: judul kolom templat karyawan sama dengan data simulasi" "$(echo "$KELUAR_KERANGKA" | grep -o 'templat:[^ ]*')" "templat:sama"
+cek "9d: setiap kolom templat karyawan dijelaskan di cara mengisi templat" "$(echo "$KELUAR_KERANGKA" | grep -o 'kolom:[^ ]*')" "kolom:lengkap"
+
+echo "== U5: Pabrik B dengan kode yang sama (180 karyawan, 4 periode bulan kalender), dipasang lewat jalur PT (9d)"
 psql "$ADMIN_URL" -X -q -c "drop database if exists uji_sim_b" -c "create database uji_sim_b" 2> /dev/null
 export DB_URL="$DASAR/uji_sim_b"
 psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -f db/uji/persiapan_peran.sql
-db/pasang.sh > /dev/null
-psql "$DB_URL" -X -q -v ON_ERROR_STOP=1 -f db/data_awal/pabrik_b_struktur.sql
-python3 db/data_awal/muat_karyawan.py B | psql "$DB_URL" -X -q -o /dev/null -v ON_ERROR_STOP=1
+PASANG_B=(env GITHUB_REPOSITORY=pt-contoh/absensi SUSUNAN_PERUSAHAAN=db/data_awal/pabrik_b_struktur.sql DATA_KARYAWAN=data/simulasi/B/induk
+          db/pasang_supabase.sh pasang)
+KODE_PASANG_B=0
+KELUAR_PASANG_B="$("${PASANG_B[@]}" 2>&1)" || KODE_PASANG_B=$?
+cek "9d: Pabrik B terpasang lewat jalur PT (pemeriksaan pemasangan perusahaan lulus)" \
+  "$KODE_PASANG_B/$(echo "$KELUAR_PASANG_B" | grep -c "  GAGAL" || true)/$(echo "$KELUAR_PASANG_B" | grep -c "  LULUS" || true)" "0/0/11"
+cek "9d: jalur PT tidak memuat apa pun dari Pabrik A (mesin MA1/MA2, periode Januari 21)" \
+  "$(nilai "select count(*) from induk.mesin where kode like 'MA%'")/$(nilai "select count(*) from fakta.periode where tanggal_awal = '2026-01-21'")" "0/0"
+cek "9d: jalur PT tidak memuat isian pajak karangan dan tidak menghitung apa pun saat pasang" \
+  "$(nilai "select count(*) from induk.pajak_awal_tahun")/$(nilai "select count(*) from hitung.versi_hitung")" "0/0"
+KODE_PASANG_B2=0
+KELUAR_PASANG_B2="$("${PASANG_B[@]}" 2>&1)" || KODE_PASANG_B2=$?
+cek "9d: Pasang ulang di database PT yang sudah terisi melewati susunan dan karyawan (tidak dobel)" \
+  "$KODE_PASANG_B2/$(echo "$KELUAR_PASANG_B2" | grep -cE "^Lewati (susunan|karyawan) perusahaan" || true)" "0/2"
 python3 db/data_awal/muat_masukan_hrd.py B | psql "$DB_URL" -X -q -o /dev/null -v ON_ERROR_STOP=1
 db/data_awal/muat_tap_simulasi.sh ekspor B > /dev/null
 nilai "select count(hitung.baca_tap(id)) from fakta.periode" > /dev/null

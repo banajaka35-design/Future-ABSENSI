@@ -8,6 +8,8 @@ lewat jaringan ke Supabase, tiap perintah adalah satu perjalanan bolak-balik
 (terukur 0,25 detik), sehingga 5.277 INSERT memakan 22 menit. Isi tabel hasilnya
 sama persis dengan cara lama, dan semuanya tetap dalam satu transaksi.
 Pemakaian: python3 db/data_awal/muat_karyawan.py A | psql ...
+          python3 db/data_awal/muat_karyawan.py <folder> | psql ...   (paket 9d: data PT dari templat
+          docs/pasang/templat/; folder berisi karyawan.csv, pemetaan_id_mesin.csv, dan boleh mutasi_regu.csv)
 """
 import csv
 import os
@@ -26,8 +28,17 @@ def nilai(v):
     return s
 
 
-def baca(pabrik, nama):
-    with open(os.path.join(AKAR, pabrik, "induk", nama), encoding="utf-8", newline="") as f:
+def folder(pabrik):
+    """"A"/"B" = data simulasi; selain itu nama folder data perusahaan (paket 9d)."""
+    return os.path.join(AKAR, pabrik, "induk") if pabrik in ("A", "B") else pabrik
+
+
+def baca(pabrik, nama, wajib=True):
+    jalur = os.path.join(folder(pabrik), nama)
+    if not wajib and not os.path.exists(jalur):
+        return []
+    # utf-8-sig: CSV yang disimpan Excel diawali tanda BOM; tanpa ini kolom pertama terbaca "\ufeffid".
+    with open(jalur, encoding="utf-8-sig", newline="") as f:
         return list(csv.DictReader(f))
 
 
@@ -42,7 +53,7 @@ def main(pabrik):
     karyawan = baca(pabrik, "karyawan.csv")
     pemetaan = baca(pabrik, "pemetaan_id_mesin.csv")
     mutasi = {}
-    for m in baca(pabrik, "mutasi_regu.csv"):
+    for m in baca(pabrik, "mutasi_regu.csv", wajib=False):
         mutasi.setdefault(m["id_karyawan"], []).append((m["berlaku_dari"], m["regu_baru"]))
 
     induk, riwayat, status, regu = [], [], [], []
