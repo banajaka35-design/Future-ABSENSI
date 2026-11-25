@@ -15,7 +15,7 @@ Ditulis 23 November 2026. Isi dan gerbang Tahap 9 dari PRD v2 bagian 13 **tidak 
 | --- | --- | --- |
 | 9a | Web HRD lihat saja: masuk dengan kode email, ringkasan periode, daftar gaji per periode, rincian per orang (komponen gaji dan status harian), daftar perlu dicek, dan keberatan | daftar ditulis 23 Nov, `docs/rencana-9a.md` |
 | 9c | Coba aturan: mengubah aturan secara percobaan, lalu melihat selisih gaji per orang tanpa menyimpan | belum |
-| 9b | Perintah lewat web. 9b-1: tambah libur, absen manual divisi, berhenti, aktif kembali, mutasi (`docs/rencana-9b-1.md`, menunggu "buat"). 9b-2: karyawan baru, ubah gaji | belum |
+| 9b | Perintah lewat web. 9b-1: tambah libur, absen manual divisi, berhenti, aktif kembali, mutasi (`docs/rencana-9b-1.md`, menunggu "buat"). 9b-2: karyawan baru, ubah gaji (`docs/rencana-9b-2.md`, menunggu 4 keputusan dan "buat") | belum |
 | 9d | Paket pasang: kuesioner, templat unggah data karyawan asli, panduan memasang dari nol | belum |
 
 ## Gerbang (usulan Claude, disetujui 23 Nov)
