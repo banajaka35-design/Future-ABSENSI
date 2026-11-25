@@ -17,7 +17,7 @@ Ditulis 23 November 2026. Isi dan gerbang Tahap 9 dari PRD v2 bagian 13 **tidak 
 | 9c | Coba aturan: mengubah aturan secara percobaan, lalu melihat selisih gaji per orang tanpa menyimpan | selesai 25 Nov, `docs/laporan-9c.md` |
 | 9b | Perintah lewat web. 9b-1: tambah libur, absen manual divisi, berhenti, aktif kembali, mutasi. 9b-2: karyawan baru, ubah gaji (dengan persetujuan PIN) | selesai 25 Nov, `docs/laporan-9b-1.md`, `docs/laporan-9b-2.md` |
 | 9a-2 | Perbaikan tampilan web HRD (T1–T8): kartu di HP, tabel Periode dipecah, urutan komponen, pilihan periode bawaan, kamus nama | selesai 25 Nov (uji nyata lulus 13.13), `docs/laporan-9a-2.md` |
-| 9d | Paket pasang: kuesioner, templat unggah data karyawan asli, panduan memasang dari nol. Usulan dipecah 9d-1 (kuesioner + pembuat susunan), 9d-2 (templat + jalur muat), 9d-3 (panduan + pemisahan demo/perusahaan) | daftar ditulis 25 Nov, `docs/rencana-9d.md`, menunggu keputusan K1–K5 dan "buat" |
+| 9d | Kerangka pasang untuk PT baru: daftar pertanyaan HRD, daftar periksa akun, templat karyawan, cara uji banding, petunjuk HRD, perawatan tahunan, dan cara pasang yang bisa memilih perusahaan (bawaan tetap Pabrik A) | rencana versi 2 ditulis 25 Nov, `docs/rencana-9d.md`, menunggu "buat" |
 
 ## Gerbang (usulan Claude, disetujui 23 Nov)
 

@@ -1,95 +1,78 @@
-# Rencana paket 9d: paket pasang
+# Rencana paket 9d: kerangka pasang untuk PT baru
 
-Ditulis 25 November 2026. **Belum di-"buat".** Isi 9d menurut `docs/rencana-tahap-9.md`: kuesioner, templat unggah data
-karyawan asli, dan panduan memasang dari nol. Gerbang Tahap 9 no. 3: "Perusahaan contoh baru (Pabrik B) bisa dipasang dari nol
-hanya dengan kuesioner dan templat."
+Ditulis 25 November 2026, versi 2 (versi 1 terlalu besar: program kuesioner, jalur Drive, keputusan repo; dibuang atas
+masukan pemilik 13.20). **Belum di-"buat".**
 
-## Keadaan sekarang [Pasti, diperiksa 25 Nov]
+## Tujuan
 
-| Hal | Sekarang | Masalahnya untuk perusahaan sungguhan |
-| --- | --- | --- |
-| Aturan dan susunan perusahaan | Ditulis tangan sebagai SQL: `db/data_awal/pabrik_a_struktur.sql` (131 baris) dan `pabrik_b_struktur.sql` (128 baris). Isinya mesin, divisi, jam kerja, rotasi regu, jadwal kantor, kalender, pengaturan, toleransi, lembur, UMK, THR, cuti, batas potongan, komponen tidak tetap | Perusahaan baru butuh orang yang bisa menulis SQL. Tidak ada daftar pertanyaan untuk HRD |
-| Aturan pemerintah | Ikut di file per pabrik (pengali lembur, BPJS) dan sebagian di `aturan_resmi.sql` | Angka pemerintah tersalin di setiap perusahaan, rawan beda |
-| Data karyawan | CSV karangan di `data/simulasi/<pabrik>/induk/` (karyawan, pemetaan ID mesin, mutasi regu), dimuat `muat_karyawan.py` | Data asli tidak boleh masuk repo. Belum ada templat kosong dan pemeriksa isian |
-| Pemasangan | `db/pasang_supabase.sh` dan workflow "Pasang ke Supabase" selalu memuat Pabrik A | Tidak bisa memilih perusahaan. Repo ini publik, jadi log workflow terlihat umum |
-| Panduan | Tabel "Sebelum dipasang untuk perusahaan sungguhan" di `docs/serah-terima.md` (12 butir) | Belum berupa langkah urut yang bisa diikuti |
+Bila suatu hari ada PT yang mau memakai sistem, pemasangan tidak dimulai dari nol: langkahnya urut dan bahannya siap.
+Kode sistem (mesin hitung, pembaca file mesin, bot, web HRD, Sheets, uji) dipakai ulang tanpa diubah. Yang dibuat baru per PT
+hanya isi perusahaan (aturan, data karyawan) dan akun atas nama PT.
 
-## Usulan: dipecah tiga, "buat" satu per satu
+Yang hanya bisa dikerjakan saat PT sudah ada **tidak** dikerjakan di 9d: jawaban aturan PT, akun PT, data karyawan asli, cara
+memuat data asli, repo PT, dan keputusan ulang hak akun pembangun.
 
-### 9d-1: kuesioner dan pembuat susunan perusahaan (tanpa menyentuh Supabase)
+## Alur pasang PT baru yang didukung kerangka
 
-1. **Folder baru `pasang/`** (dicatat di tabel struktur folder CLAUDE.md). **Kuesioner** `pasang/kuesioner-contoh.toml`: satu file teks berisi pertanyaan berkelompok dengan penjelasan di setiap baris.
-   Isinya mesin, divisi (pola, jumlah regu, mesin), jam kerja, rotasi, jadwal kantor, libur perusahaan, pengaturan PRD bagian 11
-   (pola hari kerja, lembur otomatis/perlu perintah, cuti bersama, pembulatan tunai, premi, uang makan, shift malam, alur rilis,
-   tutup buku, gajian), toleransi, lembur, UMK wilayah, THR, cuti, batas potongan, nominal komponen tidak tetap.
-2. **Kuesioner Pabrik A dan Pabrik B** diisi Claude dari file SQL yang ada sekarang (`pasang/pabrik_a.toml`, `pasang/pabrik_b.toml`).
-3. **Pembuat susunan** `pasang/buat_susunan.py` (Python, pustaka bawaan saja): kuesioner → SQL. Kuesioner yang salah ditolak
-   dengan pesan bahasa Indonesia per isian (misalnya divisi memakai mesin yang tidak ada, regu rotasi tidak cocok dengan siklus,
-   tanggal gajian di luar 1–28, UMK kosong).
-4. **Aturan pemerintah dipisah** dari file per pabrik ke satu file bersama (pengali lembur, BPJS, kalender nasional). Isinya tidak
-   berubah. Yang diisi perusahaan hanya hal yang memang pilihan perusahaan.
-5. **Uji gerbang 3 (otomatis, masuk CI):** pasang Pabrik A dan Pabrik B dari kuesioner ke database baru, lalu bandingkan semua
-   tabel `induk` dan `aturan` dengan hasil file SQL tulisan tangan: harus sama persis. Sesudah itu uji U5 Pabrik B (kunci jawaban)
-   dijalankan di atas hasil kuesioner dan harus tetap lulus. Uji tolak: 6 contoh kuesioner salah harus ditolak.
-6. Pemasangan demo di Supabase **tidak diubah** di 9d-1: tetap memakai file SQL lama. Bukti kesamaan cukup dari uji.
+1. Wawancara HRD dengan daftar pertanyaan.
+2. Buat repo privat PT (salinan repo ini).
+3. Buat akun atas nama PT (daftar periksa).
+4. Claude menyusun file susunan PT dari jawaban wawancara (bentuk sama dengan Pabrik A).
+5. HRD mengisi templat karyawan.
+6. Pasang ke Supabase PT dengan workflow yang sama.
+7. Uji banding 1–2 periode dengan hitungan manual HRD.
+8. Serahkan petunjuk pemakaian ke HRD.
 
-### 9d-2: templat data karyawan dan jalur muat
+## Isi paket
 
-1. **Templat kosong** `pasang/templat-karyawan.csv` dengan kolom yang sama seperti data simulasi (ID, nama, divisi, regu, mulai,
-   gaji pokok, tunjangan tetap, PTKP, cara bayar, wajib tap, gaji rahasia), ditambah pemetaan ID mesin dan saldo cuti awal.
-   Bisa dibuka dan disimpan dari Excel atau Google Sheets (CSV UTF-8).
-2. **Pemeriksa templat** `pasang/periksa_karyawan.py`: menolak ID ganda, divisi/regu yang tidak ada di kuesioner, tanggal salah,
-   PTKP tidak dikenal, gaji di bawah UMK pada 12 bulan pertama (sama dengan K3 9b-2), orang rahasia yang dibayar tunai (aturan 8d).
-   Laporan per baris dalam bahasa Indonesia. Tidak ada yang dimuat sebelum semua baris lulus.
-3. **Jalur muat** sesuai keputusan K3 di bawah.
-4. Uji: Pabrik B dimuat dari templat (isi = CSV simulasi B) sama persis dengan cara lama; 8 contoh templat salah ditolak.
-
-### 9d-3: panduan pasang dan pemisahan demo/perusahaan
-
-1. **Panduan** `docs/panduan-pasang.md`: langkah urut dari nol. Isinya membuat repo privat dari repo ini, membuat proyek
-   Supabase (wilayah, paket berbayar untuk cadangan), mengisi secret, bot Telegram baru, Sheets dan akun layanan, Brevo dengan
-   domain sendiri, mengisi kuesioner bersama HRD, memuat templat, uji pertama, dan hal yang harus dimatikan (Terbitkan demo,
-   penyambung Claude). Setiap butir tabel "Sebelum dipasang" punya langkahnya.
-2. **Pemasangan memilih perusahaan:** `pasang_supabase.sh` membaca kuesioner perusahaan, tidak lagi selalu Pabrik A.
-   Demo memakai `pasang/pabrik_a.toml`. Ini **mengubah workflow Pasang demo**, sehingga perlu satu kali Pasang ke Supabase dengan
-   bukti: sidik gaji periode 4 tetap `c427e5a53c5f` dan isi tabel `induk`/`aturan` sama sebelum dan sesudah.
-3. **Penjaga di repo perusahaan:** workflow Terbitkan demo dan Cadangan sebagai artifact menolak berjalan bila repo publik atau
-   bila ada karyawan bukan simulasi (memperluas pengaman D1).
-4. **Uji coba panduan:** Claude mengikuti panduan sendiri untuk memasang Pabrik B ke database lokal kosong, hanya dari kuesioner
-   dan templat. Langkah yang macet diperbaiki di panduan. Ini bukti gerbang 3 yang kedua (cara manusia, bukan hanya uji otomatis).
-
-## Keputusan untuk pemilik
-
-| No | Pertanyaan | Pilihan | Saran Claude dan alasannya |
-| --- | --- | --- | --- |
-| K1 | Bentuk kuesioner | (a) file teks TOML yang diisi pembangun saat wawancara HRD; (b) Google Sheets yang diisi HRD sendiri | **(a)**. Bisa dibaca Python tanpa pustaka tambahan, bisa diberi penjelasan per baris, dan perubahannya tercatat di Git. HRD tetap diwawancarai; yang mengetik pembangun. (b) butuh penyambung Sheets dan pemeriksaan yang lebih rumit [Kemungkinan Besar] |
-| K2 | Bentuk templat karyawan | (a) CSV UTF-8; (b) file Excel (.xlsx) | **(a)**. Excel dan Sheets bisa menyimpan CSV; Python membacanya tanpa pustaka luar. Risikonya, Excel bisa mengubah ID "00123" jadi angka; pemeriksa menolak ID yang kehilangan nol di depan, dan panduan menjelaskan cara menyimpan sebagai teks [Kemungkinan Besar] |
-| K3 | Jalur memuat data karyawan asli (data tidak boleh masuk repo) | (a) file ditaruh di folder Drive tertutup milik perusahaan, lalu workflow "Muat karyawan" di repo privat perusahaan mengambilnya dengan akun layanan; (b) pembangun mengirim file ke bot Telegram, bot memeriksa, menampilkan pratinjau, lalu memuat setelah dikonfirmasi PIN; (c) disalin manual dari komputer pemilik | **(a)**. Mengikuti aturan 8 (Supabase hanya lewat workflow), memakai pola akun layanan yang sudah ada (Sheets), dan tidak butuh migrasi atau Edge Function baru. (b) lebih nyaman tapi menambah kode bot dan migrasi. (c) melanggar aturan 8 |
-| K4 | Repo untuk perusahaan sungguhan | (a) repo privat baru per perusahaan, dibuat dari repo ini; (b) satu repo dengan GitHub Environments per perusahaan | **(a)**. Repo ini publik; log dan cadangan perusahaan tidak boleh di sini (syarat 25 Nov). Kekurangannya, perbaikan kode harus ditarik ke tiap repo; untuk satu–dua perusahaan masih ringan [Kemungkinan Besar] |
-| K5 | Urutan | (a) 9d-1 → 9d-2 → 9d-3, "buat" satu per satu; (b) ketiganya sekaligus | **(a)**. 9d-1 tidak menyentuh Supabase dan sudah membuktikan gerbang 3 secara otomatis; 9d-3 satu-satunya yang memicu Pasang |
-
-Tidak ada pilihan di sini yang membatasi akun pembangun. Hak penuh akun pembangun untuk perusahaan sungguhan tetap tercatat
-"diputuskan ulang saat pemasangan pertama" dan **tidak** diputuskan di 9d.
+1. **Daftar pertanyaan untuk HRD** `docs/pasang/1-pertanyaan-hrd.md`. Bahasa biasa, bisa dicetak atau dikirim lewat WhatsApp.
+   Setiap pertanyaan diberi catatan isian sistem yang diisinya (untuk pembangun/Claude), dan contoh jawaban dari Pabrik A.
+   Disusun dari semua isian di `db/data_awal/pabrik_a_struktur.sql` dan kolom data karyawan, sehingga tidak ada isian sistem
+   tanpa pertanyaan. Kelompok: perusahaan dan mesin absen, divisi dan shift, jadwal dan libur, gajian dan tutup buku, telat dan
+   lembur, tunjangan dan potongan, cara bayar, persetujuan gaji, gaji rahasia.
+2. **Daftar periksa akun** `docs/pasang/2-daftar-periksa-akun.md`: repo privat, Supabase (atas nama PT, wilayah, paket untuk
+   cadangan), bot Telegram baru, Google Sheets + akun layanan, email pengirim dengan domain PT, secret yang harus diisi, dan yang
+   wajib dimatikan di repo PT (Terbitkan demo, cadangan sebagai artifact GitHub). Disusun dari tabel "Sebelum dipasang" di
+   `docs/serah-terima.md` (12 butir), semuanya punya langkah.
+3. **Cara pasang memilih perusahaan** (satu-satunya perubahan kode): `db/pasang_supabase.sh` dan `db/data_awal/muat_karyawan.py`
+   bisa diarahkan ke file susunan dan folder data karyawan perusahaan lain. Bila tidak diarahkan, tetap Pabrik A seperti sekarang,
+   sehingga pemasangan demo tidak berubah dan **tidak perlu Pasang ulang ke Supabase**.
+4. **Templat karyawan** `docs/pasang/templat-karyawan.csv` (kosong, kolom sama dengan data simulasi) dan
+   `docs/pasang/4-isi-templat.md`: arti setiap kolom, isian yang boleh, kesalahan Excel yang sering terjadi (nol di depan ID hilang,
+   tanggal berubah format).
+5. **Cara uji banding** `docs/pasang/5-uji-banding.md`: sistem berjalan bersama hitungan manual HRD 1–2 periode; selisih per orang
+   dicatat dan dijelaskan (sistem salah, manual salah, atau aturan belum dicatat); gaji baru dibayar memakai angka sistem setelah
+   tidak ada selisih yang belum dijelaskan.
+6. **Petunjuk pemakaian HRD** `docs/pasang/6-petunjuk-hrd.md`: kirim file mesin, perintah lewat chat dan web, perlu dicek,
+   ajukan dan rilis gaji, keberatan karyawan, coba aturan. Bahasa HRD, bukan bahasa pembangun.
+7. **Perawatan tahunan dan pembaruan** `docs/pasang/7-perawatan.md`: UMK, kalender libur dan cuti bersama, batas BPJS, cadangan,
+   dan cara menarik perbaikan kode dari repo ini ke repo PT.
+8. **Panduan utama** `docs/pasang/README.md`: alur 1–8 di atas, setiap langkah menunjuk ke dokumennya.
+9. **Bukti (gerbang 3 Tahap 9):**
+   - Uji otomatis baru di uji simulasi: Pabrik B dipasang lewat jalur "pilih perusahaan" (file `pabrik_b_struktur.sql` + data B)
+     dan uji U5 Pabrik B tetap lulus; pemasangan tanpa pilihan tetap Pabrik A dan semua uji lama tetap lulus.
+   - Uji daftar pertanyaan: setiap tabel yang diisi file susunan Pabrik A disebut di daftar pertanyaan (pemeriksaan otomatis
+     sederhana, gagal bila ada tabel tanpa pertanyaan).
+   - Uji coba manual oleh Claude: menjawab daftar pertanyaan untuk Pabrik B dari `docs/data-simulasi.md`, mengikuti panduan
+     sampai database lokal terpasang, dan mencatat langkah yang macet. Hasilnya di laporan.
 
 ## Analisa celah
 
 | No | Celah | Penutup | Label |
 | --- | --- | --- | --- |
-| V1 | Pembuat susunan menghasilkan aturan sedikit berbeda dari SQL tulisan tangan, sehingga gaji Pabrik A/B berubah diam-diam | Uji membandingkan isi semua tabel `induk` dan `aturan`, lalu U5 Pabrik B dengan kunci jawaban; demo tidak diganti sebelum 9d-3 | [Pasti] |
-| V2 | Kuesioner tidak bisa menampung pola jadwal perusahaan lain (misalnya rotasi 3 regu 12 jam) | Rotasi ditulis sebagai siklus kode bebas, sama dengan tabel `induk.pola_rotasi` sekarang; pola yang tidak bisa ditulis dicatat sebagai temuan, tidak ditebak | [Kemungkinan Besar] |
-| V3 | Data asli bocor lewat log workflow | Pemeriksa hanya mencetak nomor baris dan nama isian, tidak mencetak nama, gaji, atau rekening; repo perusahaan privat (K4) | [Kemungkinan Besar] |
-| V4 | Excel merusak isi CSV (nol di depan ID, tanggal jadi format lokal, pemisah titik koma) | Pemeriksa menolak dengan pesan jelas; panduan menjelaskan cara menyimpan | [Kemungkinan Besar] |
-| V5 | Aturan pemerintah yang dipisah menjadi satu file membuat demo berbeda. Contoh nyata: batas atas JP di file Pabrik A ditulis 10.547.000, lalu dibetulkan oleh `aturan_resmi.sql` dengan menutup baris lama dan menambah baris baru (paket 16 Nov). Bila pemisahan langsung menulis angka yang benar, riwayat baris di demo berbeda dari perusahaan baru | Perusahaan baru langsung memakai angka resmi bertanggal; demo tetap memakai urutan lama (file Pabrik A + `aturan_resmi.sql`). Uji V1 membandingkan hasil akhir yang berlaku per tanggal, bukan nomor baris; perbedaan riwayat dicatat di laporan | [Kemungkinan Besar] |
-| V6 | Panduan cepat usang setelah perubahan kode | Uji coba panduan (9d-3 butir 4) diulang setiap ada perubahan cara pasang; dicatat di serah-terima | [Menebak] |
-| V7 | Angka aturan pemerintah untuk 2027 (UMK, batas JP, kalender libur) belum ada | Bukan isi 9d; panduan mencantumkan pemeriksaan tahunan sebelum Januari | [Pasti] |
+| V1 | Perubahan cara pasang merusak pemasangan demo | Bawaan tetap Pabrik A; uji database dan simulasi lama harus lulus dengan angka sama; demo tidak dipasang ulang | [Pasti] |
+| V2 | Daftar pertanyaan melewatkan aturan yang dipakai sistem | Uji otomatis tabel ↔ pertanyaan (isi 9) | [Kemungkinan Besar] |
+| V3 | Petunjuk HRD cepat usang bila fitur berubah | Petunjuk ditulis dari perintah yang ada sekarang; laporan paket berikutnya wajib menyebut bila petunjuk perlu diperbarui | [Menebak] |
+| V4 | Data asli PT ikut masuk repo saat pemasangan nanti | Daftar periksa dan templat menegaskan data asli tidak masuk repo; cara memuat data asli diputuskan saat PT ada | [Kemungkinan Besar] |
+| V5 | Angka aturan pemerintah 2027 belum ada | Bukan isi 9d; masuk daftar perawatan tahunan | [Pasti] |
 
 ## Yang dipasang
 
-- 9d-1 dan 9d-2: tidak ada pemasangan Supabase, tidak ada migrasi, tidak ada perubahan Edge Function.
-- 9d-3: satu kali Pasang ke Supabase demo (karena cara pasang berubah), dengan bukti sidik gaji periode 4 tetap `c427e5a53c5f`.
+Tidak ada pemasangan Supabase, tidak ada migrasi, tidak ada perubahan Edge Function. Yang berubah: dokumen di `docs/pasang/`,
+dua file pemasang (dengan bawaan tetap Pabrik A), dan uji simulasi.
 
 ## Yang belum pasti
 
-- [Menebak] Jumlah pertanyaan kuesioner sekitar 40–60 isian; dihitung pasti saat 9d-1 dibuat.
-- [Kemungkinan Besar] Gerbang 1 ("HRD menjalankan satu bulan penuh tanpa bantuan") tidak bisa dibuktikan di 9d karena belum ada
-  HRD sungguhan. Menurut aturan 10, gerbang ini berjalan di belakang dan dimulai saat perusahaan pertama dipasang.
+- [Menebak] Jumlah pertanyaan sekitar 30–50; dihitung pasti saat dibuat.
+- [Kemungkinan Besar] Gerbang 1 Tahap 9 ("HRD menjalankan satu bulan penuh tanpa bantuan") baru bisa dibuktikan saat PT pertama;
+  berjalan di belakang menurut aturan 10.
