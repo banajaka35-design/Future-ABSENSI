@@ -94,6 +94,42 @@ cek "web HRD: tidak memuat apa pun dari situs lain" \
   "$(grep -cE "(src|href)=[\"']https?:" web/demo/hrd/index.html || true)" "0"
 cek "web HRD 9b-2: halaman tidak punya isian nomor rekening (rekening belum dienkripsi, di luar 9b-2)" \
   "$(grep -ciE "rekening_terenkripsi|id=\"p-rekening" web/demo/hrd/index.html || true)" "0"
+echo "== Web HRD (paket 9a-2: tabel kartu di HP, kamus nama)"
+cek "web HRD 9a-2: setiap tabel memakai tampilan kartu (class kartu)" \
+  "$(grep -c "<table " web/demo/hrd/index.html)" "$(grep -c "<table class=\"kartu\" " web/demo/hrd/index.html)"
+cek "web HRD 9a-2: sel tabel hanya dibuat oleh sel() yang memberi data-judul" \
+  "$(grep -c 'el("td"' web/demo/hrd/index.html)/$(grep -c 'if (judul) td.dataset.judul = judul;' web/demo/hrd/index.html)" "1/1"
+cek "web HRD 9a-2: CSS menampilkan data-judul di layar sempit (di bawah 760 px)" \
+  "$(grep -c 'max-width: 759px' web/demo/hrd/index.html)/$(grep -c 'content: attr(data-judul)' web/demo/hrd/index.html)" "1/1"
+# Kamus (T6): semua komponen dan peringatan yang ditulis mesin hitung (definisi hitung.hitung_gaji terbaru di db/migrasi)
+# harus punya nama di halaman. Komponen BPJS dibentuk dari program x bagian di tabel aturan.bpjs (0002).
+KELUAR_KAMUS="$(python3 - <<'PY'
+import glob, re
+html = open("web/demo/hrd/index.html", encoding="utf-8").read()
+def kamus(nama):
+    m = re.search(r"const " + nama + r" = \{(.*?)\};", html, re.S)
+    return set(re.findall(r"([a-z0-9_]+):", m.group(1))) if m else set()
+berkas = [f for f in sorted(glob.glob("db/migrasi/*.sql")) if "function hitung.hitung_gaji(" in open(f, encoding="utf-8").read()]
+isi = open(berkas[-1], encoding="utf-8").read()
+tubuh = isi[isi.index("function hitung.hitung_gaji("):]
+tubuh = tubuh[:tubuh.index("\n$$;")]
+komponen = set(re.findall(r"'([a-z0-9_]+)',\s*'(?:pendapatan|potongan|perusahaan)'", tubuh))
+if "'bpjs_' || b.program || '_' || b.bagian" in tubuh:
+    aturan = "".join(open(f, encoding="utf-8").read() for f in sorted(glob.glob("db/migrasi/*.sql")))
+    program = re.findall(r"'([a-z]+)'", re.search(r"program text not null check \(program in \(([^)]*)\)\)", aturan).group(1))
+    bagian = re.findall(r"'([a-z]+)'", re.search(r"bagian text not null check \(bagian in \(([^)]*)\)\)", aturan).group(1))
+    komponen |= {"bpjs_%s_%s" % (p, b) for p in program for b in bagian}
+peringatan = set(re.findall(r"array\['([a-z0-9_]+)'\]", tubuh)) | set(re.findall(r"array_append\(tanda_gaji, '([a-z0-9_]+)'\)", tubuh))
+kurang = sorted(komponen - kamus("KAMUS_KOMPONEN")) + sorted(peringatan - kamus("KAMUS_PERINGATAN"))
+print("%d %d %s" % (len(komponen), len(peringatan), ",".join(kurang) or "lengkap"))
+PY
+)"
+cek "web HRD 9a-2: daftar komponen dan peringatan terbaca dari migrasi (bukan kosong karena pola berubah)" \
+  "$(echo "$KELUAR_KAMUS" | awk '{print ($1 >= 20 && $2 >= 15) ? "ya" : "tidak: " $1 " komponen, " $2 " peringatan"}')" "ya"
+cek "web HRD 9a-2: setiap komponen dan peringatan mesin hitung punya nama di kamus halaman" \
+  "$(echo "$KELUAR_KAMUS" | awk '{print $3}')" "lengkap"
+cek "web HRD 9a-2: kode asli tetap ada di keterangan (title) saat nama kamus ditampilkan" \
+  "$(grep -c 's.title = String(k);' web/demo/hrd/index.html)" "1"
 
 echo "== F15b: kebocoran gaji rahasia Pabrik A (3 orang rahasia; tanda lembur divisi KTR periode Nov-Des)"
 KODE_BOCOR_A=0

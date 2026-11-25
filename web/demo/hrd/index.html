@@ -21,7 +21,7 @@
   .kecil { color: var(--redup); font-size: 13px; }
   section { background: var(--kartu); border: 1px solid var(--garis); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
   label { display: block; font-weight: 600; margin: 12px 0 4px; }
-  input, select { font: inherit; padding: 6px; border: 1px solid var(--garis); border-radius: 6px; background: #fff; }
+  input, select { font: inherit; padding: 6px; border: 1px solid var(--garis); border-radius: 6px; background: #fff; max-width: 100%; }
   input[type=email] { width: 100%; max-width: 420px; }
   button { font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--aksen); background: var(--aksen); color: #fff; cursor: pointer; }
   button.biasa { background: #fff; color: var(--aksen); }
@@ -37,7 +37,7 @@
   .gulir { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--garis); vertical-align: top; white-space: nowrap; }
-  td.lebar { white-space: normal; min-width: 220px; }
+  td.lebar { white-space: normal; min-width: 160px; }
   th { font-size: 13px; color: var(--redup); font-weight: 600; cursor: default; }
   th.urut { cursor: pointer; text-decoration: underline dotted; }
   td.angka, th.angka { text-align: right; }
@@ -51,6 +51,29 @@
   .kisi input, .kisi select { display: block; width: 100%; margin-top: 4px; font-weight: 400; }
   .naik { color: var(--baik); }
   .turun { color: var(--awas); }
+  tr.kelompok td { font-weight: 700; background: var(--latar); padding-top: 10px; }
+  tr.rincian > td { background: #f8fafd; white-space: normal; }
+  tr.dipilih { background: #eef3fb; }
+  .rinci { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 18px; margin-bottom: 8px; }
+  .rinci span { font-weight: 600; color: var(--redup); }
+  .kode { text-decoration: underline dotted #b8c0cc; }
+  /* Paket 9a-2 (T1/T2): di layar sempit setiap baris tabel menjadi kartu bertumpuk; judul kolom dari data-judul. */
+  @media (max-width: 759px) {
+    header, main { padding: 10px 10px; }
+    section { padding: 12px; }
+    table.kartu, table.kartu tbody, table.kartu tr, table.kartu td { display: block; width: 100%; }
+    table.kartu tr.kepala { display: none; }
+    table.kartu tr.kepala.tetap { display: flex; flex-wrap: wrap; gap: 4px 12px; border: 0; margin-bottom: 6px; }
+    table.kartu tr.kepala.tetap th { display: block; border: 0; padding: 2px 0; }
+    table.kartu tr { border: 1px solid var(--garis); border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; background: #fff; }
+    table.kartu tr.kelompok { border: 0; padding: 0; background: none; margin: 10px 0 4px; }
+    table.kartu td { border: 0; padding: 2px 0; white-space: normal; text-align: left; min-width: 0; overflow-wrap: anywhere; }
+    table.kartu tr.kelompok td { background: none; padding: 0; }
+    table.kartu td:empty { display: none; }
+    table.kartu td[data-judul]::before { content: attr(data-judul) ": "; font-weight: 600; color: var(--redup); }
+    table.kartu tr.rincian { border-style: dashed; }
+    table.kartu td button { margin-top: 4px; }
+  }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -92,18 +115,19 @@
 
     <section id="tab-periode">
       <h2>Periode gaji</h2>
-      <div class="kecil">Total tidak termasuk orang yang gajinya rahasia (sama dengan tab Ringkasan di Sheets). Total lengkap hanya untuk bos lewat bot dengan PIN.</div>
-      <div class="gulir"><table id="tabel-periode"></table></div>
+      <div class="kecil">Total tidak termasuk orang yang gajinya rahasia (sama dengan tab Ringkasan di Sheets). Total lengkap hanya untuk bos lewat bot dengan PIN.
+        Klik baris untuk melihat rincian (pendapatan, potongan, transfer, tunai, versi hitung).</div>
+      <div class="gulir"><table class="kartu" id="tabel-periode"></table></div>
     </section>
 
     <section id="tab-gaji" hidden>
-      <h2>Gaji per orang</h2>
+      <h2 id="judul-gaji">Gaji per orang</h2>
       <div class="alat">
         <select id="pilih-periode-gaji" aria-label="Periode"></select>
         <input type="search" id="cari" placeholder="Cari ID atau nama" aria-label="Cari">
         <span class="kecil" id="jumlah-gaji"></span>
       </div>
-      <div class="gulir"><table id="tabel-gaji"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-gaji"></table></div>
       <div id="lebih-gaji"></div>
     </section>
 
@@ -112,17 +136,17 @@
       <h2 id="judul-orang"></h2>
       <div id="ringkas-orang"></div>
       <h3>Komponen gaji</h3>
-      <div class="gulir"><table id="tabel-komponen"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-komponen"></table></div>
       <h3>Status harian</h3>
-      <div class="gulir"><table id="tabel-harian"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-harian"></table></div>
       <h3>Perintah HRD untuk orang ini di periode ini</h3>
-      <div class="gulir"><table id="tabel-perintah"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-perintah"></table></div>
     </section>
 
     <section id="tab-cek" hidden>
-      <h2>Perlu dicek</h2>
+      <h2 id="judul-cek">Perlu dicek</h2>
       <div class="alat"><select id="pilih-periode-cek" aria-label="Periode"></select><span class="kecil" id="jumlah-cek"></span></div>
-      <div class="gulir"><table id="tabel-cek"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-cek"></table></div>
     </section>
 
     <section id="tab-coba" hidden>
@@ -147,7 +171,7 @@
       <div id="hasil-coba" hidden>
         <h3>Hasil percobaan</h3>
         <div id="ringkas-coba"></div>
-        <div class="gulir"><table id="tabel-coba"></table></div>
+        <div class="gulir"><table class="kartu" id="tabel-coba"></table></div>
       </div>
     </section>
 
@@ -155,7 +179,8 @@
       <h2>Perintah</h2>
       <div class="kecil">Isi perintah, lihat pratinjau, lalu Simpan. Periode yang kena dihitung ulang otomatis dan Sheets ikut diperbarui.
         Setiap perintah bisa dibatalkan selama periodenya belum dirilis dan belum ada perubahan lebih baru untuk orang yang sama.
-        Gaji tidak bisa diubah dari sini.</div>
+        Perintah yang menyangkut uang (karyawan baru, ubah gaji) menjadi pengajuan dan baru berlaku setelah disetujui bos atau
+        pembangun lewat bot dengan PIN. Nomor rekening belum bisa diisi lewat web.</div>
       <form id="form-perintah">
         <div class="kisi">
           <label>Jenis perintah<select id="p-jenis">
@@ -198,15 +223,15 @@
       </div>
       <h3>Pengajuan karyawan baru dan ubah gaji</h3>
       <div class="kecil">Disetujui atau ditolak bos/pembangun lewat bot dengan PIN. Hangus bila tidak diputuskan dalam 7 hari. Nomor rekening belum bisa diisi lewat web.</div>
-      <div class="gulir"><table id="tabel-pengajuan"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-pengajuan"></table></div>
       <h3>Perintah web terakhir</h3>
-      <div class="gulir"><table id="tabel-perintah-web"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-perintah-web"></table></div>
     </section>
 
     <section id="tab-keberatan" hidden>
       <h2>Keberatan karyawan</h2>
       <div class="kecil">Menjawab keberatan lewat bot Telegram (tombol Terima/Tolak atau /keberatan).</div>
-      <div class="gulir"><table id="tabel-keberatan"></table></div>
+      <div class="gulir"><table class="kartu" id="tabel-keberatan"></table></div>
     </section>
   </div>
 </main>
@@ -235,7 +260,63 @@
     if (!teks) return;
     wadah.appendChild(el("div", teks, "pesan " + jenis));
   }
-  const rupiah = (n) => n === null || n === undefined ? "" : "Rp" + Number(n).toLocaleString("id-ID");
+  // T7 (9a-2): rupiah minus ditulis "-Rp…".
+  const rupiah = (n) => n === null || n === undefined ? "" : (Number(n) < 0 ? "-" : "") + "Rp" + Math.abs(Number(n)).toLocaleString("id-ID");
+
+  // T6 (9a-2): kamus nama, hanya untuk tampilan. Kode asli tetap ada di keterangan (title). Kode yang belum ada di kamus
+  // tampil dengan garis bawah diganti spasi. Uji simulasi gagal bila komponen/peringatan di mesin hitung belum ada di sini.
+  const KAMUS_KOMPONEN = {
+    gaji_pokok: "Gaji pokok", tunjangan_tetap: "Tunjangan tetap", potongan_tidak_dibayar: "Potongan hari tidak dibayar",
+    uang_makan: "Uang makan", tunjangan_shift_malam: "Tunjangan shift malam", premi_hadir: "Premi hadir", lembur: "Lembur",
+    thr: "THR", denda: "Denda", kasbon: "Cicilan kasbon", pph21: "PPh 21", pengembalian_pph21: "Pengembalian kelebihan PPh 21",
+    bpjs_kesehatan_karyawan: "BPJS Kesehatan (karyawan)", bpjs_kesehatan_perusahaan: "BPJS Kesehatan (perusahaan)",
+    bpjs_jht_karyawan: "BPJS JHT (karyawan)", bpjs_jht_perusahaan: "BPJS JHT (perusahaan)",
+    bpjs_jp_karyawan: "BPJS JP (karyawan)", bpjs_jp_perusahaan: "BPJS JP (perusahaan)",
+    bpjs_jkk_karyawan: "BPJS JKK (karyawan)", bpjs_jkk_perusahaan: "BPJS JKK (perusahaan)",
+    bpjs_jkm_karyawan: "BPJS JKM (karyawan)", bpjs_jkm_perusahaan: "BPJS JKM (perusahaan)",
+  };
+  const KAMUS_PERINGATAN = {
+    alpha_di_hari_libur_tidak_dipotong: "Alpha di hari libur nasional, tidak dipotong",
+    belum_pasti: "Ada hari yang belum pasti (data mesin belum masuk)",
+    dasar_lembur_75_perlu_konfirmasi_hrd: "Dasar upah lembur 75% perlu dikonfirmasi HRD",
+    denda_melewati_batas_potongan: "Denda melewati batas potongan (kelebihan tidak dipotong)",
+    di_bawah_umk: "Gaji di bawah upah minimum",
+    gaji_bersih_negatif: "Gaji bersih minus",
+    kasbon_tidak_terpotong_penuh: "Kasbon tidak terpotong penuh (batas potongan)",
+    lembur_datang_awal_disetujui: "Ada lembur datang awal yang disetujui",
+    lembur_hari_libur_tanpa_tap_pulang: "Masuk di hari libur tanpa tap pulang (lembur tidak dihitung)",
+    lembur_lewat_18_jam: "Lembur lewat 18 jam seminggu",
+    lembur_lewat_4_jam: "Lembur lewat 4 jam sehari",
+    lembur_lewat_tabel: "Lembur lebih panjang dari tabel pengali",
+    lembur_libur_lupa_tap: "Lembur hari libur dengan lupa tap",
+    lembur_tidak_dibayar_tanpa_izin: "Ada lembur tidak dibayar (tanpa persetujuan)",
+    pembulatan_lembur_ke_bawah: "Menit lembur dibulatkan ke bawah",
+    pokok_di_bawah_75: "Gaji pokok di bawah 75% dari pokok + tunjangan tetap",
+    potong_cuti_tidak_berlaku_uu27: "Cuti bersama tidak boleh memotong cuti (sejak 28 Okt 2026)",
+    pph_masa_terakhir_tertahan: "PPh akhir tahun belum bisa dihitung (data gaji setahun belum lengkap)",
+    wajib_makan: "Lembur 4 jam atau lebih: wajib diberi makan",
+  };
+  const KAMUS_PERINTAH = {
+    sakit: "Sakit", izin: "Izin", cuti: "Cuti", dinas_luar: "Dinas luar", absen_manual: "Absen manual", tukar_shift: "Tukar shift",
+    batalkan_lembur: "Batalkan lembur", setujui_lembur: "Setujui lembur", setujui_datang_awal: "Setujui datang awal",
+    penyesuaian: "Penyesuaian", kasbon: "Kasbon", tambah_libur: "Tambah libur", batalkan_kiriman: "Batalkan kiriman file",
+    berhenti: "Berhenti", aktif_kembali: "Aktif kembali", karyawan_baru: "Karyawan baru", mutasi: "Mutasi", ubah_gaji: "Ubah gaji",
+    batalkan_perintah: "Pembatalan",
+  };
+  const KELOMPOK = { pendapatan: "Pendapatan", potongan: "Potongan karyawan", perusahaan: "Iuran perusahaan (tidak memotong gaji)" };
+  const URUT_KELOMPOK = { pendapatan: 0, potongan: 1, perusahaan: 2 };
+  const namaKode = (kamus, kode) => kode === null || kode === undefined ? "" : (kamus[kode] || String(kode).replace(/_/g, " "));
+  function kode(kamus, k) {
+    const s = el("span", namaKode(kamus, k), "kode");
+    s.title = String(k);
+    return s;
+  }
+  function daftarKode(kamus, kode) {
+    if (!kode || !kode.length) return "";
+    const s = el("span", (kode || []).map((k) => namaKode(kamus, k)).join("; "), "kecil kode");
+    s.title = (kode || []).join(", ");
+    return s;
+  }
   const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
   const HARI = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
   function tanggal(iso, hari) {
@@ -256,26 +337,44 @@
   const STATUS_PERIODE = { terbuka: "terbuka", menunggu_data: "menunggu data", dihitung: "dihitung", diajukan: "diajukan",
                            disetujui: "disetujui", dirilis: "dirilis", dikunci: "dirilis, pesan gaji terkirim" };
 
+  // Satu-satunya pembuat sel tabel (9a-2): setiap sel diberi data-judul (judul kolomnya) supaya di layar sempit
+  // tampil sebagai "Judul: isi". Isi tetap lewat textContent/appendChild (C2 9a).
+  function sel(judul, isi, kelas) {
+    const td = el("td", isi instanceof Node ? null : isi, kelas);
+    if (isi instanceof Node) td.appendChild(isi);
+    if (judul) td.dataset.judul = judul;
+    return td;
+  }
+  function selPenuh(jumlah, isi, kelas) {
+    const td = sel("", isi, kelas);
+    td.colSpan = jumlah;
+    return td;
+  }
+  // Baris isi: larik sel, atau { kelompok: "judul" } untuk judul kelompok tebal.
   function baris(tabel, judul, isiBaris, angka) {
     tabel.replaceChildren();
-    const kepala = el("tr");
+    const kepala = el("tr", null, "kepala");
     judul.forEach((j, i) => kepala.appendChild(el("th", j, angka && angka.includes(i) ? "angka" : "")));
     tabel.appendChild(kepala);
-    for (const sel of isiBaris) {
+    const hasil = [];
+    for (const isi of isiBaris) {
+      if (!Array.isArray(isi)) {
+        const tr = el("tr", null, "kelompok");
+        tr.appendChild(selPenuh(judul.length, isi.kelompok));
+        tabel.appendChild(tr);
+        continue;
+      }
       const tr = el("tr");
-      sel.forEach((s, i) => {
-        if (s instanceof Node) { const td = el("td"); td.appendChild(s); tr.appendChild(td); }
-        else tr.appendChild(el("td", s, angka && angka.includes(i) ? "angka" : ""));
-      });
+      isi.forEach((s, i) => tr.appendChild(sel(judul[i], s, angka && angka.includes(i) ? "angka" : "")));
       tabel.appendChild(tr);
+      hasil.push(tr);
     }
     if (!isiBaris.length) {
       const tr = el("tr");
-      const td = el("td", "Tidak ada data.", "kecil");
-      td.colSpan = judul.length;
-      tr.appendChild(td);
+      tr.appendChild(selPenuh(judul.length, "Tidak ada data.", "kecil"));
       tabel.appendChild(tr);
     }
+    return hasil;
   }
 
   async function panggil(jalur, badan, sinyal) {
@@ -372,49 +471,109 @@
     $("keluar").hidden = false;
     if (label) $("siapa").textContent = "Masuk sebagai " + label + ". Sesi 2 jam, berakhir bila 30 menit tidak dipakai.";
     tulisPeriode();
-    isiPilihan($("pilih-periode-gaji"));
-    isiPilihan($("pilih-periode-cek"));
+    isiPilihan($("pilih-periode-gaji"), null, "gaji");
+    isiPilihan($("pilih-periode-cek"), null, "cek");
     isiPilihan($("pilih-periode-coba"), (p) => !["dirilis", "dikunci"].includes(p.status));
     bukaTab("periode");
   }
 
-  function namaPeriode(p) { return "No. " + p.id + " · " + tanggal(p.awal) + " – " + tanggal(p.akhir); }
-  function isiPilihan(sel, saring) {
-    sel.replaceChildren();
+  // T4 (9a-2): pilihan periode menyebut status. Bawaan Gaji dan Perlu dicek = periode tertua yang belum dirilis
+  // (yang harus diurus HRD berikutnya; rilis wajib berurutan sejak 8b-3). Pilihan terakhir disimpan selama sesi.
+  const dirilis = (p) => ["dirilis", "dikunci"].includes(p.status);
+  function rentang(awal, akhir) {
+    const a = tanggal(awal), b = tanggal(akhir);
+    return (String(awal).slice(0, 4) === String(akhir).slice(0, 4) ? a.replace(/ \d{4}$/, "") : a) + " – " + b;
+  }
+  function statusPendek(p) {
+    if (dirilis(p)) return "dirilis";
+    if (p.status === "dihitung") return p.bisa_diajukan ? "bisa diajukan" : "belum bisa diajukan";
+    return STATUS_PERIODE[p.status] || p.status;
+  }
+  function namaPeriode(p) { return "No. " + p.id + " · " + rentang(p.awal, p.akhir) + " · " + statusPendek(p); }
+  const KUNCI_PILIHAN = "future-absensi-hrd-pilihan-";
+  function ingatPilihan(nama, id) { try { sessionStorage.setItem(KUNCI_PILIHAN + nama, String(id)); } catch {} }
+  function isiPilihan(pilih, saring, ingat) {
+    pilih.replaceChildren();
     const ada = periode.filter((p) => p.ada_gaji && (!saring || saring(p)));
-    for (const p of ada) { const o = el("option", namaPeriode(p)); o.value = p.id; sel.appendChild(o); }
-    if (ada.length) sel.value = ada[ada.length - 1].id;
+    for (const p of ada) { const o = el("option", namaPeriode(p)); o.value = p.id; pilih.appendChild(o); }
+    if (!ada.length) return;
+    let simpan = "";
+    if (ingat) { try { simpan = sessionStorage.getItem(KUNCI_PILIHAN + ingat) || ""; } catch {} }
+    const tertua = ada.find((p) => !dirilis(p));
+    pilih.value = ingat && ada.some((p) => String(p.id) === simpan) ? simpan
+      : String((ingat && tertua ? tertua : ada[ada.length - 1]).id);
+  }
+  function judulPeriode(wadah, awalan, id) {
+    const p = periode.find((x) => String(x.id) === String(id));
+    wadah.textContent = p ? awalan + " no. " + p.id + " (" + rentang(p.awal, p.akhir) + ", " + statusPendek(p) + ")" : awalan;
   }
 
+  // T1 (9a-2): tabel utama hanya kolom pokok; rincian lain muncul saat baris diklik. Semua angka dari web_ringkasan
+  // yang sudah tanpa orang rahasia (V4), tidak ada angka baru.
   function tulisPeriode() {
-    baris($("tabel-periode"),
-      ["No.", "Tanggal", "Bayar", "Status", "Orang", "Pendapatan", "Potongan", "Gaji bersih", "Transfer", "Tunai", "Orang rahasia", ""],
-      periode.map((p) => {
-        const lihat = el("button", "Lihat gaji", "biasa");
-        lihat.disabled = !p.ada_gaji;
-        lihat.addEventListener("click", async () => {
-          $("pilih-periode-gaji").value = p.id;
-          bukaTab("gaji");
-          await muatGaji();
-        });
-        return [p.id, tanggal(p.awal) + " – " + tanggal(p.akhir), tanggal(p.bayar), p.status_rilis || STATUS_PERIODE[p.status] || p.status,
-                p.ada_gaji ? p.orang : "", p.ada_gaji ? rupiah(p.pendapatan) : "", p.ada_gaji ? rupiah(p.potongan) : "",
-                p.ada_gaji ? rupiah(p.bersih) : "", p.ada_gaji ? rupiah(p.transfer) : "", p.ada_gaji ? rupiah(p.tunai) : "",
-                p.ada_gaji ? p.rahasia : "", lihat];
-      }), [4, 5, 6, 7, 8, 9, 10]);
+    const tabel = $("tabel-periode");
+    const judul = ["No.", "Tanggal", "Status rilis", "Orang", "Gaji bersih", "Dibayar", "Rahasia"];
+    const deretan = baris(tabel, judul,
+      periode.map((p) => [p.id, rentang(p.awal, p.akhir), p.status_rilis || STATUS_PERIODE[p.status] || p.status,
+                          p.ada_gaji ? p.orang : "", p.ada_gaji ? rupiah(p.bersih) : "", p.ada_gaji ? rupiah(p.dibayar) : "",
+                          p.ada_gaji ? p.rahasia + " orang" : ""]),
+      [3, 4, 5, 6]);
+    deretan.forEach((tr, i) => {
+      const p = periode[i];
+      tr.className = "klik";
+      tr.title = "Klik untuk rincian";
+      tr.addEventListener("click", () => rincianPeriode(tr, p, judul.length));
+    });
+  }
+  function rincianPeriode(tr, p, kolom) {
+    const lama = tr.nextSibling && tr.nextSibling.classList && tr.nextSibling.classList.contains("rincian") ? tr.nextSibling : null;
+    for (const r of $("tabel-periode").querySelectorAll("tr.rincian")) r.remove();
+    for (const r of $("tabel-periode").querySelectorAll("tr.dipilih")) r.classList.remove("dipilih");
+    if (lama) return;
+    tr.classList.add("dipilih");
+    const kotak = el("div", null, "rinci");
+    const isi = p.ada_gaji ? [
+      ["Tanggal bayar", tanggal(p.bayar)], ["Pendapatan", rupiah(p.pendapatan)], ["Potongan", rupiah(p.potongan)],
+      ["Gaji bersih", rupiah(p.bersih)], ["Dibayar", rupiah(p.dibayar)], ["Transfer", rupiah(p.transfer)], ["Tunai", rupiah(p.tunai)],
+      ["Bersih − dibayar (sisa pembulatan, termasuk sisa periode lalu)", rupiah(Number(p.bersih) - Number(p.dibayar))],
+      ["Versi hitung", p.kode_gaji || ""],
+    ] : [["Tanggal bayar", tanggal(p.bayar)], ["Gaji", "belum dihitung"]];
+    for (const [j, v] of isi) {
+      const d = el("div");
+      d.appendChild(el("span", j + ": "));
+      d.appendChild(document.createTextNode(String(v)));
+      kotak.appendChild(d);
+    }
+    const wadah = el("div");
+    wadah.appendChild(kotak);
+    const lihat = el("button", "Lihat gaji periode no. " + p.id, "biasa");
+    lihat.type = "button";
+    lihat.disabled = !p.ada_gaji;
+    lihat.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      $("pilih-periode-gaji").value = p.id;
+      ingatPilihan("gaji", p.id);
+      bukaTab("gaji");
+      await muatGaji();
+    });
+    wadah.appendChild(lihat);
+    const r = el("tr", null, "rincian");
+    r.appendChild(selPenuh(kolom, wadah));
+    tr.after(r);
   }
 
   // ---- Gaji --------------------------------------------------------------------------------------------------
   async function muatGaji() {
     const id = $("pilih-periode-gaji").value;
     if (!id) return;
+    judulPeriode($("judul-gaji"), "Gaji periode", id);
     const data = await baca("gaji", { periode_id: id });
     if (!data) return;
     gaji = data;
     tampilGaji = 200;
     tulisGaji();
   }
-  $("pilih-periode-gaji").addEventListener("change", muatGaji);
+  $("pilih-periode-gaji").addEventListener("change", () => { ingatPilihan("gaji", $("pilih-periode-gaji").value); muatGaji(); });
   $("cari").addEventListener("input", () => { tampilGaji = 200; tulisGaji(); });
 
   function tulisGaji() {
@@ -433,7 +592,7 @@
     const tabel = $("tabel-gaji");
     const kolom = [["id", "ID"], ["nama", "Nama"], ["divisi", "Divisi"], ["cara", "Cara bayar"], ["bersih", "Gaji bersih"], ["dibayar", "Dibayar"]];
     tabel.replaceChildren();
-    const kepala = el("tr");
+    const kepala = el("tr", null, "kepala tetap");  // tetap terlihat di layar sempit sebagai pengurut
     for (const [kunci, judul] of kolom) {
       const th = el("th", judul + (urutGaji.kolom === kunci ? (urutGaji.naik ? " ▲" : " ▼") : ""), "urut" + (kunci === "bersih" || kunci === "dibayar" ? " angka" : ""));
       th.addEventListener("click", () => { urutGaji = { kolom: kunci, naik: urutGaji.kolom === kunci ? !urutGaji.naik : true }; tulisGaji(); });
@@ -443,19 +602,19 @@
     tabel.appendChild(kepala);
     for (const o of daftar.slice(0, tampilGaji)) {
       const tr = el("tr", null, "klik");
-      tr.appendChild(el("td", o.id));
-      tr.appendChild(el("td", o.nama));
-      tr.appendChild(el("td", o.divisi || ""));
-      tr.appendChild(el("td", o.cara || ""));
+      tr.appendChild(sel("ID", o.id));
+      tr.appendChild(sel("Nama", o.nama));
+      tr.appendChild(sel("Divisi", o.divisi || ""));
+      tr.appendChild(sel("Cara bayar", o.cara || ""));
       if (o.rahasia) {
-        const td = el("td", "rahasia", "rahasia");
+        const td = sel("Gaji", "rahasia", "rahasia");
         td.colSpan = 2;
         tr.appendChild(td);
       } else {
-        tr.appendChild(el("td", rupiah(o.bersih), "angka"));
-        tr.appendChild(el("td", rupiah(o.dibayar), "angka"));
+        tr.appendChild(sel("Gaji bersih", rupiah(o.bersih), "angka"));
+        tr.appendChild(sel("Dibayar", rupiah(o.dibayar), "angka"));
       }
-      tr.appendChild(el("td", (o.peringatan || []).join(", "), "kecil"));
+      tr.appendChild(sel("Peringatan", daftarKode(KAMUS_PERINGATAN, o.peringatan), "lebar"));
       tr.addEventListener("click", () => bukaOrang(o.id));
       tabel.appendChild(tr);
     }
@@ -485,15 +644,29 @@
       const g = data.gaji;
       ringkas.appendChild(el("div", "Pendapatan " + rupiah(g.pendapatan) + " · potongan " + rupiah(g.potongan) + " · gaji bersih " +
         rupiah(g.bersih) + " · sisa lalu " + rupiah(g.sisa_lalu) + " · dibayar " + rupiah(g.dibayar) + " · sisa pembulatan " + rupiah(g.sisa)));
-      if (g.peringatan && g.peringatan.length) ringkas.appendChild(el("div", "Peringatan: " + g.peringatan.join(", "), "kecil"));
+      if (g.peringatan && g.peringatan.length) {
+        const d = el("div", "Peringatan: ", "kecil");
+        d.appendChild(daftarKode(KAMUS_PERINGATAN, g.peringatan));
+        ringkas.appendChild(d);
+      }
     } else {
       ringkas.appendChild(el("div", "Belum ada hitungan gaji untuk orang ini di periode ini.", "kecil"));
     }
-    baris($("tabel-komponen"), ["Komponen", "Kelompok", "Nominal", "Dasar hitung"],
-      data.rahasia ? [] : (data.komponen || []).map((k) => [k.komponen, k.kelompok, rupiah(k.nominal), el("span", k.bukti, "kecil")]), [2]);
+    // T3 (9a-2): pendapatan → potongan → perusahaan, lalu nominal terbesar; judul kelompok tebal.
+    const komponen = (data.komponen || []).slice().sort((a, b) =>
+      ((URUT_KELOMPOK[a.kelompok] ?? 9) - (URUT_KELOMPOK[b.kelompok] ?? 9)) || (Math.abs(Number(b.nominal)) - Math.abs(Number(a.nominal))));
+    const isiKomponen = [];
+    let kelompok = null;
+    for (const k of komponen) {
+      if (k.kelompok !== kelompok) { kelompok = k.kelompok; isiKomponen.push({ kelompok: KELOMPOK[kelompok] || namaKode({}, kelompok) }); }
+      isiKomponen.push([kode(KAMUS_KOMPONEN, k.komponen), rupiah(k.nominal), el("span", k.bukti, "kecil")]);
+    }
+    baris($("tabel-komponen"), ["Komponen", "Nominal", "Dasar hitung"], data.rahasia ? [] : isiKomponen, [1]);
+    for (const td of $("tabel-komponen").querySelectorAll("td:nth-child(3)")) td.classList.add("lebar");
     if (data.rahasia) {
-      $("tabel-komponen").replaceChildren(el("tr"));
-      $("tabel-komponen").firstChild.appendChild(el("td", "Rahasia.", "rahasia"));
+      const tr = el("tr");
+      tr.appendChild(selPenuh(3, "Rahasia.", "rahasia"));
+      $("tabel-komponen").replaceChildren(tr);
     }
     baris($("tabel-harian"), ["Tanggal", "Status", "Asal", "Jadwal", "Masuk", "Pulang", "Telat", "Pulang cepat", "Lebih", "Lupa tap"],
       (data.harian || []).map((h) => {
@@ -503,7 +676,7 @@
                 h.menit_lebih ? h.menit_lebih + " mnt" : "", h.lupa_tap || ""];
       }));
     baris($("tabel-perintah"), ["No.", "Jenis", "Tanggal", "Asal", "Keadaan"],
-      (data.perintah || []).map((p) => [p.id, p.jenis, tanggal(p.mulai) + (p.selesai !== p.mulai ? " – " + tanggal(p.selesai) : ""), p.asal,
+      (data.perintah || []).map((p) => [p.id, kode(KAMUS_PERINTAH, p.jenis), tanggal(p.mulai) + (p.selesai !== p.mulai ? " – " + tanggal(p.selesai) : ""), p.asal,
                                         p.dibatalkan ? "dibatalkan" : "berlaku"]));
   }
   $("kembali").addEventListener("click", () => bukaTab("gaji"));
@@ -512,15 +685,17 @@
   async function muatCek() {
     const id = $("pilih-periode-cek").value;
     if (!id) return;
+    judulPeriode($("judul-cek"), "Perlu dicek · periode", id);
     const data = await baca("perlu_dicek", { periode_id: id });
     if (!data) return;
     $("jumlah-cek").textContent = data.length + " catatan";
     baris($("tabel-cek"), ["Tingkat", "Jenis", "Karyawan", "Divisi/Mesin", "Tanggal", "Keterangan"],
-      data.map((a) => [a.tingkat, a.jenis, a.id_karyawan ? a.id_karyawan + " " + (a.nama || "") : "", [a.divisi, a.mesin].filter(Boolean).join(" / "),
+      data.map((a) => [a.tingkat, kode({}, a.jenis), a.id_karyawan ? a.id_karyawan + " " + (a.nama || "") : "", [a.divisi, a.mesin].filter(Boolean).join(" / "),
                        tanggal(a.tanggal) + (a.tanggal_akhir && a.tanggal_akhir !== a.tanggal ? " – " + tanggal(a.tanggal_akhir) : ""),
                        el("span", a.keterangan)]));
+    for (const td of $("tabel-cek").querySelectorAll("td:nth-child(6)")) td.classList.add("lebar");
   }
-  $("pilih-periode-cek").addEventListener("change", muatCek);
+  $("pilih-periode-cek").addEventListener("change", () => { ingatPilihan("cek", $("pilih-periode-cek").value); muatCek(); });
 
   // ---- Keberatan ---------------------------------------------------------------------------------------------
   async function muatKeberatan() {
@@ -532,11 +707,13 @@
         return [k.keberatan_id, waktu(k.waktu), k.id_karyawan + " " + k.nama, tanggal(k.tanggal, true), alasan,
                 k.terbuka ? "menunggu jawaban" : k.keputusan + " (" + waktu(k.diputuskan) + ")", k.catatan || ""];
       }));
-    for (const td of $("tabel-keberatan").querySelectorAll("td:nth-child(5), td:nth-child(7)")) td.className = "lebar";
+    for (const td of $("tabel-keberatan").querySelectorAll("td:nth-child(5), td:nth-child(6), td:nth-child(7)")) td.className = "lebar";
   }
 
   // ---- Coba aturan (paket 9c) -------------------------------------------------------------------------------
   const KUNCI_COBA = ["telat_menit", "lembur_minimal", "lembur_kelipatan", "lembur_bulat", "uang_makan", "premi_hadir", "shift_malam"];
+  const JUDUL_ATURAN = { telat_menit: "Toleransi telat", lembur_minimal: "Lembur minimal", lembur_kelipatan: "Kelipatan lembur",
+                         lembur_bulat: "Pembulatan lembur", uang_makan: "Uang makan", premi_hadir: "Premi hadir", shift_malam: "Tunjangan shift malam" };
   let aturanSekarang = null;
   async function muatAturan() {
     const id = $("pilih-periode-coba").value;
@@ -580,7 +757,7 @@
     const g = d.ringkasan;
     const ringkas = $("ringkas-coba");
     ringkas.replaceChildren();
-    const ubah = Object.keys(d.aturan).map((k) => k + ": " + aturanSekarang[k] + " → " + d.aturan[k]).join(", ");
+    const ubah = Object.keys(d.aturan).map((k) => (JUDUL_ATURAN[k] || namaKode({}, k)) + ": " + aturanSekarang[k] + " → " + d.aturan[k]).join(", ");
     ringkas.appendChild(el("div", "Aturan dicoba: " + ubah));
     ringkas.appendChild(el("div", g.orang + " orang dihitung: " + g.naik + " naik, " + g.turun + " turun, " + g.sama + " sama."));
     ringkas.appendChild(el("div", "Total gaji bersih: " + rupiah(g.total_lama) + " → " + rupiah(g.total_baru) + " (selisih " + rupiah(g.selisih) + ")."));
@@ -588,7 +765,7 @@
     baris($("tabel-coba"), ["ID", "Nama", "Gaji bersih sekarang", "Percobaan", "Selisih", "Komponen berubah"],
       d.daftar.map((o) => [o.id, o.nama, rupiah(o.lama), rupiah(o.baru),
         el("span", (o.selisih > 0 ? "+" : "") + rupiah(o.selisih), o.selisih > 0 ? "naik" : (o.selisih < 0 ? "turun" : "")),
-        el("span", (o.komponen || []).map((k) => k.komponen + " " + rupiah(k.lama || 0) + " → " + rupiah(k.baru || 0)).join("; "), "kecil")]),
+        el("span", (o.komponen || []).map((k) => namaKode(KAMUS_KOMPONEN, k.komponen) + " " + rupiah(k.lama || 0) + " → " + rupiah(k.baru || 0)).join("; "), "kecil")]),
       [2, 3]);
     $("hasil-coba").hidden = false;
   }
@@ -600,8 +777,6 @@
   const STATUS_AJU = { menunggu: "menunggu persetujuan", disetujui: "disetujui", ditolak: "ditolak", ditarik: "ditarik", hangus: "hangus (lewat 7 hari)" };
   let pembangun = false;
   let pengguna = null;
-  const NAMA_PERINTAH = { tambah_libur: "Tambah libur", absen_manual: "Absen manual", berhenti: "Berhenti", aktif_kembali: "Aktif kembali",
-                          mutasi: "Mutasi", batalkan_perintah: "Pembatalan" };
   let divisi = [];
   let draf = null;
   let tungguHitung = null;
@@ -660,24 +835,24 @@
     baris($("tabel-perintah-web"), ["No.", "Waktu", "Isi", "Oleh", "Hitung ulang", ""],
       daftar.map((x) => {
         const isi = el("span", x.ringkas);
-        let tindakan;
-        if (x.jenis === "batalkan_perintah") tindakan = el("span", "", "kecil");
-        else if (x.dibatalkan) tindakan = el("span", "dibatalkan (no. " + x.dibatalkan + ")", "kecil");
-        else {
+        let tindakan = "";
+        if (x.jenis !== "batalkan_perintah" && !x.dibatalkan) {
           tindakan = el("button", "Batalkan", "biasa");
           tindakan.type = "button";
           tindakan.addEventListener("click", () => batalkan(x, tindakan));
         }
-        const hitung = x.hitung === "menunggu" ? "sedang dihitung…" : x.hitung === "gagal" ? "GAGAL, hubungi pembangun"
+        // T5 (9a-2): perintah yang sudah dibatalkan tidak ikut menulis keadaan hitung ulang pembatalannya.
+        const hitung = x.dibatalkan ? "dibatalkan (no. " + x.dibatalkan + ")"
+          : x.hitung === "menunggu" ? "sedang dihitung…" : x.hitung === "gagal" ? "GAGAL, hubungi pembangun"
           : (x.periode && x.periode.length ? "selesai" : "tidak perlu (belum ada periode)");
-        return [x.id, waktu(x.dibuat), isi, x.oleh, el("span", hitung, x.hitung === "gagal" ? "turun" : ""), tindakan];
+        return [x.id, waktu(x.dibuat), isi, x.oleh, el("span", hitung, x.hitung === "gagal" && !x.dibatalkan ? "turun" : ""), tindakan];
       }));
     for (const td of $("tabel-perintah-web").querySelectorAll("td:nth-child(3)")) td.className = "lebar";
   }
   function tulisPengajuan(daftar) {
     baris($("tabel-pengajuan"), ["No.", "Waktu", "Isi", "Pengaju", "Keadaan", ""],
       daftar.map((x) => {
-        let tindakan = el("span", "", "kecil");
+        let tindakan = "";
         if (x.status === "menunggu" && x.pengaju_id === pengguna) {
           tindakan = el("button", "Tarik", "biasa");
           tindakan.type = "button";
