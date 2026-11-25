@@ -1929,3 +1929,57 @@ test("9c: coba aturan lewat web: nilai sekarang, percobaan tanpa menyimpan, isia
   assert.match(q.isi.alasan, /menunggu hitung ulang/);
   nilai("update fakta.antrean_kerja set status = 'selesai', selesai = now() where status = 'menunggu'");
 });
+
+// ---------------------------------------------------------------------------
+// Paket 9b-1: perintah lewat web (data Pabrik A lengkap): berhenti -> hitung ulang lewat antrean + Sheets dipicu ->
+// batal -> hasil kembali. Kebenaran tiap jenis perintah dibuktikan uji database 330.
+// ---------------------------------------------------------------------------
+test("9b-1: perintah web berhenti lalu dibatalkan: antrean, Sheets, kabar Telegram, hasil kembali semula", async () => {
+  const sesi = "9b".repeat(32);
+  nilai(`insert into fakta.sesi_web (sidik, pengguna, berlaku_sampai)
+         select '${sha256(sesi)}', id, now() + interval '1 hour' from induk.pengguna where telegram_id = ${HRD}`);
+  nilai("update fakta.antrean_kerja set status = 'selesai', selesai = now() where status = 'menunggu'");
+  const [periode, hari] = nilai(`select p.id || ',' || (p.tanggal_awal + 9) from fakta.periode p where p.status not in ('dirilis', 'dikunci')
+    and exists (select 1 from hitung.versi_terakhir g where g.periode_id = p.id and g.jenis = 'hitung_gaji') order by p.tanggal_awal limit 1`).split(",");
+  const orang = nilai(`select r.id_karyawan from induk.karyawan_riwayat r
+    where daterange(r.berlaku_dari, r.berlaku_sampai, '[)') @> '${hari}'::date and r.berlaku_sampai is null and not r.gaji_rahasia
+      and fakta.karyawan_aktif(r.id_karyawan, '${hari}')
+      and not exists (select 1 from induk.status_kerja s where s.id_karyawan = r.id_karyawan and s.tanggal >= '${hari}')
+    order by r.id_karyawan limit 1`);
+  const hasil = () => nilai(`select count(*) || '/' || coalesce(max(h.tanggal)::text, '-') from hitung.hasil_harian h
+    where h.id_karyawan = '${orang}' and h.versi_id = (select v.id from hitung.versi_terakhir v where v.periode_id = ${periode} and v.jenis = 'baca_tap')`);
+  const sebelum = hasil();
+  const salah = await webHrd(alat, { sesi, aksi: "perintah_pratinjau", perintah: { jenis: "berhenti", id_karyawan: orang, mulai: hari } });
+  assert.equal(salah.status, 409);
+  assert.match(salah.isi.alasan, /alasan wajib/);
+  const pra = await webHrd(alat, { sesi, aksi: "perintah_pratinjau",
+    perintah: { jenis: "berhenti", id_karyawan: orang, mulai: hari, alasan: "uji 9b-1", bukan_isian: "x", gaji_pokok: 1 } });
+  assert.equal(pra.status, 200, JSON.stringify(pra.isi));
+  assert.deepEqual(Object.keys(pra.isi.data.isian).sort(), ["alasan", "id_karyawan", "mulai"]);
+  assert.ok(pra.isi.data.periode.some((p: any) => String(p.id) === periode));
+  const awalPicu = dipicu.length;
+  const awalKirim = terkirim.length;
+  const t0 = Date.now();
+  const simpan = await webHrd(alat, { sesi, aksi: "perintah_simpan", perintah: { nomor: pra.isi.data.draf_id } });
+  assert.equal(simpan.status, 200, JSON.stringify(simpan.isi));
+  assert.ok(simpan.latar, "hitung ulang berjalan di latar");
+  await simpan.latar;
+  console.log(`  9b-1: simpan + hitung ulang ${pra.isi.data.periode.length} periode: ${Date.now() - t0} ms`);
+  const sesudah = hasil();
+  assert.notEqual(sesudah, sebelum);
+  assert.equal(sesudah.split("/")[1], hari, "hari kerja terakhir = tanggal berhenti (keputusan 2a)");
+  assert.ok(dipicu.slice(awalPicu).some((m) => m.pemicu === "perintah web"), "Isi Sheets dipicu");
+  const kabar = terkirim.slice(awalKirim).filter((t) => t.metode === "sendMessage" && t.isi.chat_id === HRD).map((t) => t.isi.text);
+  assert.ok(kabar.some((x) => x.startsWith(`Perintah web no. ${simpan.isi.data.perintah_id}: Berhenti ${orang}`)), kabar.join("\n"));
+  const ulang = await webHrd(alat, { sesi, aksi: "perintah_simpan", perintah: { nomor: pra.isi.data.draf_id } });
+  assert.equal(ulang.status, 409);
+  const daftar = await webHrd(alat, { sesi, aksi: "perintah_daftar" });
+  assert.equal(daftar.isi.data.perintah[0].id, simpan.isi.data.perintah_id);
+  assert.equal(daftar.isi.data.perintah[0].hitung, "selesai");
+  const batal = await webHrd(alat, { sesi, aksi: "perintah_batal", perintah: { nomor: simpan.isi.data.perintah_id } });
+  assert.equal(batal.status, 200, JSON.stringify(batal.isi));
+  await batal.latar;
+  assert.equal(hasil(), sebelum, "hasil harian kembali seperti sebelum perintah");
+  assert.equal(nilai(`select count(*) from induk.status_kerja where id_karyawan = '${orang}' and jenis = 'berhenti' and tanggal = '${hari}'`), "0");
+  assert.equal((await webHrd(alat, { sesi, aksi: "perintah_batal", perintah: { nomor: "abc" } })).status, 409);
+});

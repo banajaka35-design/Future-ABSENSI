@@ -92,6 +92,8 @@ cek "web HRD: kode sesi tidak di localStorage dan tidak di alamat" \
   "$(grep -cE "localStorage|[?&]sesi=|#sesi" web/demo/hrd/index.html || true)" "0"
 cek "web HRD: tidak memuat apa pun dari situs lain" \
   "$(grep -cE "(src|href)=[\"']https?:" web/demo/hrd/index.html || true)" "0"
+cek "web HRD 9b-1: halaman perintah tidak mengirim atau menampilkan isian gaji/rekening" \
+  "$(grep -ciE "gaji_pokok|tunjangan_tetap|rekening_terenkripsi|ptkp" web/demo/hrd/index.html || true)" "0"
 
 echo "== F15b: kebocoran gaji rahasia Pabrik A (3 orang rahasia; tanda lembur divisi KTR periode Nov-Des)"
 KODE_BOCOR_A=0

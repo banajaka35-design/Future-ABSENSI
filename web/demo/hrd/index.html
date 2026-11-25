@@ -55,7 +55,7 @@
 </style>
 </head>
 <body>
-<div class="simulasi" role="note">DEMO · <span>Pemasangan demo berisi data simulasi. Halaman ini hanya untuk melihat; tidak ada yang bisa diubah dari sini.</span></div>
+<div class="simulasi" role="note">DEMO · <span>Pemasangan demo berisi data simulasi. Tab Perintah benar-benar mengubah data demo (setiap perintah bisa dibatalkan selama periodenya belum dirilis).</span></div>
 <header>
   <div>
     <h1>Web HRD</h1>
@@ -86,6 +86,7 @@
       <button data-tab="cek">Perlu dicek</button>
       <button data-tab="keberatan">Keberatan</button>
       <button data-tab="coba">Coba aturan</button>
+      <button data-tab="perintah">Perintah</button>
     </div>
     <div id="pesan-isi"></div>
 
@@ -148,6 +149,42 @@
         <div id="ringkas-coba"></div>
         <div class="gulir"><table id="tabel-coba"></table></div>
       </div>
+    </section>
+
+    <section id="tab-perintah" hidden>
+      <h2>Perintah</h2>
+      <div class="kecil">Isi perintah, lihat pratinjau, lalu Simpan. Periode yang kena dihitung ulang otomatis dan Sheets ikut diperbarui.
+        Setiap perintah bisa dibatalkan selama periodenya belum dirilis dan belum ada perubahan lebih baru untuk orang yang sama.
+        Gaji tidak bisa diubah dari sini.</div>
+      <form id="form-perintah">
+        <div class="kisi">
+          <label>Jenis perintah<select id="p-jenis">
+            <option value="tambah_libur">Tambah libur</option>
+            <option value="absen_manual">Absen manual divisi (hadir semua)</option>
+            <option value="berhenti">Berhenti</option>
+            <option value="aktif_kembali">Aktif kembali</option>
+            <option value="mutasi">Mutasi (pindah divisi, regu, atau jabatan)</option>
+          </select></label>
+          <label data-untuk="orang">ID karyawan<input id="p-id_karyawan" maxlength="40" autocomplete="off"></label>
+          <label><span id="label-mulai">Tanggal</span><input type="date" id="p-mulai" required></label>
+          <label data-untuk="hari">Sampai tanggal (kosong = satu hari)<input type="date" id="p-selesai"></label>
+          <label data-untuk="divisi"><span id="label-divisi">Divisi</span><select id="p-divisi"></select></label>
+          <label data-untuk="mutasi">Regu (untuk divisi rotasi)<input type="number" id="p-regu" min="0" max="20"></label>
+          <label data-untuk="mutasi">Jabatan baru (kosong = tetap)<input id="p-jabatan" maxlength="80" autocomplete="off"></label>
+          <label data-untuk="mutasi">ID di mesin divisi baru (bila mesinnya berbeda)<input id="p-id_mesin" maxlength="20" autocomplete="off"></label>
+          <label>Keterangan / alasan<input id="p-alasan" maxlength="200" required autocomplete="off"></label>
+        </div>
+        <div class="alat" style="margin-top:12px"><button type="submit" id="tombol-pratinjau">Lihat pratinjau</button></div>
+      </form>
+      <div id="pesan-perintah"></div>
+      <div id="pratinjau" hidden>
+        <h3>Pratinjau (belum disimpan)</h3>
+        <div id="isi-pratinjau"></div>
+        <div class="alat" style="margin-top:12px"><button type="button" id="tombol-simpan">Simpan</button>
+          <button type="button" class="biasa" id="tombol-ubah">Ubah isian</button></div>
+      </div>
+      <h3>Perintah web terakhir</h3>
+      <div class="gulir"><table id="tabel-perintah-web"></table></div>
     </section>
 
     <section id="tab-keberatan" hidden>
@@ -297,7 +334,7 @@
   // ---- Tab ---------------------------------------------------------------------------------------------------
   function bukaTab(nama) {
     for (const b of document.querySelectorAll(".tab button")) b.classList.toggle("aktif", b.dataset.tab === nama);
-    for (const t of ["periode", "gaji", "orang", "cek", "keberatan", "coba"]) $("tab-" + t).hidden = t !== nama;
+    for (const t of ["periode", "gaji", "orang", "cek", "keberatan", "coba", "perintah"]) $("tab-" + t).hidden = t !== nama;
   }
   for (const b of document.querySelectorAll(".tab button")) {
     b.addEventListener("click", async () => {
@@ -306,6 +343,7 @@
       if (b.dataset.tab === "cek") await muatCek();
       if (b.dataset.tab === "keberatan") await muatKeberatan();
       if (b.dataset.tab === "coba") await muatAturan();
+      if (b.dataset.tab === "perintah") await muatPerintah();
     });
   }
 
@@ -537,6 +575,139 @@
         el("span", (o.komponen || []).map((k) => k.komponen + " " + rupiah(k.lama || 0) + " → " + rupiah(k.baru || 0)).join("; "), "kecil")]),
       [2, 3]);
     $("hasil-coba").hidden = false;
+  }
+
+  // ---- Perintah (paket 9b-1) ---------------------------------------------------------------------------------
+  const JUDUL_MULAI = { berhenti: "Hari kerja terakhir", aktif_kembali: "Mulai bekerja lagi", mutasi: "Berlaku mulai" };
+  const NAMA_PERINTAH = { tambah_libur: "Tambah libur", absen_manual: "Absen manual", berhenti: "Berhenti", aktif_kembali: "Aktif kembali",
+                          mutasi: "Mutasi", batalkan_perintah: "Pembatalan" };
+  let divisi = [];
+  let draf = null;
+  let tungguHitung = null;
+  function aturIsian() {
+    const j = $("p-jenis").value;
+    const orang = ["berhenti", "aktif_kembali", "mutasi"].includes(j);
+    for (const l of document.querySelectorAll("#form-perintah [data-untuk]")) {
+      const u = l.dataset.untuk;
+      l.hidden = !(u === "orang" ? orang : u === "hari" ? !orang : u === "divisi" ? j !== "berhenti" && j !== "aktif_kembali" : j === "mutasi");
+    }
+    $("label-mulai").textContent = JUDUL_MULAI[j] || "Tanggal";
+    $("label-divisi").textContent = j === "mutasi" ? "Divisi baru" : "Divisi";
+    const sel = $("p-divisi");
+    const lama = sel.value;
+    sel.replaceChildren();
+    const awal = j === "tambah_libur" ? "Semua divisi" : j === "mutasi" ? "(tetap)" : "Pilih divisi";
+    const o0 = el("option", awal); o0.value = ""; sel.appendChild(o0);
+    for (const d of divisi) {
+      const o = el("option", d.kode + " · " + d.nama + (d.pola === "rotasi" ? " (rotasi, " + d.jumlah_regu + " regu)" : "") + (d.mesin ? " · mesin " + d.mesin : ""));
+      o.value = d.kode; sel.appendChild(o);
+    }
+    if ([...sel.options].some((o) => o.value === lama)) sel.value = lama;
+    $("pratinjau").hidden = true;
+    draf = null;
+  }
+  $("p-jenis").addEventListener("change", aturIsian);
+  $("tombol-ubah").addEventListener("click", () => { $("pratinjau").hidden = true; draf = null; });
+  for (const id of ["p-id_karyawan", "p-mulai", "p-selesai", "p-divisi", "p-regu", "p-jabatan", "p-id_mesin", "p-alasan"]) {
+    $(id).addEventListener("input", () => { if (draf) { $("pratinjau").hidden = true; draf = null; } });
+  }
+  async function muatPerintah() {
+    const data = await baca("perintah_daftar");
+    if (!data) return;
+    const pertama = !divisi.length;
+    divisi = data.divisi || [];
+    if (pertama) aturIsian();
+    tulisPerintah(data.perintah || []);
+    if ((data.perintah || []).some((x) => x.hitung === "menunggu")) {
+      clearTimeout(tungguHitung);
+      tungguHitung = setTimeout(() => { if (sesi && !$("tab-perintah").hidden) muatPerintah(); }, 5000);
+    }
+  }
+  function tulisPerintah(daftar) {
+    baris($("tabel-perintah-web"), ["No.", "Waktu", "Isi", "Oleh", "Hitung ulang", ""],
+      daftar.map((x) => {
+        const isi = el("span", x.ringkas);
+        let tindakan;
+        if (x.jenis === "batalkan_perintah") tindakan = el("span", "", "kecil");
+        else if (x.dibatalkan) tindakan = el("span", "dibatalkan (no. " + x.dibatalkan + ")", "kecil");
+        else {
+          tindakan = el("button", "Batalkan", "biasa");
+          tindakan.type = "button";
+          tindakan.addEventListener("click", () => batalkan(x, tindakan));
+        }
+        const hitung = x.hitung === "menunggu" ? "sedang dihitung…" : x.hitung === "gagal" ? "GAGAL, hubungi pembangun"
+          : (x.periode && x.periode.length ? "selesai" : "tidak perlu (belum ada periode)");
+        return [x.id, waktu(x.dibuat), isi, x.oleh, el("span", hitung, x.hitung === "gagal" ? "turun" : ""), tindakan];
+      }));
+    for (const td of $("tabel-perintah-web").querySelectorAll("td:nth-child(3)")) td.className = "lebar";
+  }
+  function isianPerintah() {
+    const j = $("p-jenis").value;
+    const p = { jenis: j, mulai: $("p-mulai").value, alasan: $("p-alasan").value };
+    if (["berhenti", "aktif_kembali", "mutasi"].includes(j)) p.id_karyawan = $("p-id_karyawan").value.trim();
+    else p.selesai = $("p-selesai").value;
+    if (j !== "berhenti" && j !== "aktif_kembali") p.divisi = $("p-divisi").value;
+    if (j === "mutasi") { p.regu = $("p-regu").value; p.jabatan = $("p-jabatan").value; p.id_mesin = $("p-id_mesin").value.trim(); }
+    return p;
+  }
+  async function kirimPerintah(aksi, perintah) {
+    let r;
+    try { r = await panggil("hrd", { sesi, aksi, perintah }); } catch { r = null; }
+    if (!r) { pesan($("pesan-perintah"), "salah", "Server tidak bisa dihubungi. Periksa daftar di bawah sebelum mencoba lagi."); return null; }
+    if (r.status === 401) { keluarLokal(r.isi.alasan || "Sesi berakhir. Masuk lagi."); return null; }
+    if (r.status !== 200) { pesan($("pesan-perintah"), "salah", r.isi.alasan || "Permintaan gagal (" + r.status + ")."); return null; }
+    return r.isi.data;
+  }
+  function tulisPeriodeKena(wadah, daftar) {
+    wadah.appendChild(el("div", daftar && daftar.length
+      ? "Dihitung ulang: " + daftar.map((p) => "periode no. " + p.id + " (" + tanggal(p.awal) + " – " + tanggal(p.akhir) + ")").join(", ") + "."
+      : "Belum ada periode untuk tanggal itu; perintah ikut terhitung saat periodenya dibuat."));
+  }
+  $("form-perintah").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("pratinjau").hidden = true;
+    draf = null;
+    pesan($("pesan-perintah"), "", "");
+    $("tombol-pratinjau").disabled = true;
+    const d = await kirimPerintah("perintah_pratinjau", isianPerintah());
+    $("tombol-pratinjau").disabled = false;
+    if (!d) return;
+    draf = d.draf_id;
+    const w = $("isi-pratinjau");
+    w.replaceChildren();
+    const judul = el("div", d.ringkas);
+    judul.style.fontWeight = "600";
+    w.appendChild(judul);
+    if (["tambah_libur", "absen_manual"].includes(d.jenis)) w.appendChild(el("div", d.orang + " orang aktif kena perintah ini."));
+    tulisPeriodeKena(w, d.periode);
+    for (const c of d.catatan || []) w.appendChild(el("div", c, "pesan " + (String(c).startsWith("PERHATIAN") ? "salah" : "tunggu")));
+    w.appendChild(el("div", "Pratinjau berlaku 15 menit. Belum ada yang disimpan.", "kecil"));
+    $("pratinjau").hidden = false;
+  });
+  $("tombol-simpan").addEventListener("click", async () => {
+    if (!draf) return;
+    $("tombol-simpan").disabled = true;
+    const d = await kirimPerintah("perintah_simpan", { nomor: draf });
+    $("tombol-simpan").disabled = false;
+    if (!d) return;
+    draf = null;
+    $("pratinjau").hidden = true;
+    pesan($("pesan-perintah"), "baik", "Tersimpan sebagai perintah no. " + d.perintah_id + ". " +
+      (d.periode && d.periode.length ? "Hitung ulang berjalan (sekitar 30 detik per periode); keadaannya terlihat di tabel." : ""));
+    await muatPerintah();
+  });
+  async function batalkan(x, tombol) {
+    if (tombol.dataset.yakin !== "ya") {
+      tombol.dataset.yakin = "ya";
+      tombol.textContent = "Yakin batalkan no. " + x.id + "?";
+      return;
+    }
+    tombol.disabled = true;
+    const d = await kirimPerintah("perintah_batal", { nomor: x.id });
+    if (!d) { tombol.disabled = false; return; }
+    pesan($("pesan-perintah"), "baik", "Perintah no. " + x.id + " dibatalkan (pembatalan no. " + d.perintah_id + "). " +
+      (d.periode && d.periode.length ? "Hitung ulang berjalan." : ""));
+    await muatPerintah();
   }
 
   // ---- Awal --------------------------------------------------------------------------------------------------

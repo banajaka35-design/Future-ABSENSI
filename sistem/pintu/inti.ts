@@ -2445,6 +2445,8 @@ export async function webMasukHrd(alat: Alat, emailMasuk: string, kodeMasuk: str
 }
 
 export const KUNCI_COBA = ["telat_menit", "lembur_minimal", "lembur_kelipatan", "lembur_bulat", "uang_makan", "premi_hadir", "shift_malam"];
+// Paket 9b-1: isian perintah web; hanya kunci yang dikenal, teks pendek (diperiksa lagi oleh database).
+export const KUNCI_PERINTAH = ["jenis", "id_karyawan", "mulai", "selesai", "divisi", "regu", "jabatan", "id_mesin", "alasan", "nomor"];
 export const SESI_HABIS = "Sesi berakhir (lewat 2 jam, 30 menit tidak dipakai, keluar, atau akun dicabut). Masuk lagi.";
 export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
   const sesi = String(badan?.sesi ?? "");
@@ -2462,9 +2464,32 @@ export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
     }
     masukan.aturan = aturan;
   }
+  if (badan?.perintah && typeof badan.perintah === "object" && !Array.isArray(badan.perintah)) {
+    const perintah: Record<string, string> = {};
+    for (const k of KUNCI_PERINTAH) {
+      const v = (badan.perintah as any)[k];
+      if (typeof v === "number" || typeof v === "string") perintah[k] = String(v).slice(0, 200);
+    }
+    masukan.perintah = perintah;
+  }
+  const mulai = alat.sekarang();
   const r = await alat.api("web_hrd", masukan);
   switch (r?.hasil) {
     case "ok": return { status: 200, isi: { hasil: "ok", data: r.data }, latar: null };
+    // Paket 9b-1: perintah tersimpan atau dibatalkan -> hitung ulang lewat antrean yang sama dengan file dan chat,
+    // lalu Sheets dipicu (kerjakanAntrean). Kabar ke Telegram akun itu bila akunnya punya ID Telegram.
+    case "disimpan": case "dibatalkan": {
+      const chat: number | null = r.telegram_id === null || r.telegram_id === undefined ? null : Number(r.telegram_id);
+      const ada = Array.isArray(r.data?.periode) && r.data.periode.length > 0;
+      const latar = ada
+        ? (async () => {
+          await kirimAman(alat, chat, `Perintah web no. ${r.data.perintah_id}: ${r.data.ringkas}. Menghitung ulang...`);
+          await kerjakanAntrean(alat, chat, mulai, "web", "perintah web");
+        })()
+        : null;
+      return { status: 200, isi: { hasil: r.hasil, data: r.data }, latar };
+    }
+    case "ditolak": return { status: 409, isi: { hasil: "ditolak", alasan: r.alasan }, latar: null };
     case "keluar": return { status: 200, isi: { hasil: "keluar" }, latar: null };
     case "terlalu_banyak":
       return { status: 429, isi: { hasil: "terlalu_banyak", alasan: "Terlalu banyak permintaan dalam 1 jam; coba lagi nanti." }, latar: null };

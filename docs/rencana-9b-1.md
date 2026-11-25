@@ -8,7 +8,9 @@ Ditulis 25 November 2026. Acuan: `docs/rencana-tahap-9.md` (9b), `docs/laporan-t
    - `induk.status_kerja` hanya boleh ditambah (`tolak_ubah`);
    - riwayat, regu, dan ID mesin hanya boleh ditutup, tidak boleh dihapus atau dibuka lagi (`jaga_bertanggal`, aturan dasar 4).
    Akibatnya, rencana pembatalan ("baris baru dihapus, baris lama dibuka lagi") **tidak bisa** dijalankan tanpa membuat pengecualian pada penjaga itu. Pengecualian ini tidak tertulis di daftar paket, jadi ditanyakan dulu (aturan 7).
+   **Keputusan pemilik 25 Nov 09.05: "pengecualian sempit"** (setelah penjelasan risiko 09.04). Penjaga `jejak.tolak_ubah` dan `jejak.jaga_bertanggal` hanya melewatkan: hapus baris yang DITAMBAH perintah web P, atau buka lagi baris yang DITUTUP P pada tanggal yang sama (isian lain tidak boleh berubah), dan hanya bila `app.batal_perintah_web` = P dan pembatalan P sudah dicatat dalam transaksi itu. Sumber blunder utama (pembatalan sesudah ada perubahan lain) ditutup dengan memeriksa `jejak.perubahan` untuk orang itu dari sumber apa pun. Kolom `perintah_id` di tabel induk tidak jadi ditambahkan; catatannya ada di `fakta.perintah_web_ubah` (penjaga bertanggal menolak perubahan kolom selain `berlaku_sampai`).
 2. **C15 salah.** Perintah chat sudah memicu Isi Sheets sesudah hitung ulang (`kerjakanAntrean` → `picuSheets`, pemicu "perintah HRD"). Perintah web cukup memakai jalur yang sama; `inti.ts` jalur chat tidak perlu diubah.
+3. **C6 diperbaiki kalimatnya.** "Cuti tunai" di nama migrasi 0011 adalah pecahan uang tunai, bukan uang ganti cuti. Akibat berhenti yang ada di mesin hitung: periode itu menjadi masa pajak terakhir (PPh 21 dihitung ulang setahun). Pratinjau menyebut itu saja.
 
 ## Gunanya
 
