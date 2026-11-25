@@ -71,6 +71,14 @@ Langkah 1–3 dari rencana (tambah libur KTR 1 Des 2026, lalu dibatalkan), oleh 
 | Simpan 10.20 (perintah no. 1612) | Asal web, oleh pembangun; hitung ulang periode 4 = 25,5 detik; KTR 1 Des: 117 masuk di hari libur, 3 libur; sidik `eb4edab2a80a`; Sheets diisi ulang 10.22, total gaji bersih Rp5.049.547.543 = gudang (+Rp65.683.775, lembur hari libur); kabar Telegram terkirim |
 | Batal 10.27 (pembatalan no. 1613) | Hitung ulang 24,2 detik; KTR 1 Des kembali 117 hadir, 2 alpha, 1 sakit; **sidik gaji periode 4 kembali persis `c427e5a53c5f`**; Sheets diisi ulang 10.29, total Rp4.983.863.768 = gudang |
 
+Mutasi 10.35–10.40 (10881 Rahmat Santoso, KTR → PRD regu 1 mulai 1 Des 2026):
+
+| Langkah | Hasil |
+| --- | --- |
+| Pratinjau tanpa ID mesin | Ditolak: "Divisi Produksi memakai mesin MA1, sedangkan ID 10881 terdaftar di mesin lain…" (C7); tidak ada yang tersimpan |
+| Simpan dengan ID MA1 9001 (no. 1614) | Hitung ulang 22,6 detik. Riwayat KTR ditutup 1 Des, riwayat PRD dibuka 1 Des; regu 0 → 1; MA1:9001 ditambah (MA2 tetap). Isian uang di dua riwayat sama persis. Mulai 1 Des jadwal rotasi PRD regu 1 (P, P, S, S, M, M, libur) — **jalur pindah ke divisi rotasi terbukti**. Sidik gaji periode 4 `76a70658fc37`. Alpha/masuk di hari libur sesudah 1 Des karena tap data simulasi tetap mengikuti jam Kantor [Kemungkinan Besar] |
+| Batal (no. 1615) | Hitung ulang 23,6 detik. Riwayat, regu, dan ID mesin 10881 kembali satu baris masing-masing seperti semula; hasil harian 30 Nov–5 Des kembali KTR hadir; **sidik gaji periode 4 kembali `c427e5a53c5f`** |
+
 Temuan kecil (tampilan, masuk 9a-2):
 - Selama pembatalan dihitung, baris perintah aslinya ikut tertulis "sedang dihitung…", karena keadaan diambil per periode.
 - Di layar sempit, tabel perlu digeser ke samping.
@@ -78,5 +86,4 @@ Temuan kecil (tampilan, masuk 9a-2):
 
 ## Yang belum
 
-- Uji nyata langkah 3 di rencana (mutasi KTR → PRD dengan/tanpa ID mesin) belum dijalankan; sudah dibuktikan uji database 330.
 - [Menebak] Lama pratinjau dan hitung ulang di Supabase: belum diukur.
