@@ -53,8 +53,14 @@ Rencana: `docs/rencana-9b-1.md`. Di-"buat" pemilik 25 Nov 2026 08.59 WIB. Pekerj
   - pengecualian tidak berlaku untuk baris yang bukan milik perintah itu;
   - tabel fakta lain dan aturan bertanggal tetap terjaga.
 
+## Pemasangan [Pasti, 25 Nov]
+
+- Uji GitHub commit 2f5f012 (dijalankan ulang 09.47 sesudah repo publik): database 884, simulasi 133, pintu 122, penyambung 24, semua lulus (run 45534377141).
+- Pasang ke Supabase run 45537499453 sukses (0041 terpasang); Isi Sheets, Cadangan (pertama sejak 23 Nov), dan Terbitkan demo (run 45538531224) sukses.
+- Dicek di Supabase: 5 fungsi baru ada, `asal` menerima 'web', 3 tabel baru, belum ada perintah web.
+- Lama pemeriksaan pratinjau di Supabase (diukur sekali, tanpa menyimpan): tambah libur semua divisi 1 Des = **181 ms** (996 orang aktif, 789 sudah tap); berhenti 10002 1 Des = **62 ms** (peringatan 31 tap sesudah 1 Des, periode 4 masa pajak terakhir).
+
 ## Yang belum
 
-- Pemasangan ke Supabase dan terbit demo (sesudah uji GitHub lulus).
 - Uji nyata oleh pemilik (rencana bagian "Uji nyata").
 - [Menebak] Lama pratinjau dan hitung ulang di Supabase: belum diukur.
