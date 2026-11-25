@@ -11,14 +11,21 @@ export interface HasilUraiRingkas {
   baris_ditolak: { baris: number; alasan: string }[];
   tanggal_awal: string | null;
   tanggal_akhir: string | null;
+  // Paket F2: diisi pembaca bila tabel ditolak hanya karena judul kolomnya belum dikenal.
+  judul?: string[];
+  sidik_judul?: string;
+  analisa?: AnalisaKolomRingkas[];
 }
+export interface AnalisaKolomRingkas { ab: number; a12: number; b12: number; contoh: string | null }
+// Paket F2: pilihan pembaca; profil = profil format mesin dari database (sistem/urai ProfilUrai).
+export interface PilihanUraiPintu { tanggal_kirim?: string; profil?: unknown }
 
 export interface Alat {
   api(nama: string, isi?: unknown): Promise<any>;
   telegram(metode: string, isi: Record<string, unknown>): Promise<any>;
   unduh(jalurFile: string): Promise<Uint8Array>;
   // Paket F1: isi file apa adanya (CSV/TXT, .xls, .xlsx, attlog.dat); jenis berkas dikenali pembaca (sistem/urai).
-  urai(isi: Uint8Array, pilihan: { tanggal_kirim?: string }): Promise<HasilUraiRingkas>;
+  urai(isi: Uint8Array, pilihan: PilihanUraiPintu): Promise<HasilUraiRingkas>;
   sekarang(): number; // milidetik
   tidur(ms: number): Promise<void>;
   alamatUnggah?: string; // alamat halaman unggah (paket 5d), misalnya https://.../unggah/
@@ -47,6 +54,8 @@ const API_BOLEH = new Set([
   "pintu_perintah_siapkan", "pintu_perintah_simpan", "pintu_perintah_hasil", "pintu_batal_siapkan", "pintu_perintah_terakhir",
   "pintu_kasbon_siapkan", "pintu_kasbon_saldo", "pintu_lembur_siapkan",
   "pintu_uang_minta_pin", "pintu_uang_putuskan", "pintu_uang_daftar",
+  "pintu_profil_mesin", "pintu_konfirmasi_mulai", "pintu_konfirmasi_ambil", "pintu_konfirmasi_ubah", "pintu_konfirmasi_selesai",
+  "pintu_profil_daftar", "pintu_profil_hapus",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -254,6 +263,18 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       }
       return null;
     }
+    // Paket F2: percakapan konfirmasi format (x|<konfirmasi>|<aksi>|<nilai>) dan hapus profil (x|<profil>|h|0).
+    if (jenis === "x" && /^\d+$/.test(asal ?? "") && /^[a-z]$/.test(mesin ?? "")) {
+      if (!info.hrd) {
+        await kirim(alat, chat, "Akun Anda belum terdaftar untuk mengirim file.");
+        return null;
+      }
+      if (mesin === "h") {
+        await hapusProfil(alat, chat, tg, Number(asal));
+        return null;
+      }
+      return tombolKonfirmasi(alat, chat, tg, Number(asal), mesin, keempat ?? "");
+    }
     if (jenis !== "m" || !asal || !mesin) return null;
     if (!info.hrd) {
       await kirim(alat, chat, "Akun Anda belum terdaftar untuk mengirim file.");
@@ -286,6 +307,12 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     const tolakKeberatan = new RegExp(`^${TANYA_TOLAK_KEBERATAN} (\\d+)`).exec(ditanya);
     if (tolakKeberatan) {
       await putuskanKeberatan(alat, pesan.chat.id, pesan.from?.id, Number(tolakKeberatan[1]), false, jawab);
+      return null;
+    }
+    const ketikKolom = new RegExp(`^${TANYA_KOLOM} (\\d+)`).exec(ditanya);
+    if (ketikKolom) {
+      if (!info.hrd) await kirim(alat, pesan.chat.id, "Akun Anda belum terdaftar untuk mengirim file.");
+      else return jawabKetikKolom(alat, pesan.chat.id, pesan.from?.id, Number(ketikKolom[1]), jawab);
       return null;
     }
     if (ditanya.startsWith(TANYA_ID)) {
@@ -422,6 +449,10 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       await batalAjukan(alat, pesan.chat.id, pesan.from?.id, info.hrd, batal[1]);
       return null;
     }
+    if (/^\/profilmesin(?:@\w+)?\s*$/i.test(teks)) {
+      await daftarProfil(alat, pesan.chat.id, pesan.from?.id);
+      return null;
+    }
     if (/^\/cabutakun(?:@\w+)?\s*$/i.test(teks)) {
       await daftarCabut(alat, pesan.chat.id, pesan.from?.id);
       return null;
@@ -483,7 +514,18 @@ async function proses(
     const f = await alat.telegram("getFile", { file_id: fileId });
     const isi = await alat.unduh(f.file_path);
     const sidik = await sidikSha256(isi);
-    const h = await alat.urai(isi, { tanggal_kirim: tanggalKirim });
+    let h = await alat.urai(isi, { tanggal_kirim: tanggalKirim });
+    // Paket F2: judul kolom belum dikenal -> pakai profil format mesin bila ada (judul sama persis), bila tidak ada file ditahan
+    // dan HRD yang mengirim ditanya sekali (PP07, kasus F09).
+    let profil: any = null;
+    if (h.hasil === "ditolak" && h.judul && h.sidik_judul) {
+      profil = await alat.api("pintu_profil_mesin", { telegram_id: tg, mesin, sidik_judul: h.sidik_judul });
+      if (!profil) {
+        await mulaiKonfirmasi(alat, chat, tg, updateId, fileId, nama, mesin, tanggalKirim, h);
+        return;
+      }
+      h = await alat.urai(isi, { tanggal_kirim: tanggalKirim, profil });
+    }
     const r = await alat.api("pintu_terima_file", {
       update_id: updateId,
       telegram_id: tg,
@@ -503,7 +545,7 @@ async function proses(
       alat,
       chat,
       `File ${nama} tersimpan: ${angka(r.jumlah_tap)} tap, ${r.tanggal_awal} s.d. ${r.tanggal_akhir}${dibuang}. Menghitung ulang...` +
-        teksPeriodeBaru(r.periode_baru),
+        (profil ? ` (dibaca dengan profil format no. ${profil.id} mesin ${mesin})` : "") + teksPeriodeBaru(r.periode_baru),
     );
     await kerjakanAntrean(alat, chat, mulai, "telegram");
   } catch (e) {
@@ -824,6 +866,7 @@ export const MENU: Record<string, Perintah[]> = {
   pembangun: [...MENU_HRD.slice(0, -1), P("setujui", "Setujui pengajuan: /setujui <nomor>"), P("tolak", "Tolak pengajuan: /tolak <nomor>"),
               P("undang", "Undang akun: /undang hrd atau /undang bos"), P("hapuspin", "Hapus PIN akun yang lupa PIN"),
               P("cabutakun", "Cabut akun HRD, bos, atau karyawan"),
+              P("profilmesin", "Profil format file mesin: daftar dan hapus"),
               P("lengkap", "Total lengkap termasuk orang rahasia (dengan PIN)"),
               P("pengajuan", "Pengajuan gaji yang menunggu persetujuan"),
               P("bantuan", "Daftar perintah")],
@@ -850,7 +893,8 @@ const BANTUAN: Record<string, string> = {
     "/setujuiawal <ID atau kode divisi> <tanggal> [tanggal selesai] jam datang lebih awal ikut dihitung lembur\n" +
     "/batalperintah <nomor perintah> batalkan izin, sakit, cuti, kasbon, atau perintah lembur yang salah\n/perintahku 10 perintah chat terakhir\n" +
     "/keberatan keberatan karyawan yang belum dijawab (dijawab dengan tombol Terima/Tolak)\n" +
-    "Kirim file mesin sebagai dokumen untuk menghitung gaji.",
+    "Kirim file mesin sebagai dokumen untuk menghitung gaji. File dengan judul kolom yang belum dikenal ditahan; bot menanyakan " +
+    "kolom ID dan tanggal-jam sekali, lalu file berikutnya dengan judul kolom yang sama dibaca otomatis.",
   bos: "Pengajuan rilis gaji dikirim ke chat ini dengan tombol Setujui dan Tolak. Bila belum dijawab, bot mengingatkan setiap pagi.\n" +
     "Total lengkap termasuk orang rahasia: tombol Total lengkap (atau /lengkap <nomor>), lalu ketik PIN. " +
     "PIN dibuat dengan tombol PIN (atau /pin <6 angka>).\n" +
@@ -867,13 +911,14 @@ BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /
   "/undang hrd atau /undang bos kode undangan akun\n/hapuspin hapus PIN akun yang lupa PIN\n" +
   "/cabutakun cabut akun HRD, bos, atau karyawan (bisa bergabung lagi dengan kode baru)\n" +
   "/lengkap <nomor> total lengkap termasuk orang rahasia (lalu ketik PIN)\n" +
-  "/pengajuan pengajuan karyawan baru dan ubah gaji yang menunggu (tombol Setujui/Tolak lalu PIN)";
+  "/pengajuan pengajuan karyawan baru dan ubah gaji yang menunggu (tombol Setujui/Tolak lalu PIN)\n" +
+  "/profilmesin profil format file mesin yang disimpan HRD (tombol Hapus; file berikutnya ditanyakan lagi)";
 
 // Perintah yang diketik tanpa garis miring tetap dikenali (paket 8b-3, temuan 6).
 const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
   "kode", "unggah", "bantuan", "gaji", "contohgaji", "lengkap", "izin", "sakit", "cuti", "batalperintah", "perintahku", "kasbon",
   "cicilan", "lunas", "setujuilembur", "batalkanlembur",
-  "setujuiawal", "cabutakun", "keberatan", "pengajuan"]);
+  "setujuiawal", "cabutakun", "keberatan", "pengajuan", "profilmesin"]);
 export function rapikanPerintah(teks: string): string {
   const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
@@ -911,6 +956,7 @@ export const TANYA_ID = "Ketik ID karyawan yang dibuatkan kode daftar";
 export const TANYA_PIN = "Buat PIN: ketik 6 angka. Ganti PIN: ketik PIN lama, spasi, PIN baru";
 export const TANYA_PERINTAH = "Ketik perintah HRD sebagai balasan pesan ini";
 export const TANYA_TOLAK_KEBERATAN = "Ketik alasan menolak keberatan no.";
+export const TANYA_KOLOM = "Ketik judul kolom, konfirmasi format no.";
 
 const tombolRilis = (periode: number) => ({ reply_markup: { inline_keyboard: [[{ text: "Rilis (PIN)", callback_data: `r|y|${periode}` }]] } });
 // Paket 8b-4: baris tombol "Batalkan pengajuan" ditambahkan di bawah tombol lain.
@@ -2402,14 +2448,27 @@ export async function webUnggah(
     return { status: 413, isi: { hasil: "ditolak", alasan: "File lebih dari 50 MB." }, latar: null };
   }
   const sidik = await sidikSha256(isi);
-  const h = await alat.urai(isi, { tanggal_kirim: tanggalWib(Math.floor(mulai / 1000)) });
+  const tanggalKirim = tanggalWib(Math.floor(mulai / 1000));
+  const kodeSidik = await sidikTeks(kode);
+  let h = await alat.urai(isi, { tanggal_kirim: tanggalKirim });
+  // Paket F2 (K1): profil format yang sudah disimpan lewat bot ikut dipakai; format baru tanpa profil ditolak dengan arahan ke bot.
+  let alasan = h.alasan;
+  if (h.hasil === "ditolak" && h.judul && h.sidik_judul) {
+    const profil = await alat.api("pintu_profil_mesin", { kode_sidik: kodeSidik, mesin, sidik_judul: h.sidik_judul });
+    if (profil) {
+      h = await alat.urai(isi, { tanggal_kirim: tanggalKirim, profil });
+      alasan = h.alasan;
+    } else {
+      alasan = PESAN_FORMAT_BARU_WEB;
+    }
+  }
   const r = await alat.api("pintu_terima_web", {
-    kode_sidik: await sidikTeks(kode),
+    kode_sidik: kodeSidik,
     nama_file: nama,
     sidik,
     mesin,
     tap: h.tap.map((t) => [t.id_mesin, t.jam_lokal, t.status, t.baris]),
-    alasan: h.alasan,
+    alasan,
   });
   if (r.tautan === false) return { status: 401, isi: { hasil: "ditolak", alasan: TAUTAN_TIDAK_BERLAKU }, latar: null };
   // Akun yang masuk lewat email bisa tanpa ID Telegram: hasil hanya terlihat di halaman.
@@ -2606,5 +2665,355 @@ export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
     case "isian_salah": case "tanpa_perubahan": return { status: 400, isi: { hasil: r.hasil, alasan: r.alasan }, latar: null };
     case "batas_harian": return { status: 429, isi: { hasil: r.hasil, alasan: r.alasan }, latar: null };
     default: return { status: 401, isi: { hasil: "sesi_tidak_berlaku", alasan: SESI_HABIS }, latar: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Paket F2: HRD mengonfirmasi format file baru sekali lewat bot (docs/rencana-f2-konfirmasi-format.md, PP07, kasus F09).
+// File ditahan (fakta.konfirmasi_format), HRD memilih kolom ID dan tanggal-jam (tombol atau ketik sendiri), susunan tanggal bila
+// bisa dibaca dua cara, lalu melihat contoh hasil bacaan sebelum "Ya, simpan". Profil disimpan per mesin + sidik judul kolom.
+// Tombol: x|<nomor konfirmasi>|<aksi>|<nilai>; aksi i/w/t/j = pilih kolom ID/waktu/tanggal/jam (nilai = nomor kolom),
+// d = tanggal dan jam di dua kolom, k = ketik sendiri, s = susunan (dmy/mdy), y = Ya simpan, n = Tidak, u = pilih ulang;
+// x|<nomor profil>|h|0 = hapus profil (/profilmesin, pembangun).
+// ---------------------------------------------------------------------------
+
+// K1: halaman unggah tidak bisa mengonfirmasi. Awalan "Format file tidak dikenal" = pemberitahuan segera (migrasi 0018).
+export const PESAN_FORMAT_BARU_WEB =
+  "Format file tidak dikenal: judul kolom file ini belum pernah dikonfirmasi untuk mesin ini. Kirim file ini sekali lewat " +
+  "bot Telegram; bot menanyakan kolom ID dan tanggal-jam. Sesudah disimpan, file dengan judul kolom yang sama bisa diunggah di sini.";
+
+const normalJudul = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const NAMA_SUSUNAN: Record<string, string> = { dmy: "hari/bulan/tahun", mdy: "bulan/hari/tahun", ymd: "tahun-bulan-hari" };
+const LANGKAH_AKSI: Record<string, string> = { i: "id", w: "waktu", t: "tanggal", j: "jam" };
+const APA_KOLOM: Record<string, string> = {
+  id: "kolom yang berisi ID karyawan (nomor di mesin)", waktu: "kolom yang berisi tanggal dan jam tap",
+  tanggal: "kolom yang berisi tanggal tap", jam: "kolom yang berisi jam tap",
+};
+const BATAS_TOMBOL_KOLOM = 20;
+const pendek = (t: string, n = 28) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+const daftarJudul = (judul: string[]) => judul.map((j) => `"${pendek(j, 40)}"`).join(", ");
+
+// Kolom yang boleh dipilih pada satu langkah: judul tidak kosong, tidak ganda (setelah dinormalkan), dan belum dipilih.
+function kolomBoleh(k: any): number[] {
+  const judul: string[] = k.judul ?? [];
+  const n = judul.map(normalJudul);
+  const dipakai = new Set([k.pilihan?.kolom_id, k.pilihan?.kolom_waktu, k.pilihan?.kolom_tanggal, k.pilihan?.kolom_jam]
+    .filter((x) => x !== undefined && x !== null));
+  return judul.map((_, i) => i).filter((i) => n[i] !== "" && n.indexOf(n[i]) === n.lastIndexOf(n[i]) && !dipakai.has(judul[i]));
+}
+
+// Susunan tanggal yang mungkin dari analisa kolom (sama dengan sistem/urai susunanMungkin): [] = tercampur.
+export function susunanKolom(x: AnalisaKolomRingkas | undefined): string[] {
+  if (!x || !x.ab) return ["ymd"];
+  if (x.a12 > 0 && x.b12 > 0) return [];
+  if (x.a12 > 0) return ["dmy"];
+  if (x.b12 > 0) return ["mdy"];
+  return ["dmy", "mdy"];
+}
+
+// "03/04/2026" -> ["3 April 2026", "4 Maret 2026"] (hari/bulan, bulan/hari).
+const BULAN_PANJANG = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober",
+  "November", "Desember"];
+export function duaArti(contoh: string): [string, string] {
+  const [a, b, t] = contoh.split(/[\/\-.]/).map(Number);
+  return [`${a} ${BULAN_PANJANG[b - 1]} ${t}`, `${b} ${BULAN_PANJANG[a - 1]} ${t}`];
+}
+
+const tombolUlang = (id: number) => [[{ text: "Pilih ulang", callback_data: `x|${id}|u|0` },
+                                     { text: "Tidak, tolak file", callback_data: `x|${id}|n|0` }]];
+
+async function mulaiKonfirmasi(alat: Alat, chat: number, tg: number, updateId: number, fileId: string, nama: string, mesin: string,
+                               tanggalKirim: string, h: HasilUraiRingkas): Promise<void> {
+  const r = await alat.api("pintu_konfirmasi_mulai", {
+    update_id: updateId, telegram_id: tg, file_id: fileId, nama_file: nama, mesin, tanggal_kirim: tanggalKirim,
+    judul: h.judul, sidik_judul: h.sidik_judul, analisa: (h.analisa ?? []).map((a) => ({ ab: a.ab, a12: a.a12, b12: a.b12, contoh: a.contoh })),
+  });
+  if (r.hasil === "ditolak") {
+    await kirim(alat, chat, `File ${nama} tidak diproses: ${r.alasan}`);
+    return;
+  }
+  const k = r.konfirmasi;
+  if (r.hasil === "mulai") {
+    await kirim(alat, chat, `File ${nama} (mesin ${mesin}) memakai judul kolom yang belum dikenal: ${daftarJudul(k.judul)}. ` +
+      `File ditahan dan belum dihitung (konfirmasi format no. ${k.id}). Jawab pertanyaan berikut sekali saja; file berikutnya ` +
+      `dari mesin ${mesin} dengan judul kolom yang sama dibaca otomatis.`);
+    for (const pb of (r.pembangun ?? []) as number[]) {
+      await kirimAman2(alat, pb, `FORMAT FILE BARU DITAHAN (konfirmasi format no. ${k.id})\nMesin ${mesin}, file ${nama}.\n` +
+        `Judul kolom: ${daftarJudul(k.judul)}.\nFile belum dihitung; menunggu HRD memilih kolom. Anda diberi tahu lagi bila profil disimpan.`, {});
+    }
+  }
+  await tanyaLangkah(alat, chat, k);
+}
+
+async function tanyaLangkah(alat: Alat, chat: number, k: any): Promise<void> {
+  const id = Number(k.id);
+  const judul: string[] = k.judul;
+  if (k.langkah === "susunan") {
+    const kolom = k.pilihan.kolom_waktu ?? k.pilihan.kolom_tanggal;
+    const contoh = k.analisa?.[judul.indexOf(kolom)]?.contoh ?? "03/04/2026";
+    const [dmy, mdy] = duaArti(contoh);
+    await kirim(alat, chat, `Konfirmasi format no. ${id}: tanggal "${contoh}" di kolom "${kolom}" maksudnya?`, {
+      reply_markup: { inline_keyboard: [[{ text: dmy, callback_data: `x|${id}|s|dmy` }, { text: mdy, callback_data: `x|${id}|s|mdy` }]] },
+    });
+    return;
+  }
+  const aksi = { id: "i", waktu: "w", tanggal: "t", jam: "j" }[k.langkah as string];
+  if (!aksi) return;
+  const boleh = kolomBoleh(k);
+  const tombol = boleh.slice(0, BATAS_TOMBOL_KOLOM).map((i) => ({ text: pendek(judul[i]), callback_data: `x|${id}|${aksi}|${i}` }));
+  const baris: any[][] = [];
+  for (let i = 0; i < tombol.length; i += 2) baris.push(tombol.slice(i, i + 2));
+  if (k.langkah === "waktu") baris.push([{ text: "Tanggal dan jam di dua kolom", callback_data: `x|${id}|d|0` }]);
+  baris.push([{ text: "Lainnya, ketik sendiri", callback_data: `x|${id}|k|0` }]);
+  const tanya = { id: "Kolom mana yang berisi ID karyawan (nomor di mesin)?", waktu: "Kolom mana yang berisi tanggal dan jam tap?",
+                  tanggal: "Kolom mana yang berisi tanggal tap?", jam: "Kolom mana yang berisi jam tap?" }[k.langkah as string];
+  await kirim(alat, chat, `Konfirmasi format no. ${id}: ${tanya}`, { reply_markup: { inline_keyboard: baris } });
+}
+
+async function ambilKonfirmasi(alat: Alat, chat: number, tg: number, id: number): Promise<any | null> {
+  const k = await alat.api("pintu_konfirmasi_ambil", { id, telegram_id: tg });
+  if (!k) {
+    await kirim(alat, chat, "Pilihan ini sudah tidak berlaku.");
+    return null;
+  }
+  if (k.status !== "menunggu") {
+    await kirim(alat, chat, `Konfirmasi format no. ${id} sudah selesai (${k.status === "disimpan" ? "profil disimpan" : "file ditolak"}).`);
+    return null;
+  }
+  return k;
+}
+
+// Pindah langkah; tombol dari langkah lama tidak berlaku (dijaga database).
+async function ubahLangkah(alat: Alat, chat: number, tg: number, k: any, baru: string, pilihan: any): Promise<any | null> {
+  const r = await alat.api("pintu_konfirmasi_ubah", { id: k.id, telegram_id: tg, langkah_lama: k.langkah, langkah_baru: baru, pilihan });
+  if (r.hasil !== "diubah") {
+    await kirim(alat, chat, "Pilihan ini sudah tidak berlaku.");
+    return null;
+  }
+  return r.konfirmasi;
+}
+
+async function tombolKonfirmasi(alat: Alat, chat: number, tg: number, id: number, aksi: string, nilai: string): Promise<Promise<void> | null> {
+  const k = await ambilKonfirmasi(alat, chat, tg, id);
+  if (!k) return null;
+  if (LANGKAH_AKSI[aksi]) {
+    if (k.langkah !== LANGKAH_AKSI[aksi] || !/^\d+$/.test(nilai)) {
+      await kirim(alat, chat, "Pilihan ini sudah tidak berlaku.");
+      return null;
+    }
+    return pilihKolom(alat, chat, tg, k, Number(nilai));
+  }
+  switch (aksi) {
+    case "d": {
+      if (k.langkah !== "waktu") break;
+      const baru = await ubahLangkah(alat, chat, tg, k, "tanggal", { kolom_id: k.pilihan.kolom_id });
+      if (baru) await tanyaLangkah(alat, chat, baru);
+      return null;
+    }
+    case "k": {
+      if (!APA_KOLOM[k.langkah]) break;
+      const boleh = kolomBoleh(k);
+      await kirim(alat, chat, `${TANYA_KOLOM} ${id}: ${APA_KOLOM[k.langkah]}. Judul yang ada di file: ` +
+        `${daftarJudul(boleh.map((i) => k.judul[i]))}.`,
+        { reply_markup: { force_reply: true, input_field_placeholder: "judul kolom" } });
+      return null;
+    }
+    case "s": {
+      if (k.langkah !== "susunan" || (nilai !== "dmy" && nilai !== "mdy")) break;
+      const baru = await ubahLangkah(alat, chat, tg, k, "contoh", { ...k.pilihan, susunan: nilai });
+      return baru ? pratinjau(alat, chat, tg, baru) : null;
+    }
+    case "u": {
+      const baru = await ubahLangkah(alat, chat, tg, k, "id", {});
+      if (baru) await tanyaLangkah(alat, chat, baru);
+      return null;
+    }
+    case "y":
+      return simpanKonfirmasi(alat, chat, tg, k);
+    case "n":
+      return tolakKonfirmasi(alat, chat, tg, k);
+  }
+  await kirim(alat, chat, "Pilihan ini sudah tidak berlaku.");
+  return null;
+}
+
+// Ketikan HRD hanya dicocokkan dengan judul kolom yang ada di file (C5); tidak cocok -> judul yang ada disebut dan ditanya lagi.
+async function jawabKetikKolom(alat: Alat, chat: number, tg: number, id: number, ketik: string): Promise<Promise<void> | null> {
+  const k = await ambilKonfirmasi(alat, chat, tg, id);
+  if (!k) return null;
+  if (!APA_KOLOM[k.langkah]) {
+    await kirim(alat, chat, "Pertanyaan ini sudah dijawab. Lanjutkan dengan tombol di pesan terakhir.");
+    return null;
+  }
+  const boleh = kolomBoleh(k);
+  const x = normalJudul(ketik);
+  const cocok = x ? boleh.filter((i) => normalJudul(k.judul[i]) === x) : [];
+  if (cocok.length !== 1) {
+    await kirim(alat, chat, `${TANYA_KOLOM} ${id}: judul "${pendek(ketik.trim(), 40)}" tidak ada di file. ` +
+      `${APA_KOLOM[k.langkah][0].toUpperCase()}${APA_KOLOM[k.langkah].slice(1)}; judul yang ada: ${daftarJudul(boleh.map((i) => k.judul[i]))}.`,
+      { reply_markup: { force_reply: true, input_field_placeholder: "judul kolom" } });
+    return null;
+  }
+  return pilihKolom(alat, chat, tg, k, cocok[0]);
+}
+
+async function pilihKolom(alat: Alat, chat: number, tg: number, k: any, i: number): Promise<Promise<void> | null> {
+  if (!kolomBoleh(k).includes(i)) {
+    await kirim(alat, chat, "Kolom ini tidak bisa dipilih (kosong, judulnya ganda, atau sudah dipilih). Pilih kolom lain.");
+    await tanyaLangkah(alat, chat, k);
+    return null;
+  }
+  const kolom: string = k.judul[i];
+  const pil = { ...k.pilihan };
+  if (k.langkah === "id") {
+    const baru = await ubahLangkah(alat, chat, tg, k, "waktu", { kolom_id: kolom });
+    if (baru) await tanyaLangkah(alat, chat, baru);
+    return null;
+  }
+  if (k.langkah === "tanggal") {
+    const baru = await ubahLangkah(alat, chat, tg, k, "jam", { kolom_id: pil.kolom_id, kolom_tanggal: kolom });
+    if (baru) await tanyaLangkah(alat, chat, baru);
+    return null;
+  }
+  const kolomTanggal = k.langkah === "waktu" ? kolom : pil.kolom_tanggal;
+  const susunan = susunanKolom(k.analisa?.[k.judul.indexOf(kolomTanggal)]);
+  const isi = k.langkah === "waktu" ? { kolom_id: pil.kolom_id, kolom_waktu: kolom } : { ...pil, kolom_jam: kolom };
+  if (susunan.length === 0) {
+    // C2: tanggal yang hanya masuk akal sebagai hari/bulan bercampur dengan yang hanya masuk akal sebagai bulan/hari.
+    const baru = await ubahLangkah(alat, chat, tg, k, "susunan", isi);
+    if (baru) await kirim(alat, chat, `Tanggal di kolom "${kolomTanggal}" bercampur antara hari/bulan dan bulan/hari, sehingga ` +
+      "file tidak bisa dibaca dengan aman. Mungkin kolomnya salah pilih.", { reply_markup: { inline_keyboard: tombolUlang(Number(k.id)) } });
+    return null;
+  }
+  if (susunan.length === 2) {
+    const baru = await ubahLangkah(alat, chat, tg, k, "susunan", isi);
+    if (baru) await tanyaLangkah(alat, chat, baru);
+    return null;
+  }
+  const baru = await ubahLangkah(alat, chat, tg, k, "contoh", { ...isi, susunan: susunan[0] });
+  return baru ? pratinjau(alat, chat, tg, baru) : null;
+}
+
+const profilDari = (k: any) => ({ sidik_judul: k.sidik_judul, kolom_id: k.pilihan.kolom_id, kolom_waktu: k.pilihan.kolom_waktu ?? null,
+  kolom_tanggal: k.pilihan.kolom_tanggal ?? null, kolom_jam: k.pilihan.kolom_jam ?? null, susunan: k.pilihan.susunan });
+
+export function teksPilihanFormat(p: any): string {
+  const waktu = p.kolom_waktu ? `tanggal-jam = "${p.kolom_waktu}"` : `tanggal = "${p.kolom_tanggal}", jam = "${p.kolom_jam}"`;
+  return `ID = "${p.kolom_id}", ${waktu}` + (p.susunan === "ymd" ? "" : `, tanggal dibaca ${NAMA_SUSUNAN[p.susunan] ?? p.susunan}`);
+}
+
+// Contoh hasil bacaan (tanpa nama): 3 tap (awal, tengah, akhir file) dan ringkasan.
+export function susunContohBacaan(h: HasilUraiRingkas): string {
+  const urut = [...h.tap].sort((a, b) => a.baris - b.baris);
+  const pilih = [...new Set([0, Math.floor((urut.length - 1) / 2), urut.length - 1])].map((i) => urut[i]);
+  const tap = pilih.map((t) => `• baris ${angka(t.baris)}: ID ${t.id_mesin}, ${tulisTanggal(t.jam_lokal.slice(0, 10))}, jam ` +
+    `${t.jam_lokal.slice(11, 16).replace(":", ".")}`);
+  const id = new Set(h.tap.map((t) => t.id_mesin)).size;
+  return [...tap, `Ringkasan: ${angka(h.tap.length)} tap, ${angka(id)} ID, ${tulisTanggal(h.tanggal_awal!, false)} s.d. ` +
+    `${tulisTanggal(h.tanggal_akhir!, false)}, ${angka(h.baris_ditolak.length)} baris tidak terbaca.`].join("\n");
+}
+
+// Ketikan dan pilihan tidak pernah dipakai tanpa contoh hasil bacaan dan tombol "Ya, simpan".
+async function pratinjau(alat: Alat, chat: number, tg: number, k: any): Promise<void> {
+  const id = Number(k.id);
+  try {
+    const f = await alat.telegram("getFile", { file_id: k.file_id });
+    const isi = await alat.unduh(f.file_path);
+    const h = await alat.urai(isi, { tanggal_kirim: k.tanggal_kirim, profil: profilDari(k) });
+    if (h.hasil !== "diterima") {
+      await kirim(alat, chat, `Konfirmasi format no. ${id}: dengan pilihan ini file tidak terbaca. ${h.alasan}`,
+        { reply_markup: { inline_keyboard: tombolUlang(id) } });
+      return;
+    }
+    const contoh = susunContohBacaan(h);
+    await alat.api("pintu_konfirmasi_ubah", { id, telegram_id: tg, langkah_lama: "contoh", langkah_baru: "contoh",
+                                              pilihan: { ...k.pilihan, contoh } });
+    await kirim(alat, chat, `Contoh hasil bacaan, konfirmasi format no. ${id} (mesin ${k.mesin}, file ${k.nama_file}):\n${contoh}\n` +
+      `Kolom: ${teksPilihanFormat(k.pilihan)}.\nPeriksa nama hari dan jamnya. Benar? Pilihan ini dipakai juga untuk file ` +
+      `berikutnya dari mesin ${k.mesin} dengan judul kolom yang sama.`, { reply_markup: { inline_keyboard: [
+      [{ text: "Ya, simpan", callback_data: `x|${id}|y|0` }, { text: "Tidak", callback_data: `x|${id}|n|0` }],
+      [{ text: "Pilih ulang", callback_data: `x|${id}|u|0` }]] } });
+  } catch (e) {
+    await kirim(alat, chat, `Konfirmasi format no. ${id}: file gagal dibaca ulang (${(e as Error).message}). Kirim ulang filenya.`);
+    throw e;
+  }
+}
+
+async function simpanKonfirmasi(alat: Alat, chat: number, tg: number, k: any): Promise<Promise<void> | null> {
+  const r = await alat.api("pintu_konfirmasi_selesai", { id: k.id, telegram_id: tg, simpan: true });
+  if (r.hasil === "pilihan_salah") {
+    await kirim(alat, chat, `Konfirmasi format no. ${k.id}: pilihan belum lengkap.`, { reply_markup: { inline_keyboard: tombolUlang(Number(k.id)) } });
+    return null;
+  }
+  if (r.hasil !== "disimpan") {
+    await kirim(alat, chat, "Pilihan ini sudah tidak berlaku.");
+    return null;
+  }
+  const p = r.profil;
+  const c = r.konfirmasi;
+  await kirim(alat, chat, `Profil format no. ${p.id} disimpan untuk mesin ${p.mesin}: ${teksPilihanFormat(p)}. ` +
+    `File ${c.nama_file} diterima, sedang diproses.`);
+  for (const pb of (r.pembangun ?? []) as number[]) {
+    await kirimAman2(alat, pb, `PROFIL FORMAT BARU no. ${p.id} (konfirmasi no. ${c.id})\nMesin ${p.mesin}, file ${c.nama_file}.\n` +
+      `Judul kolom: ${daftarJudul(p.judul)}.\nPilihan: ${teksPilihanFormat(p)}.\nContoh hasil bacaan:\n${k.pilihan?.contoh ?? "-"}\n` +
+      "Salah? /profilmesin lalu Hapus: file yang sudah dihitung tidak berubah; file berikutnya ditanyakan lagi.", {});
+  }
+  return proses(alat, chat, tg, Number(c.update_id), c.file_id, c.nama_file, c.mesin, String(c.tanggal_kirim));
+}
+
+// "Tidak": file ditolak dengan pesan format tidak dikenal dan pemberitahuan segera, seperti F09 sebelum PP07.
+async function tolakKonfirmasi(alat: Alat, chat: number, tg: number, k: any): Promise<Promise<void> | null> {
+  const r = await alat.api("pintu_konfirmasi_selesai", { id: k.id, telegram_id: tg, simpan: false });
+  if (r.hasil !== "ditolak") {
+    await kirim(alat, chat, "Pilihan ini sudah tidak berlaku.");
+    return null;
+  }
+  const c = r.konfirmasi;
+  return (async () => {
+    try {
+      const f = await alat.telegram("getFile", { file_id: c.file_id });
+      const isi = await alat.unduh(f.file_path);
+      const h = await alat.urai(isi, { tanggal_kirim: String(c.tanggal_kirim) });
+      const t = await alat.api("pintu_terima_file", {
+        update_id: Number(c.update_id), telegram_id: tg, nama_file: c.nama_file, sidik: await sidikSha256(isi), mesin: c.mesin,
+        tap: [], alasan: h.alasan ?? "Format file tidak dikenal.",
+      });
+      await kirim(alat, chat, `File ${c.nama_file} ditolak: ${t.alasan}`);
+      await kirimPemberitahuan(alat, chat);
+    } catch (e) {
+      await kirim(alat, chat, `File ${c.nama_file} gagal dicatat: ${(e as Error).message}`);
+      throw e;
+    }
+  })();
+}
+
+async function daftarProfil(alat: Alat, chat: number, tg: number): Promise<void> {
+  const r = await alat.api("pintu_profil_daftar", { telegram_id: tg });
+  if (r.hasil !== "ada") {
+    await kirim(alat, chat, BUKAN_PEMBANGUN);
+    return;
+  }
+  const profil = r.profil as any[];
+  if (!profil.length) {
+    await kirim(alat, chat, "Belum ada profil format file mesin. File dengan judul kolom yang dikenal tidak butuh profil.");
+    return;
+  }
+  const teks = profil.map((p) => `No. ${p.id}, mesin ${p.mesin}: ${teksPilihanFormat(p)}.\n  Judul kolom: ${daftarJudul(p.judul)}.\n` +
+    `  Disimpan ${p.oleh}, ${p.disetujui} WIB.`).join("\n");
+  await kirim(alat, chat, `Profil format file mesin (aktif):\n${teks}\nHapus: file yang sudah dihitung tidak berubah; file berikutnya ` +
+    "dengan judul itu ditanyakan lagi ke HRD.", {
+    reply_markup: { inline_keyboard: profil.map((p) => [{ text: `Hapus no. ${p.id} (mesin ${p.mesin})`, callback_data: `x|${p.id}|h|0` }]) },
+  });
+}
+
+async function hapusProfil(alat: Alat, chat: number, tg: number, id: number): Promise<void> {
+  const r = await alat.api("pintu_profil_hapus", { telegram_id: tg, profil_id: id });
+  switch (r.hasil) {
+    case "dihapus":
+      await kirim(alat, chat, `Profil format no. ${id} (mesin ${r.profil.mesin}) dihapus. File yang sudah dihitung tidak berubah; ` +
+        "file berikutnya dengan judul kolom itu ditanyakan lagi ke HRD.");
+      return;
+    case "tidak_ada": await kirim(alat, chat, "Profil tidak ditemukan atau sudah dihapus."); return;
+    default: await kirim(alat, chat, BUKAN_PEMBANGUN);
   }
 }

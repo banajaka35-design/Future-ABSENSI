@@ -32,6 +32,38 @@ export interface HasilUrai {
   baris_ditolak: BarisDitolak[]; // baris yang dibuang, file tetap diterima (contoh: tanggal mustahil)
   tanggal_awal: string | null;
   tanggal_akhir: string | null;
+  // Paket F2: diisi bila tabel ditolak HANYA karena judul kolomnya tidak dikenali (bukan rekap, kolom ganda, file rusak):
+  // judul kolom apa adanya, sidiknya, dan analisa isi tiap kolom untuk percakapan konfirmasi di bot.
+  judul?: string[];
+  sidik_judul?: string;
+  analisa?: AnalisaKolom[];
+}
+
+// Paket F2: susunan tanggal teks di file. dmy = hari/bulan/tahun, mdy = bulan/hari/tahun, ymd = tanpa tanggal a/b/tahun
+// (tahun-bulan-hari atau tanggal angka Excel saja).
+export type Susunan = "dmy" | "mdy" | "ymd";
+
+// Paket F2: profil format satu mesin yang disetujui HRD/pembangun. Kolom ditulis dengan judul aslinya; dicocokkan setelah
+// dinormalkan. Profil hanya dipakai untuk tabel yang sidik judul kolomnya sama persis (K3: judul berubah = ditanya lagi).
+export interface ProfilUrai {
+  sidik_judul: string;
+  kolom_id: string;
+  kolom_waktu?: string | null;
+  kolom_tanggal?: string | null;
+  kolom_jam?: string | null;
+  susunan: Susunan;
+}
+
+// Paket F2: isi satu kolom. ab = jumlah tanggal teks a/b/tahun; a12 / b12 = yang angka pertama / kedua di atas 12;
+// contoh = contoh tanggal a/b/tahun yang bisa dibaca dua cara; ymd = tanggal tahun-bulan-hari; angka = sel angka (Excel).
+export interface AnalisaKolom {
+  ab: number;
+  a12: number;
+  b12: number;
+  contoh: string | null;
+  ymd: number;
+  angka: number;
+  isi: number;
 }
 
 export interface PilihanUrai {
@@ -39,6 +71,8 @@ export interface PilihanUrai {
   tanggal_kirim?: string;
   // Tanggal paling awal yang masuk akal. Jam mesin yang tereset biasanya kembali ke tahun 2000 (kasus A12).
   tanggal_paling_awal?: string;
+  // Paket F2: profil format mesin. Tanpa profil, aturan F1 (daftar sinonim) berlaku apa adanya.
+  profil?: ProfilUrai | null;
 }
 
 const PALING_AWAL_BAWAAN = "2020-01-01";
@@ -225,8 +259,9 @@ const POLA_TANGGAL_DMY = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/;
 const POLA_TANGGAL_YMD = /^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/;
 const POLA_JAM = /^(\d{1,2})[.:](\d{2})(?:[.:](\d{2}))?$/;
 
-// Hasil: waktu, ditambah angka kedua tanggal bergaya a/b/yyyy untuk penjaga hari/bulan tercampur (kasus A10).
-function bacaWaktu(selWaktu: Sel, selJam: Sel | undefined, terpisah: boolean, tanggal1904: boolean):
+// Hasil: waktu, ditambah angka di posisi bulan pada tanggal bergaya a/b/yyyy untuk penjaga hari/bulan tercampur (kasus A10).
+// Susunan dmy (bawaan, aturan F1): angka kedua = bulan. Paket F2: mdy = angka pertama bulan; ymd = tanggal a/b/yyyy tidak dibaca.
+function bacaWaktu(selWaktu: Sel, selJam: Sel | undefined, terpisah: boolean, tanggal1904: boolean, susunan: Susunan = "dmy"):
   { w: Waktu; b2: number | null } | null {
   let t: number, b: number, h: number, j = 0, m = 0, d = 0;
   let b2: number | null = null;
@@ -239,8 +274,9 @@ function bacaWaktu(selWaktu: Sel, selJam: Sel | undefined, terpisah: boolean, ta
     const [bagTanggal, ...bagJam] = terpisah ? [teks] : teks.split(/\s+|T(?=\d)/);
     let k = POLA_TANGGAL_DMY.exec(bagTanggal);
     if (k) {
-      h = Number(k[1]);
-      b = Number(k[2]);
+      if (susunan === "ymd") return null;
+      h = Number(k[susunan === "mdy" ? 2 : 1]);
+      b = Number(k[susunan === "mdy" ? 1 : 2]);
       t = Number(k[3]);
       b2 = b;
     } else if ((k = POLA_TANGGAL_YMD.exec(bagTanggal))) {
@@ -276,25 +312,130 @@ function bacaWaktu(selWaktu: Sel, selJam: Sel | undefined, terpisah: boolean, ta
   return w ? { w, b2 } : null;
 }
 
+// ---------------------------------------------------------------------------
+// Paket F2: judul kolom yang belum dikenal (untuk konfirmasi HRD) dan pembacaan dengan profil mesin
+// ---------------------------------------------------------------------------
+
+const kosongSel = (s: Sel) => String(s ?? "").trim() === "";
+const kosongBaris = (r: Sel[]) => r.every(kosongSel);
+const isiBaris = (r: Sel[]) => r.filter((s) => !kosongSel(s)).length;
+// Sel yang tampak seperti data (angka, tanggal, jam), bukan judul.
+const SEL_DATA = /^[\d\s.,:\/\-+]+$/;
+
+// Sidik judul kolom: judul yang dinormalkan (huruf kecil, hanya huruf dan angka), dipisah "|", sel kosong di ujung dibuang.
+export function sidikJudul(r: Sel[]): string {
+  const n = r.map(normal);
+  while (n.length && n[n.length - 1] === "") n.pop();
+  return n.join("|");
+}
+
+// Baris judul calon untuk tabel yang judulnya tidak dikenali: dari 30 baris tidak kosong pertama, baris berisi paling sedikit
+// 2 sel yang semuanya teks bukan data dan diikuti baris berisi paling sedikit 2 sel; dipilih yang selnya paling banyak.
+export function calonJudul(barisSel: Sel[][]): number {
+  const tidakKosong: number[] = [];
+  for (let i = 0; i < barisSel.length && tidakKosong.length < 31; i++) if (!kosongBaris(barisSel[i] ?? [])) tidakKosong.push(i);
+  let pilih = -1;
+  let terbanyak = 0;
+  for (let n = 0; n < Math.min(30, tidakKosong.length - 1); n++) {
+    const r = barisSel[tidakKosong[n]];
+    const sel = r.filter((s) => !kosongSel(s));
+    if (sel.length < 2 || sel.length <= terbanyak) continue;
+    if (sel.some((s) => typeof s === "number" || SEL_DATA.test(String(s).trim()))) continue;
+    if (isiBaris(barisSel[tidakKosong[n + 1]]) < 2) continue;
+    pilih = tidakKosong[n];
+    terbanyak = sel.length;
+  }
+  return pilih;
+}
+
+// Isi tiap kolom di bawah baris judul (untuk pertanyaan susunan tanggal dan pengaman kolom yang mustahil).
+export function analisaKolom(barisSel: Sel[][], iJudul: number, lebar: number): AnalisaKolom[] {
+  const a: AnalisaKolom[] = Array.from({ length: lebar }, () => ({ ab: 0, a12: 0, b12: 0, contoh: null, ymd: 0, angka: 0, isi: 0 }));
+  for (let i = iJudul + 1; i < barisSel.length; i++) {
+    const r = barisSel[i] ?? [];
+    for (let k = 0; k < lebar; k++) {
+      const s = r[k];
+      if (kosongSel(s)) continue;
+      a[k].isi++;
+      if (typeof s === "number") {
+        a[k].angka++;
+        continue;
+      }
+      const token = String(s).trim().split(/\s+|T(?=\d)/)[0];
+      const dmy = POLA_TANGGAL_DMY.exec(token);
+      if (dmy) {
+        const x = Number(dmy[1]);
+        const y = Number(dmy[2]);
+        a[k].ab++;
+        if (x > 12) a[k].a12++;
+        if (y > 12) a[k].b12++;
+        if (x <= 12 && y <= 12 && x !== y && x >= 1 && y >= 1 && a[k].contoh === null) a[k].contoh = token;
+      } else if (POLA_TANGGAL_YMD.test(token)) {
+        a[k].ymd++;
+      }
+    }
+  }
+  return a;
+}
+
+// Pilihan susunan tanggal yang mungkin untuk satu kolom: [] = tercampur (tidak bisa disimpan), satu pilihan = pasti,
+// dua pilihan = HRD ditanya.
+export function susunanMungkin(x: AnalisaKolom | undefined): Susunan[] {
+  if (!x || x.ab === 0) return ["ymd"];
+  if (x.a12 > 0 && x.b12 > 0) return [];
+  if (x.a12 > 0) return ["dmy"];
+  if (x.b12 > 0) return ["mdy"];
+  return ["dmy", "mdy"];
+}
+
+function kolomProfil(judul: Sel[], p: ProfilUrai): Kolom | null {
+  const n = judul.map(normal);
+  const cari = (nama: string | null | undefined) => {
+    const x = normal(nama ?? "");
+    if (!x) return -1;
+    const i = n.indexOf(x);
+    return i >= 0 && n.indexOf(x, i + 1) < 0 ? i : -1; // judul ganda tidak dipakai
+  };
+  const kol: Kolom = { id: cari(p.kolom_id), gabungan: cari(p.kolom_waktu), tanggal: cari(p.kolom_tanggal), jam: cari(p.kolom_jam),
+                       nama: -1, status: -1 };
+  if (kol.id < 0 || (kol.gabungan < 0 && (kol.tanggal < 0 || kol.jam < 0))) return null;
+  const dipakai = [kol.id, kol.gabungan, kol.tanggal, kol.jam];
+  const lain = (daftar: string[]) => n.findIndex((j, i) => daftar.includes(j) && !dipakai.includes(i));
+  kol.nama = lain(SINONIM_NAMA);
+  kol.status = lain(SINONIM_STATUS);
+  return kol;
+}
+
 // Menerima baris sel dari CSV/TXT atau lembar Excel. Nama lama (uraiBarisEkspor) tetap untuk CSV.
 export function uraiTabel(barisSel: Sel[][], pilihan: PilihanUrai = {}, format: Format = "ekspor_aplikasi_v1",
                           tanggal1904 = false): HasilUrai {
   const hasil: HasilUrai = {
     hasil: "ditolak", alasan: null, format, tap: [], baris_ditolak: [], tanggal_awal: null, tanggal_akhir: null,
   };
-  const kosong = (r: Sel[]) => r.every((s) => String(s ?? "").trim() === "");
+  const kosong = kosongBaris;
   if (barisSel.findIndex((r) => r && !kosong(r)) < 0) {
     hasil.alasan = PESAN.kosong;
     return hasil;
   }
   // Baris judul: baris tidak kosong pertama (dari 30 baris pertama) yang memuat kolom ID dan kolom waktu.
+  // Paket F2: dengan profil, baris judul = baris yang sidik judulnya sama persis dengan profil.
   let iJudul = -1;
   let kol: Kolom | null = null;
   let temuan: "rekap" | "ganda" | null = null;
+  const profil = pilihan.profil ?? null;
   for (let i = 0, dicek = 0; i < barisSel.length && dicek < 30; i++) {
     const r = barisSel[i] ?? [];
     if (kosong(r)) continue;
     dicek++;
+    if (profil) {
+      if (sidikJudul(r) !== profil.sidik_judul) continue;
+      const k = kolomProfil(r, profil);
+      if (k) {
+        iJudul = i;
+        kol = k;
+      }
+      break;
+    }
     const k = cariKolom(r.map(normal));
     if (k === "rekap" || k === "ganda") {
       temuan = temuan ?? k;
@@ -308,8 +449,21 @@ export function uraiTabel(barisSel: Sel[][], pilihan: PilihanUrai = {}, format: 
   }
   if (!kol) {
     hasil.alasan = temuan === "rekap" ? PESAN.rekap : temuan === "ganda" ? PESAN.kolomGanda : PESAN.formatTidakDikenal;
+    // Paket F2: hanya penolakan karena judul tidak dikenali yang membawa judul kolom (C6: rekap dan kolom ganda tidak).
+    if (temuan === null) {
+      const c = calonJudul(barisSel);
+      if (c >= 0) {
+        const r = barisSel[c];
+        let lebar = r.length;
+        while (lebar > 0 && kosongSel(r[lebar - 1])) lebar--;
+        hasil.judul = r.slice(0, lebar).map((s) => String(s ?? "").trim());
+        hasil.sidik_judul = sidikJudul(r);
+        hasil.analisa = analisaKolom(barisSel, c, lebar);
+      }
+    }
     return hasil;
   }
+  const susunan: Susunan = profil?.susunan ?? "dmy";
 
   const paling_awal = pilihan.tanggal_paling_awal ?? PALING_AWAL_BAWAAN;
   const paling_akhir = pilihan.tanggal_kirim ? tambahHari(pilihan.tanggal_kirim, 1) : null;
@@ -345,7 +499,7 @@ export function uraiTabel(barisSel: Sel[][], pilihan: PilihanUrai = {}, format: 
     const selW = terpisah ? r[kol.tanggal] : r[kol.gabungan];
     const teksWaktu = terpisah ? `${String(r[kol.tanggal] ?? "").trim()} ${String(r[kol.jam] ?? "").trim()}`
       : String(selW ?? "").trim();
-    const x = bacaWaktu(selW ?? null, terpisah ? r[kol.jam] ?? null : undefined, terpisah, tanggal1904);
+    const x = bacaWaktu(selW ?? null, terpisah ? r[kol.jam] ?? null : undefined, terpisah, tanggal1904, susunan);
     if (x && x.b2 !== null && x.b2 > 12) adaBulanLebihDari12 = true;
     if (!x || !x.w.jam_lokal) {
       hasil.baris_ditolak.push({ baris: nomor, alasan: `${PESAN.waktuTidakTerbaca}: "${teksWaktu}"` });
@@ -378,18 +532,29 @@ export function uraiBarisEkspor(barisSel: string[][], pilihan: PilihanUrai = {})
 
 // Pemisah tabel teks: koma (bentuk file asli dan data simulasi), titik koma (CSV Excel berbahasa Indonesia), atau tab
 // (simpanan Excel "Unicode text"). Dipilih pemisah pertama yang membuat baris judul dikenali; bila tidak ada, koma.
-export function pemisahTeks(teks: string): string {
+// Paket F2: dengan profil, pemisah yang membuat sidik judul profil ditemukan. Bila judul tidak dikenali dengan pemisah mana pun,
+// dipilih pemisah yang memberi judul calon paling banyak kolom (hanya mengubah judul yang ditawarkan ke HRD; alasan tolak sama).
+export function pemisahTeks(teks: string, profil: ProfilUrai | null = null): string {
   const awal = teks.split(/\r?\n/).slice(0, 40).join("\n");
+  let cadangan = ",";
+  let terbanyak = 0;
   for (const p of [",", ";", "\t"]) {
     const baris = pecahCsv(awal, p).filter((r) => r.some((x) => x.trim() !== "")).slice(0, 30);
-    if (baris.some((r) => cariKolom(r.map(normal)) !== null)) return p;
+    if (profil ? baris.some((r) => sidikJudul(r) === profil.sidik_judul) : baris.some((r) => cariKolom(r.map(normal)) !== null)) {
+      return p;
+    }
+    const c = calonJudul(baris);
+    if (c >= 0 && isiBaris(baris[c]) > terbanyak) {
+      terbanyak = isiBaris(baris[c]);
+      cadangan = p;
+    }
   }
-  return ",";
+  return cadangan;
 }
 
 export function uraiEkspor(teks: string, pilihan: PilihanUrai = {}): HasilUrai {
   const bersih = bersihkanBom(teks);
-  return uraiTabel(pecahCsv(bersih, pemisahTeks(bersih)), pilihan);
+  return uraiTabel(pecahCsv(bersih, pemisahTeks(bersih, pilihan.profil ?? null)), pilihan);
 }
 
 // ---------------------------------------------------------------------------
@@ -489,13 +654,16 @@ export async function uraiBerkas(isi: Uint8Array, pilihan: PilihanUrai = {}): Pr
   }
   const format: Format = jenis === "xls" ? "ekspor_xls" : "ekspor_xlsx";
   let pertama: HasilUrai | null = null;
+  let berjudul: HasilUrai | null = null;
   for (const l of buku.lembar) {
     const h = uraiTabel(l.baris, pilihan, format, buku.tanggal1904);
     pertama = pertama ?? h;
+    if (h.judul) berjudul = berjudul ?? h;
     // Lembar yang judulnya tidak dikenali dilewati; lembar pertama yang dikenali dipakai (diterima atau ditolak).
     if (h.hasil === "diterima" || !(h.alasan ?? "").startsWith(PESAN.formatTidakDikenal.slice(0, 25))) return h;
   }
-  return pertama ?? tolak(PESAN.kosong);
+  // Paket F2: tidak ada lembar yang dikenali -> lembar pertama yang punya judul calon (untuk konfirmasi HRD).
+  return berjudul ?? pertama ?? tolak(PESAN.kosong);
 }
 
 // Paket 6f (bug B1): sebutkan alasan terbanyak dan contohnya, supaya HRD tahu langkahnya (misalnya jam mesin salah).

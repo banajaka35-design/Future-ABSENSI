@@ -4,7 +4,7 @@
 import {
   apiBoleh, BATAS_UKURAN_WEB, tanganiPengingat, tanganiPermintaan, webHrd, webMasukHrd, webMintaKode, webPeriksa, webStatus,
   webTukarKode, webUnggah,
-  type Alat, type HasilUraiRingkas, type JawabanWeb,
+  type Alat, type HasilUraiRingkas, type JawabanWeb, type PilihanUraiPintu,
 } from "./inti.ts";
 
 // Bagian postgres.js yang dipakai.
@@ -29,7 +29,7 @@ export function gangguanDatabase(e: unknown): boolean {
 export function buatAlat(
   sql: Sql,
   token: string,
-  urai: (isi: Uint8Array, pilihan: { tanggal_kirim?: string }) => Promise<HasilUraiRingkas>,
+  urai: (isi: Uint8Array, pilihan: PilihanUraiPintu) => Promise<HasilUraiRingkas>,
   ambil: typeof fetch = fetch,
   alamatUnggah = "",
   jedaCobaUlang: number[] = [1000, 2000], // tiga percobaan: langsung, sesudah 1 detik, sesudah 2 detik lagi

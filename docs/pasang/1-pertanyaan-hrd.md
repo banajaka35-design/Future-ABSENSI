@@ -41,8 +41,10 @@ jam masuk-pulang per hari.**
 Contoh: file `.xls` dengan kolom Nama, No.ID, Tgl/Waktu, Status (bentuk file mesin asli pemilik); `.xlsx`, `.csv`, `.txt`, dan
 `attlog.dat` juga bisa dibaca.
 Isian: tidak ada; contoh file diperiksa dengan `node sistem/urai/cek_file.ts FILE` (paket F1) sebelum pemasangan. Hasilnya harus
-DITERIMA dengan jumlah ID dan rentang tanggal yang masuk akal. Bila DITOLAK karena format belum dikenal, catat sebagai temuan:
-format baru ditambahkan ke pembaca dari contoh itu, dengan ujinya.
+DITERIMA dengan jumlah ID dan rentang tanggal yang masuk akal. Bila DITOLAK karena judul kolomnya belum dikenal (paket F2),
+HRD cukup mengirim file itu sekali lewat bot: bot menanyakan kolom ID dan tanggal-jam dengan contoh hasil bacaan, lalu menyimpan
+profil format untuk mesin itu (pembangun diberi tahu dan bisa menghapusnya dengan `/profilmesin`). Bentuk rekap dan file rusak
+tetap ditolak; catat sebagai temuan.
 
 ## B. Divisi dan shift
 

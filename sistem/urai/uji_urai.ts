@@ -236,3 +236,105 @@ test("F1: jenis berkas dikenali dari isinya; teks Windows-1252 dan UTF-8 ber-BOM
   const h = await uraiBerkas(new TextEncoder().encode(JUDUL + "P1,7,02/02/2026 07.05.23,02/02/2026 07.05,C/Masuk\r\n"));
   assert.equal(h.hasil, "diterima");
 });
+
+// ---------------------------------------------------------------------------
+// Paket F2: profil format mesin (docs/rencana-f2-konfirmasi-format.md, PP07). Uji di atas tidak diubah: tanpa profil F09 tetap
+// ditolak.
+// ---------------------------------------------------------------------------
+import { analisaKolom, calonJudul, sidikJudul, susunanMungkin, uraiTabel, type ProfilUrai } from "./urai.ts";
+
+const F09 = "Nama,No.ID,Waktu,Status\r\n";
+const profilF09 = (susunan: ProfilUrai["susunan"] = "dmy"): ProfilUrai =>
+  ({ sidik_judul: "nama|noid|waktu|status", kolom_id: "No.ID", kolom_waktu: "Waktu", susunan });
+
+test("F2: tanpa profil F09 ditolak seperti F1, dan membawa judul kolom, sidik, dan analisa untuk konfirmasi", () => {
+  const h = urai(F09 + "P1,7,02/02/2026 07.05.23,C/Masuk\r\nP1,7,13/02/2026 07.05.23,C/Masuk\r\n");
+  assert.equal(h.hasil, "ditolak");
+  assert.equal(h.alasan, PESAN.formatTidakDikenal);
+  assert.deepEqual(h.judul, ["Nama", "No.ID", "Waktu", "Status"]);
+  assert.equal(h.sidik_judul, "nama|noid|waktu|status");
+  assert.deepEqual(h.analisa![2], { ab: 2, a12: 1, b12: 0, contoh: null, ymd: 0, angka: 0, isi: 2 });
+  assert.deepEqual(susunanMungkin(h.analisa![2]), ["dmy"]);
+});
+
+test("F2: profil hari/bulan -> F09 terbaca sama persis dengan bentuk Tgl/Waktu yang dikenal", () => {
+  const baris = "P1,7,02/02/2026 07.05.23,C/Masuk\r\nP2,8,13/02/2026 16.01.00,C/Keluar\r\n";
+  const a = urai(F09 + baris, { profil: profilF09() });
+  const b = urai("Nama,No.ID,Tgl/Waktu,Status\r\n" + baris);
+  assert.equal(a.hasil, "diterima");
+  assert.deepEqual(a.tap, b.tap);
+  assert.equal(a.tap[1].status, "Keluar");
+});
+
+test("F2: profil bulan/hari membaca 02/13/2026 sebagai 13 Feb; hari/bulan pada file yang sama ditolak tercampur (A10)", () => {
+  const isi = F09 + "P1,7,02/13/2026 07.05.23,C/Masuk\r\nP1,7,03/04/2026 07.00.00,C/Masuk\r\n";
+  const mdy = urai(isi, { profil: profilF09("mdy") });
+  assert.equal(mdy.hasil, "diterima");
+  assert.deepEqual(mdy.tap.map((t) => t.jam_lokal), ["2026-02-13 07:05:23", "2026-03-04 07:00:00"]);
+  const dmy = urai(isi, { profil: profilF09("dmy") });
+  assert.equal(dmy.alasan, PESAN.tanggalCampur);
+  // Pilihan yang mungkin dari analisa: angka kedua > 12 -> hanya bulan/hari.
+  assert.deepEqual(susunanMungkin(urai(isi).analisa![2]), ["mdy"]);
+});
+
+test("F2: semua tanggal <= 12 -> dua pilihan dengan contoh; keduanya > 12 di kolom yang sama -> tidak bisa disimpan", () => {
+  const dua = urai(F09 + "P1,7,03/04/2026 07.05,C/Masuk\r\nP1,7,04/04/2026 07.05,C/Masuk\r\n");
+  assert.deepEqual(susunanMungkin(dua.analisa![2]), ["dmy", "mdy"]);
+  assert.equal(dua.analisa![2].contoh, "03/04/2026");
+  const campur = urai(F09 + "P1,7,13/04/2026 07.05,C/Masuk\r\nP1,7,04/13/2026 07.05,C/Masuk\r\n");
+  assert.deepEqual(susunanMungkin(campur.analisa![2]), []);
+});
+
+test("F2: profil tahun-bulan-hari; tanggal a/b/tahun pada profil itu tidak ditebak (baris tidak terbaca)", () => {
+  const p: ProfilUrai = { sidik_judul: "userid|scantime", kolom_id: "User ID", kolom_waktu: "Scan Time", susunan: "ymd" };
+  const h = urai("User ID,Scan Time\r\n7,2026-02-13 07:05:00\r\n7,13/02/2026 16:00:00\r\n", { profil: p });
+  assert.equal(h.hasil, "diterima");
+  assert.deepEqual(h.tap.map((t) => t.jam_lokal), ["2026-02-13 07:05:00"]);
+  assert.equal(h.baris_ditolak.length, 1);
+  assert.deepEqual(susunanMungkin(urai("User ID,Scan Time\r\n7,2026-02-13 07:05:00\r\n").analisa![1]), ["ymd"]);
+});
+
+test("F2: profil tanggal dan jam di dua kolom (judul tidak dikenal), CSV titik koma", () => {
+  const isi = "Laporan absensi\r\nKode;Scan Date;Scan Time;Keterangan\r\n7;02/02/2026;07:05;\r\n7;02/02/2026;16:01;\r\n";
+  const tanpa = urai(isi);
+  assert.equal(tanpa.alasan, PESAN.formatTidakDikenal);
+  assert.deepEqual(tanpa.judul, ["Kode", "Scan Date", "Scan Time", "Keterangan"]); // pemisah titik koma dipilih untuk judul
+  const p: ProfilUrai = { sidik_judul: tanpa.sidik_judul!, kolom_id: "Kode", kolom_tanggal: "Scan Date", kolom_jam: "Scan Time",
+                          susunan: "dmy" };
+  const h = urai(isi, { profil: p });
+  assert.equal(h.hasil, "diterima");
+  assert.deepEqual(h.tap.map((t) => [t.id_mesin, t.jam_lokal, t.baris]), [["7", "2026-02-02 07:05:00", 3], ["7", "2026-02-02 16:01:00", 4]]);
+});
+
+test("F2 (K3): profil tidak dipakai bila judul kolom berubah; file ditolak lagi dengan judul barunya", () => {
+  const h = urai("Nama,No.ID,Waktu,Status,Lokasi\r\nP1,7,02/02/2026 07.05.23,C/Masuk,A\r\n", { profil: profilF09() });
+  assert.equal(h.hasil, "ditolak");
+  assert.equal(h.alasan, PESAN.formatTidakDikenal);
+  assert.equal(h.sidik_judul, "nama|noid|waktu|status|lokasi");
+});
+
+test("F2 (C6): rekap, dua kolom ID, dan file bukan tabel tidak membawa judul (tidak masuk percakapan konfirmasi)", async () => {
+  const tolak = async (nama: string) => (await uraiBerkas(berkasContoh(nama), { tanggal_kirim: "2026-10-31" }));
+  assert.equal((await tolak("tolak_rekap.xlsx")).judul, undefined);
+  assert.equal((await tolak("tolak_dua_id.csv")).judul, undefined);
+  assert.equal(urai("halo, ini bukan file mesin\nbaris kedua\n").judul, undefined);
+  assert.equal(urai("satu baris saja tanpa pemisah\n").judul, undefined);
+});
+
+test("F2: F09 dalam .xlsx: tanpa profil ditolak dengan judul; dengan profil diterima", async () => {
+  const isi = berkasContoh("tolak_waktu_saja.xlsx");
+  const tanpa = await uraiBerkas(isi, { tanggal_kirim: "2026-10-31" });
+  assert.equal(tanpa.alasan, PESAN.formatTidakDikenal);
+  assert.equal(tanpa.sidik_judul, "nama|noid|waktu|status");
+  const h = await uraiBerkas(isi, { tanggal_kirim: "2026-10-31", profil: profilF09() });
+  assert.equal(h.hasil, "diterima");
+  assert.deepEqual(h.tap, [{ id_mesin: "10001", jam_lokal: "2026-10-01 07:04:12", status: "Masuk", baris: 2 }]);
+});
+
+test("F2: judul calon memilih baris judul (bukan judul laporan atau baris data); sidik judul membuang sel kosong di ujung", () => {
+  const baris = [["Laporan", "Maret"], [], ["ID Kartu", "Jam Scan", "Pintu"], ["7", "02/02/2026 07:05", "A"], ["8", "02/02/2026 07:06", "A"]];
+  assert.equal(calonJudul(baris), 2);
+  assert.equal(calonJudul([["7", "02/02/2026"], ["8", "03/02/2026"]]), -1);
+  assert.equal(sidikJudul(["ID Kartu", "Jam-Scan", "", null]), "idkartu|jamscan");
+  assert.equal(analisaKolom(baris, 2, 3)[1].ab, 2);
+});

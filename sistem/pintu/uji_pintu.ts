@@ -2060,3 +2060,191 @@ test("F1: file Excel .xls dikirim ke bot sebagai dokumen diterima dengan jumlah 
   assert.ok(r.pesan.some((p) => p.text.includes(`File A_p1_MA2.xls tersimpan: ${harap.toLocaleString("id-ID")} tap`)), JSON.stringify(r.pesan.map((p) => p.text.slice(0, 90))));
   assert.equal(nilai("select hasil || '/' || jumlah_baris from fakta.kiriman_file where nama_file = 'A_p1_MA2.xls'"), `diterima/${harap}`);
 });
+
+// ---------------------------------------------------------------------------
+// Paket F2: HRD mengonfirmasi format file baru sekali lewat bot (docs/rencana-f2-konfirmasi-format.md, PP07, kasus F09)
+// ---------------------------------------------------------------------------
+import { PESAN_FORMAT_BARU_WEB, TANYA_KOLOM, duaArti, susunanKolom } from "./inti.ts";
+
+// File F09 dari data simulasi MA2 periode 1: judul "Tgl/Waktu" diganti "Waktu" (judul belum dikenal), 40 baris per file.
+function fileF09(dari: number, sampai: number, judul = "Nama,No.ID,Waktu,,Status"): Uint8Array {
+  const baris = fileSim("A_p1_MA2.csv").toString("utf8").split("\r\n");
+  return new TextEncoder().encode([judul, ...baris.slice(dari, sampai)].join("\r\n") + "\r\n");
+}
+BERKAS.F2_A = fileF09(1, 41);
+BERKAS.F2_B = fileF09(41, 81);
+BERKAS.F2_LOKASI = fileF09(81, 121, "Nama,No.ID,Waktu,,Status,Lokasi");
+BERKAS.F2_C = fileF09(121, 161);
+BERKAS.F2_DUA_ARTI = new TextEncoder().encode("ID Kartu,Jam Scan\r\n10881,01/02/2026 07:01\r\n10881,01/02/2026 16:05\r\n10881,02/01/2026 07:02\r\n");
+const tombolX = (u: number, dari: number, data: string) => JSON.stringify({
+  update_id: u, callback_query: { id: `cb${u}`, data, from: { id: dari }, message: { message_id: u, chat: { id: dari, type: "private" } } },
+});
+const balasBot = (u: number, dari: number, text: string, ditanya: string) => JSON.stringify({
+  update_id: u, message: { message_id: u, chat: { id: dari, type: "private" }, from: { id: dari }, text,
+                           reply_to_message: { from: { is_bot: true }, text: ditanya } },
+});
+const tombolTeks = (p: any) => (p?.reply_markup?.inline_keyboard ?? []).flat().map((t: any) => t.text);
+const dataTombol = (p: any, teks: string) => (p?.reply_markup?.inline_keyboard ?? []).flat().find((t: any) => t.text === teks)?.callback_data;
+const sidikGaji = () => nilai(`select string_agg(x.periode_id || ':' || left(md5(x.s), 12), ' ' order by x.periode_id) from (
+  select v.periode_id, string_agg(g.id_karyawan || '=' || g.gaji_bersih, ',' order by g.id_karyawan) as s
+  from hitung.versi_terakhir v join hitung.ringkasan_gaji g on g.versi_id = v.id where v.jenis = 'hitung_gaji' group by v.periode_id) x`);
+let konfirmasiF2 = 0;
+let profilF2 = 0;
+
+test("F2: file F09 dari HRD ditahan (tidak dicatat), HRD ditanya kolom ID dengan tombol judul kolom; pembangun diberi tahu", async () => {
+  const r = await kirimUpdate(dokumen(40001, HRD, "F2_A", "f09_a.csv", "MA2"));
+  const hrd = r.pesan.filter((p) => p.chat_id === HRD);
+  assert.match(hrd[1].text, /memakai judul kolom yang belum dikenal: "Nama", "No.ID", "Waktu", "", "Status"\. File ditahan dan belum dihitung/);
+  konfirmasiF2 = Number(/konfirmasi format no\. (\d+)/.exec(hrd[1].text)![1]);
+  assert.match(hrd[2].text, /Kolom mana yang berisi ID karyawan/);
+  // Kolom berjudul kosong tidak ditawarkan.
+  assert.deepEqual(tombolTeks(hrd[2]), ["Nama", "No.ID", "Waktu", "Status", "Lainnya, ketik sendiri"]);
+  for (const pb of [333, PEMBANGUN]) {
+    assert.match(r.pesan.find((p) => p.chat_id === pb)?.text ?? "", /^FORMAT FILE BARU DITAHAN \(konfirmasi format no\. \d+\)\nMesin MA2, file f09_a\.csv/);
+  }
+  assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'f09_a.csv'"), "0");
+  assert.equal(nilai(`select status || '/' || langkah || '/' || mesin from fakta.konfirmasi_format where id = ${konfirmasiF2}`), "menunggu/id/MA2");
+});
+
+test("F2: tombol konfirmasi ditekan akun lain (pembangun) tidak berlaku; ketik sendiri: tidak cocok -> ditanya lagi, cocok -> lanjut", async () => {
+  const lain = await kirimUpdate(tombolX(40002, PEMBANGUN, `x|${konfirmasiF2}|i|1`));
+  assert.match(lain.pesan[0].text, /sudah tidak berlaku/);
+  const k = await kirimUpdate(tombolX(40003, HRD, `x|${konfirmasiF2}|k|0`));
+  assert.ok(k.pesan[0].text.startsWith(`${TANYA_KOLOM} ${konfirmasiF2}: kolom yang berisi ID karyawan`), k.pesan[0].text);
+  assert.equal(k.pesan[0].reply_markup.force_reply, true);
+  const salah = await kirimUpdate(balasBot(40004, HRD, "Nomor Absen", k.pesan[0].text));
+  assert.match(salah.pesan[0].text, /judul "Nomor Absen" tidak ada di file.*judul yang ada: "Nama", "No.ID", "Waktu", "Status"/);
+  assert.equal(nilai(`select langkah from fakta.konfirmasi_format where id = ${konfirmasiF2}`), "id");
+  const cocok = await kirimUpdate(balasBot(40005, HRD, "no id", salah.pesan[0].text));
+  assert.match(cocok.pesan[0].text, /Kolom mana yang berisi tanggal dan jam tap/);
+  assert.deepEqual(tombolTeks(cocok.pesan[0]), ["Nama", "Waktu", "Status", "Tanggal dan jam di dua kolom", "Lainnya, ketik sendiri"]);
+  assert.equal(nilai(`select pilihan ->> 'kolom_id' from fakta.konfirmasi_format where id = ${konfirmasiF2}`), "No.ID");
+  // Tombol dari pertanyaan ID (langkah lama) tidak berlaku lagi.
+  const lama = await kirimUpdate(tombolX(40006, HRD, `x|${konfirmasiF2}|i|0`));
+  assert.match(lama.pesan[0].text, /sudah tidak berlaku/);
+});
+
+test("F2: pilih kolom Waktu (tanggal pasti hari/bulan, tidak ditanya) -> contoh hasil bacaan 3 tap + ringkasan + Ya/Tidak", async () => {
+  const r = await kirimUpdate(tombolX(40007, HRD, `x|${konfirmasiF2}|w|2`));
+  const c = r.pesan.at(-1);
+  const acuan = urai(new TextDecoder().decode(fileF09(1, 41, "Nama,No.ID,Tgl/Waktu,,Status")), { tanggal_kirim: "2026-02-21" });
+  const t0 = acuan.tap[0];
+  assert.match(c.text, new RegExp(`^Contoh hasil bacaan, konfirmasi format no\\. ${konfirmasiF2} \\(mesin MA2, file f09_a\\.csv\\):`));
+  assert.ok(c.text.includes(`• baris 2: ID ${t0.id_mesin}, ${tulisTanggal(t0.jam_lokal.slice(0, 10))}, jam ${t0.jam_lokal.slice(11, 16).replace(":", ".")}`), c.text);
+  assert.ok(c.text.includes(`Ringkasan: ${acuan.tap.length} tap, ${new Set(acuan.tap.map((t) => t.id_mesin)).size} ID,`), c.text);
+  assert.match(c.text, /Kolom: ID = "No\.ID", tanggal-jam = "Waktu", tanggal dibaca hari\/bulan\/tahun\./);
+  assert.ok(!/RAHMAT|SANTO/.test(c.text), "contoh tanpa nama");
+  assert.deepEqual(tombolTeks(c), ["Ya, simpan", "Tidak", "Pilih ulang"]);
+  assert.equal(nilai(`select langkah || '/' || (pilihan ->> 'susunan') from fakta.konfirmasi_format where id = ${konfirmasiF2}`), "contoh/dmy");
+  assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'f09_a.csv'"), "0");
+});
+
+test("F2: Ya, simpan -> profil tersimpan, pembangun diberi tahu dengan contoh; file dihitung dengan tap sama dengan bentuk dikenal", async () => {
+  const r = await kirimUpdate(tombolX(40008, HRD, `x|${konfirmasiF2}|y|0`));
+  const hrd = r.pesan.filter((p) => p.chat_id === HRD);
+  assert.match(hrd[0].text, /^Profil format no\. \d+ disimpan untuk mesin MA2: ID = "No\.ID", tanggal-jam = "Waktu"/);
+  profilF2 = Number(/Profil format no\. (\d+)/.exec(hrd[0].text)![1]);
+  const harap = urai(new TextDecoder().decode(fileF09(1, 41, "Nama,No.ID,Tgl/Waktu,,Status")), { tanggal_kirim: "2026-02-21" }).tap.length;
+  assert.ok(hrd.some((p) => p.text.startsWith(`File f09_a.csv tersimpan: ${harap} tap`) &&
+    p.text.includes(`(dibaca dengan profil format no. ${profilF2} mesin MA2)`)), JSON.stringify(hrd.map((p) => p.text.slice(0, 120))));
+  for (const pb of [333, PEMBANGUN]) {
+    const t = r.pesan.find((p) => p.chat_id === pb && p.text.startsWith("PROFIL FORMAT BARU"))?.text ?? "";
+    assert.match(t, /Contoh hasil bacaan:\n• baris 2: ID /);
+    assert.match(t, /\/profilmesin/);
+  }
+  assert.equal(nilai("select hasil || '/' || jumlah_baris || '/' || nomor_pesan from fakta.kiriman_file where nama_file = 'f09_a.csv'"), `diterima/${harap}/40001`);
+  assert.equal(nilai(`select concat_ws('|', mesin, sidik_judul, kolom_id, kolom_waktu, susunan, aktif::text,
+                      (select telegram_id from induk.pengguna where id = disetujui_oleh)) from induk.profil_file_mesin where id = ${profilF2}`),
+               `MA2|nama|noid|waktu||status|No.ID|Waktu|dmy|true|${HRD}`);
+  const lagi = await kirimUpdate(tombolX(40009, HRD, `x|${konfirmasiF2}|y|0`));
+  assert.match(lagi.pesan[0].text, /sudah selesai \(profil disimpan\)/);
+});
+
+test("F2: file kedua dari mesin yang sama dengan judul sama persis dibaca otomatis memakai profil (tanpa pertanyaan)", async () => {
+  const r = await kirimUpdate(dokumen(40010, HRD, "F2_B", "f09_b.csv", "MA2"));
+  assert.ok(!r.pesan.some((p) => /belum dikenal|Kolom mana/.test(p.text)));
+  assert.ok(r.pesan.some((p) => p.chat_id === HRD && /^File f09_b\.csv tersimpan: \d+ tap.*dibaca dengan profil format no\. \d+ mesin MA2/.test(p.text)));
+  assert.equal(nilai("select hasil from fakta.kiriman_file where nama_file = 'f09_b.csv'"), "diterima");
+  // C3: mesin lain dengan judul yang sama tetap ditanya.
+  const m1 = await kirimUpdate(dokumen(40011, HRD, "F2_C", "f09_c_ma1.csv", "MA1"));
+  assert.ok(m1.pesan.some((p) => p.chat_id === HRD && /belum dikenal/.test(p.text)));
+  assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'f09_c_ma1.csv'"), "0");
+});
+
+test("F2 (K3): judul kolom berubah -> ditanya lagi; Tidak -> ditolak format tidak dikenal + pemberitahuan segera; profil tidak bertambah", async () => {
+  const r = await kirimUpdate(dokumen(40012, HRD, "F2_LOKASI", "f09_lokasi.csv", "MA2"));
+  const hrd = r.pesan.filter((p) => p.chat_id === HRD);
+  assert.match(hrd[1].text, /"Lokasi"\. File ditahan/);
+  const id = Number(/konfirmasi format no\. (\d+)/.exec(hrd[1].text)![1]);
+  await kirimUpdate(tombolX(40013, HRD, `x|${id}|i|1`));
+  const c = await kirimUpdate(tombolX(40014, HRD, `x|${id}|w|2`));
+  assert.match(c.pesan.at(-1).text, /^Contoh hasil bacaan/);
+  const t = await kirimUpdate(tombolX(40015, HRD, `x|${id}|n|0`));
+  assert.ok(t.pesan.some((p) => p.chat_id === HRD && p.text === `File f09_lokasi.csv ditolak: ${PESAN.formatTidakDikenal}`), JSON.stringify(t.pesan));
+  for (const tg of [HRD, PEMBANGUN]) assert.match(segera(t.pesan, tg)[0] ?? "", /f09_lokasi\.csv/, String(tg));
+  assert.equal(nilai("select hasil from fakta.kiriman_file where nama_file = 'f09_lokasi.csv'"), "ditolak");
+  assert.equal(nilai("select count(*) from induk.profil_file_mesin"), "1");
+  assert.equal(nilai(`select b.status from fakta.pemberitahuan b
+                      where b.kunci = 'kiriman|' || (select id from fakta.kiriman_file where nama_file = 'f09_lokasi.csv')`), "terkirim");
+});
+
+test("F2: tanggal yang bisa dibaca dua cara -> ditanya (pilihan sesuai contoh); dua kolom tanggal+jam; Pilih ulang kembali ke ID", async () => {
+  assert.deepEqual(duaArti("03/04/2026"), ["3 April 2026", "4 Maret 2026"]);
+  assert.deepEqual(susunanKolom({ ab: 2, a12: 1, b12: 0, contoh: null }), ["dmy"]);
+  assert.deepEqual(susunanKolom({ ab: 2, a12: 1, b12: 1, contoh: null }), []);
+  const r = await kirimUpdate(dokumen(40016, HRD, "F2_DUA_ARTI", "dua_arti.csv", "MA1"));
+  const id = Number(/konfirmasi format no\. (\d+)/.exec(r.pesan.filter((p) => p.chat_id === HRD)[1].text)![1]);
+  await kirimUpdate(tombolX(40017, HRD, `x|${id}|i|0`));
+  const s = await kirimUpdate(tombolX(40018, HRD, `x|${id}|w|1`));
+  assert.match(s.pesan[0].text, /tanggal "01\/02\/2026" di kolom "Jam Scan" maksudnya\?/);
+  assert.deepEqual(tombolTeks(s.pesan[0]), ["1 Februari 2026", "2 Januari 2026"]);
+  const c = await kirimUpdate(tombolX(40019, HRD, dataTombol(s.pesan[0], "2 Januari 2026")));
+  assert.ok(c.pesan.at(-1).text.includes("ID 10881, Jumat, 2 Jan 2026, jam 07.01"), c.pesan.at(-1).text);
+  assert.match(c.pesan.at(-1).text, /tanggal dibaca bulan\/hari\/tahun/);
+  const u = await kirimUpdate(tombolX(40020, HRD, `x|${id}|u|0`));
+  assert.match(u.pesan[0].text, /Kolom mana yang berisi ID karyawan/);
+  assert.equal(nilai(`select langkah || '/' || pilihan::text from fakta.konfirmasi_format where id = ${id}`), "id/{}");
+  // Bila ditolak HRD lain: belum ada apa pun yang dicatat untuk file ini.
+  assert.equal(nilai("select count(*) from fakta.kiriman_file where nama_file = 'dua_arti.csv'"), "0");
+});
+
+test("F2: /profilmesin hanya pembangun; Hapus -> file berikutnya dengan judul itu ditanya lagi; file yang sudah dihitung tetap", async () => {
+  assert.match((await kirimUpdate(teksPribadi(40021, HRD, "/profilmesin"))).pesan[0].text, /hanya untuk akun pembangun/);
+  const d = await kirimUpdate(teksPribadi(40022, PEMBANGUN, "profilmesin"));
+  assert.match(d.pesan[0].text, new RegExp(`No\\. ${profilF2}, mesin MA2: ID = "No\\.ID", tanggal-jam = "Waktu"`));
+  assert.deepEqual(tombolTeks(d.pesan[0]), [`Hapus no. ${profilF2} (mesin MA2)`]);
+  const kiriman = nilai("select string_agg(hasil, ',' order by id) from fakta.kiriman_file where nama_file like 'f09_%'");
+  const sebelum = sidikGaji();
+  const h = await kirimUpdate(tombolX(40023, PEMBANGUN, dataTombol(d.pesan[0], `Hapus no. ${profilF2} (mesin MA2)`)));
+  assert.match(h.pesan[0].text, new RegExp(`Profil format no\\. ${profilF2} \\(mesin MA2\\) dihapus`));
+  assert.equal(nilai(`select aktif::text || '/' || alasan_nonaktif from induk.profil_file_mesin where id = ${profilF2}`), "false/dihapus pembangun (/profilmesin)");
+  assert.equal(nilai("select string_agg(hasil, ',' order by id) from fakta.kiriman_file where nama_file like 'f09_%'"), kiriman);
+  assert.equal(sidikGaji(), sebelum);
+  const lagi = await kirimUpdate(tombolX(40024, PEMBANGUN, dataTombol(d.pesan[0], `Hapus no. ${profilF2} (mesin MA2)`)));
+  assert.match(lagi.pesan[0].text, /sudah dihapus/);
+  const f = await kirimUpdate(dokumen(40025, HRD, "F2_C", "f09_c_lagi.csv", "MA2"));
+  assert.ok(f.pesan.some((p) => p.chat_id === HRD && /belum dikenal/.test(p.text)));
+  assert.match((await kirimUpdate(teksPribadi(40026, PEMBANGUN, "/profilmesin"))).pesan[0].text, /Belum ada profil/);
+});
+
+test("F2 (K1): halaman unggah: format baru tanpa profil ditolak dengan arahan ke bot (pemberitahuan segera); dengan profil diterima", async () => {
+  assert.equal(nilai(`select fakta.jenis_tolak_segera($t$${PESAN_FORMAT_BARU_WEB}$t$)`), "format_tidak_dikenal");
+  const t = await kirimUpdate(JSON.stringify({ update_id: 40027, message: { message_id: 40027, chat: { id: HRD }, from: { id: HRD }, text: "/unggah" } }));
+  const kode = kodeDari(t.pesan[0].text);
+  const tolak = await unggah("f09_web.csv", fileF09(161, 201), "MA2", kode);
+  assert.equal(tolak.isi.hasil, "ditolak");
+  assert.equal(tolak.isi.alasan, PESAN_FORMAT_BARU_WEB);
+  assert.match(segera(tolak.pesan, PEMBANGUN)[0] ?? "", /f09_web\.csv/);
+  // Profil disimpan lewat bot (pembangun, K2), lalu file lain dengan judul sama lewat web diterima memakai profil itu.
+  const r = await kirimUpdate(dokumen(40028, PEMBANGUN, "F2_C", "f09_c_pembangun.csv", "MA2"));
+  const id = Number(/konfirmasi format no\. (\d+)/.exec(r.pesan.filter((p) => p.chat_id === PEMBANGUN)[1].text)![1]);
+  await kirimUpdate(tombolX(40029, PEMBANGUN, `x|${id}|i|1`));
+  await kirimUpdate(tombolX(40030, PEMBANGUN, `x|${id}|w|2`));
+  const y = await kirimUpdate(tombolX(40031, PEMBANGUN, `x|${id}|y|0`));
+  assert.ok(y.pesan.some((p) => p.chat_id === PEMBANGUN && /^Profil format no\. \d+ disimpan untuk mesin MA2/.test(p.text)));
+  assert.ok(!y.pesan.some((p) => p.chat_id === PEMBANGUN && p.text.startsWith("PROFIL FORMAT BARU")), "pembangun tidak diberi tahu dirinya sendiri");
+  assert.ok(y.pesan.some((p) => p.chat_id === 333 && p.text.startsWith("PROFIL FORMAT BARU")));
+  const terima = await unggah("f09_web2.csv", fileF09(201, 241), "MA2", kode);
+  assert.equal(terima.isi.hasil, "diterima", JSON.stringify(terima.isi));
+  assert.ok(terima.isi.jumlah_tap > 0);
+});
