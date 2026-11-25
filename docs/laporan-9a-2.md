@@ -64,9 +64,27 @@ sebelum/sesudah sudah dilihat Claude (tidak disimpan di repo).
 "Terbitkan demo" run 45556204579 success 25 Nov 12.52 WIB: pemeriksa angka demo 0 beda (4 periode, 1.044 karyawan,
 3 rahasia), 2 file baru diunggah ke Cloudflare Pages. Supabase tidak diubah.
 
+## Uji nyata pemilik: LULUS 25 Nov 2026 12.56–13.13 WIB [Pasti]
+
+Semua angka dicocokkan Claude langsung dengan Supabase (`web_ringkasan`, `web_gaji(3)`, `web_orang(3,'10002')`).
+
+| Langkah | Yang dilihat pemilik | Hasil |
+| --- | --- | --- |
+| 1 Laptop, tab Periode | 7 kolom, tidak terpotong; no. 3 bersih Rp5.691.968.045, dibayar Rp5.691.966.580, rahasia 3 orang | sesuai |
+| 2 Klik baris no. 3 | rincian: pendapatan Rp5.906.604.374, potongan -Rp214.636.329, transfer Rp4.994.759.580, tunai Rp697.207.000, bersih − dibayar Rp1.465, versi hitung_gaji 7 | sesuai |
+| 3 Tab Gaji | langsung periode no. 3 "bisa diajukan", 1010 orang (tampil 200); 10001 Rp5.819.491, peringatan dengan nama kamus | sesuai |
+| 4 Rincian 10002 periode 3 | pendapatan (6) → potongan karyawan (4) → iuran perusahaan (5), nominal terbesar dulu; bersih Rp5.988.223 | sesuai |
+| 5 HP, tab Periode | kartu, tidak bergeser ke samping, rincian no. 3 muncul di bawah kartunya | sesuai |
+| 6 HP, tab Perintah | teks baru; 1612/1614/1616 "dibatalkan (no. 1613/1615/1617)"; tidak bergeser ke samping | sesuai |
+
+Catatan:
+- Di laptop pemilik, tab Gaji tampil sebagai kartu, bukan tabel. [Kemungkinan Besar] Lebar jendela yang terbaca halaman di bawah
+  760 px (jendela sempit atau skala layar Windows). Ini sesuai rencana; menurunkan batas 760 px perlu "buat" terpisah.
+- Tombol Batalkan/Tarik tidak diuji nyata karena saat itu tidak ada perintah atau pengajuan yang masih bisa dibatalkan/ditarik.
+  Pemilik setuju tidak membuat perintah baru hanya untuk itu. Buktinya dari uji Chrome 390 px (tombol di x = 34–129).
+
 ## Yang belum
 
-- Uji nyata pemilik di https://future-absensi-demo.pages.dev/hrd/ (laptop lalu HP).
 - [Menebak] Batas 760 px tetap tebakan; belum dicoba di tablet.
 - Ringkasan rincian orang adalah satu baris teks, sehingga di HP "-" dan "Rp172.000" bisa terpisah baris (kosmetik).
 - "Bersih − dibayar" di rincian Periode termasuk sisa pembulatan periode lalu; `web_ringkasan` tidak memisahkannya.
