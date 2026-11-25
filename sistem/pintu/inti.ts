@@ -45,6 +45,7 @@ const API_BOLEH = new Set([
   "pintu_periode_gaji", "pintu_total_lengkap",
   "pintu_perintah_siapkan", "pintu_perintah_simpan", "pintu_perintah_hasil", "pintu_batal_siapkan", "pintu_perintah_terakhir",
   "pintu_kasbon_siapkan", "pintu_kasbon_saldo", "pintu_lembur_siapkan",
+  "pintu_uang_minta_pin", "pintu_uang_putuskan", "pintu_uang_daftar",
 ]);
 export function apiBoleh(nama: string): boolean {
   return API_BOLEH.has(nama);
@@ -196,6 +197,11 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
     }
     if ((jenis === "r" || jenis === "p") && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
       await mintaPin(alat, chat, tg, jenis === "r" ? "rilis" : asal === "y" ? "setujui" : "tolak", Number(mesin));
+      return null;
+    }
+    // Paket 9b-2: pengajuan karyawan baru / ubah gaji (Setujui/Tolak lalu PIN).
+    if (jenis === "g" && (asal === "y" || asal === "n") && /^\d+$/.test(mesin ?? "")) {
+      await mintaPinUang(alat, chat, tg, Number(mesin), asal === "y");
       return null;
     }
     if (jenis === "l" && asal === "y" && /^\d+$/.test(mesin ?? "")) {
@@ -389,6 +395,10 @@ export async function tanganiUpdate(update: any, alat: Alat): Promise<Promise<vo
       else if (!/^\d+$/.test(lengkap[1])) await kirim(alat, pesan.chat.id, "Cara pakai: /lengkap <nomor periode>, lalu ketik PIN.");
       else if (!lengkap[2]) await mintaPin(alat, pesan.chat.id, pesan.from?.id, "lengkap", Number(lengkap[1]));
       else await totalLengkap(alat, pesan.chat.id, pesan.from?.id, Number(lengkap[1]), lengkap[2]);
+      return null;
+    }
+    if (/^\/pengajuan(?:@\w+)?\s*$/i.test(teks)) {
+      await daftarPengajuanUang(alat, pesan.chat.id, pesan.from?.id);
       return null;
     }
     const keberatan = /^\/keberatan(?:@\w+)?(?:\s+([\s\S]*))?$/i.exec(teks);
@@ -800,12 +810,14 @@ export const MENU: Record<string, Perintah[]> = {
   karyawan: [P("gaji", "Rincian gaji terakhir (atau /gaji <nomor>)"),
              P("keberatan", "Keberatan atas satu tanggal: /keberatan <tanggal> <alasan>"), P("bantuan", "Daftar perintah")],
   hrd: MENU_HRD,
-  bos: [P("lengkap", "Total lengkap termasuk orang rahasia (dengan PIN)"), P("pin", "Buat atau ganti PIN"),
+  bos: [P("lengkap", "Total lengkap termasuk orang rahasia (dengan PIN)"), P("pengajuan", "Pengajuan gaji yang menunggu persetujuan"),
+        P("pin", "Buat atau ganti PIN"),
         P("bantuan", "Daftar perintah")],
   pembangun: [...MENU_HRD.slice(0, -1), P("setujui", "Setujui pengajuan: /setujui <nomor>"), P("tolak", "Tolak pengajuan: /tolak <nomor>"),
               P("undang", "Undang akun: /undang hrd atau /undang bos"), P("hapuspin", "Hapus PIN akun yang lupa PIN"),
               P("cabutakun", "Cabut akun HRD, bos, atau karyawan"),
               P("lengkap", "Total lengkap termasuk orang rahasia (dengan PIN)"),
+              P("pengajuan", "Pengajuan gaji yang menunggu persetujuan"),
               P("bantuan", "Daftar perintah")],
 };
 
@@ -833,7 +845,9 @@ const BANTUAN: Record<string, string> = {
     "Kirim file mesin sebagai dokumen untuk menghitung gaji.",
   bos: "Pengajuan rilis gaji dikirim ke chat ini dengan tombol Setujui dan Tolak. Bila belum dijawab, bot mengingatkan setiap pagi.\n" +
     "Total lengkap termasuk orang rahasia: tombol Total lengkap (atau /lengkap <nomor>), lalu ketik PIN. " +
-    "PIN dibuat dengan tombol PIN (atau /pin <6 angka>).",
+    "PIN dibuat dengan tombol PIN (atau /pin <6 angka>).\n" +
+    "Pengajuan karyawan baru dan ubah gaji dari web HRD dikirim ke chat ini dengan tombol Setujui dan Tolak, lalu ketik PIN; " +
+    "/pengajuan menampilkan yang masih menunggu.",
   pembangun: "",
   karyawan: "Rincian gaji dikirim lewat chat ini setelah gaji dirilis.\nTombol Gaji saya (atau /gaji) mengirim ulang " +
     "rincian gaji terakhir; /gaji <nomor> untuk periode tertentu.\n" +
@@ -844,13 +858,14 @@ const BANTUAN: Record<string, string> = {
 BANTUAN.pembangun = BANTUAN.hrd + "\n\nKhusus pembangun:\n/setujui <nomor> dan /tolak <nomor> (lalu ketik PIN)\n" +
   "/undang hrd atau /undang bos kode undangan akun\n/hapuspin hapus PIN akun yang lupa PIN\n" +
   "/cabutakun cabut akun HRD, bos, atau karyawan (bisa bergabung lagi dengan kode baru)\n" +
-  "/lengkap <nomor> total lengkap termasuk orang rahasia (lalu ketik PIN)";
+  "/lengkap <nomor> total lengkap termasuk orang rahasia (lalu ketik PIN)\n" +
+  "/pengajuan pengajuan karyawan baru dan ubah gaji yang menunggu (tombol Setujui/Tolak lalu PIN)";
 
 // Perintah yang diketik tanpa garis miring tetap dikenali (paket 8b-3, temuan 6).
 const KATA_PERINTAH = new Set(["pin", "ajukan", "rilis", "setujui", "tolak", "batal", "hapuspin", "undang", "gabung", "daftar",
   "kode", "unggah", "bantuan", "gaji", "contohgaji", "lengkap", "izin", "sakit", "cuti", "batalperintah", "perintahku", "kasbon",
   "cicilan", "lunas", "setujuilembur", "batalkanlembur",
-  "setujuiawal", "cabutakun", "keberatan"]);
+  "setujuiawal", "cabutakun", "keberatan", "pengajuan"]);
 export function rapikanPerintah(teks: string): string {
   const m = /^([a-z]+)(?:\s|$)/i.exec(teks);
   return m && KATA_PERINTAH.has(m[1].toLowerCase()) ? "/" + teks : teks;
@@ -1141,11 +1156,73 @@ async function pakaiPin(alat: Alat, chat: number, tg: number, hrd: boolean, pin:
   if (t?.aksi === "rilis") return rilisGaji(alat, chat, tg, hrd, String(t.periode_id), pin);
   if (t?.aksi === "setujui" || t?.aksi === "tolak") return putuskan(alat, chat, tg, Number(t.periode_id), null, t.aksi === "setujui", pin);
   if (t?.aksi === "lengkap") return totalLengkap(alat, chat, tg, Number(t.periode_id), pin);
+  if (t?.aksi === "uang_setuju" || t?.aksi === "uang_tolak") {
+    return putuskanUang(alat, chat, tg, Number(t.pengajuan_uang), t.aksi === "uang_setuju", pin);
+  }
   await kirim(alat, chat, t?.lewat
     ? "Waktu memasukkan PIN sudah lewat (5 menit). Tekan tombolnya lagi."
     : "Pesan berisi 6 angka sudah dihapus. Tidak ada perintah yang sedang menunggu PIN. " +
       "Tekan dulu tombolnya (misalnya Rilis, Setujui, atau salah satu periode di Total lengkap); " +
       "sesudah bot meminta PIN, baru ketik PIN. Untuk membuat atau mengganti PIN, tekan tombol PIN lalu balas pertanyaannya.");
+}
+
+// ---------------------------------------------------------------------------
+// Paket 9b-2: pengajuan karyawan baru / ubah gaji dari web; bos atau pembangun memutuskan dengan PIN.
+// ---------------------------------------------------------------------------
+const tombolUang = (id: number) => ({ reply_markup: { inline_keyboard: [[
+  { text: "Setujui (PIN)", callback_data: `g|y|${id}` }, { text: "Tolak (PIN)", callback_data: `g|n|${id}` },
+]] } });
+const STATUS_UANG: Record<string, string> = { disetujui: "sudah disetujui", ditolak: "sudah ditolak", ditarik: "sudah ditarik pengaju",
+                                              hangus: "sudah hangus (lewat 7 hari)" };
+async function mintaPinUang(alat: Alat, chat: number, tg: number, id: number, setuju: boolean): Promise<void> {
+  const r = await alat.api("pintu_uang_minta_pin", { telegram_id: tg, pengajuan_id: id, setuju });
+  if (r?.hasil === "menunggu") {
+    await kirim(alat, chat, `Ketik PIN 6 angka untuk ${setuju ? "MENYETUJUI" : "MENOLAK"} pengajuan no. ${id}:\n${r.ringkas}\n` +
+      "Berlaku 5 menit; pesan PIN dihapus otomatis.");
+  } else if (r?.hasil === "tidak_berlaku") {
+    await kirim(alat, chat, `Pengajuan no. ${id} ${STATUS_UANG[r.status] ?? "tidak ada"}.`);
+  } else {
+    await kirim(alat, chat, "Pengajuan gaji hanya diputuskan akun bos atau pembangun.");
+  }
+}
+async function putuskanUang(alat: Alat, chat: number, tg: number, id: number, setuju: boolean, pin: string): Promise<void> {
+  const mulai = alat.sekarang();
+  const r = await alat.api("pintu_uang_putuskan", { telegram_id: tg, pengajuan_id: id, setuju, pin });
+  switch (r?.hasil) {
+    case "disetujui": case "ditolak": {
+      const kata = r.hasil === "disetujui" ? "DISETUJUI" : "DITOLAK";
+      const siapa = r.oleh === "pembangun" ? "pembangun" : "bos";
+      await kirim(alat, chat, `Pengajuan no. ${id} ${kata}${r.sendiri ? " (pengajuan sendiri)" : ""}:\n${r.ringkas}` +
+        (r.hasil === "disetujui" && (r.periode ?? []).length ? "\nMenghitung ulang..." : ""));
+      if (r.pengaju_telegram && Number(r.pengaju_telegram) !== tg) {
+        await kirimAman(alat, Number(r.pengaju_telegram), `Pengajuan no. ${id} ${kata.toLowerCase()} oleh ${siapa}:\n${r.ringkas}` +
+          (r.hasil === "disetujui" ? `\nTercatat sebagai perintah no. ${r.perintah_id}; bisa dibatalkan di web HRD selama periodenya belum dirilis.` : ""));
+      }
+      if (r.hasil === "disetujui" && (r.periode ?? []).length) await kerjakanAntrean(alat, chat, mulai, "telegram", "perintah web");
+      return;
+    }
+    case "tidak_berlaku":
+      await kirim(alat, chat, r.alasan ? `Pengajuan no. ${id} tidak bisa disetujui: ${r.alasan}`
+        : `Pengajuan no. ${id} ${STATUS_UANG[r.status] ?? "tidak ada"}.`);
+      return;
+    case "belum_ada_pin": await kirim(alat, chat, "Belum ada PIN. Buat dulu dengan /pin <PIN baru 6 angka>."); return;
+    case "pin_salah": await kirim(alat, chat, "PIN salah. Tekan tombol Setujui/Tolak lagi."); return;
+    case "terkunci": await kirim(alat, chat, "Terlalu banyak PIN salah. Coba lagi 1 jam lagi."); return;
+    default: await kirim(alat, chat, "Pengajuan gaji hanya diputuskan akun bos atau pembangun.");
+  }
+}
+async function daftarPengajuanUang(alat: Alat, chat: number, tg: number): Promise<void> {
+  const r = await alat.api("pintu_uang_daftar", { telegram_id: tg });
+  if (r?.hasil !== "ada") {
+    await kirim(alat, chat, "Pengajuan gaji hanya untuk akun bos atau pembangun.");
+    return;
+  }
+  const daftar: any[] = r.pengajuan ?? [];
+  if (!daftar.length) {
+    await kirim(alat, chat, "Tidak ada pengajuan karyawan baru atau ubah gaji yang menunggu.");
+    return;
+  }
+  for (const a of daftar) await kirim(alat, chat, `Pengajuan no. ${a.id} dari ${a.pengaju}:\n${a.ringkas}`, tombolUang(a.id));
 }
 
 async function batalAjukan(alat: Alat, chat: number, tg: number, hrd: boolean, nomor?: string): Promise<void> {
@@ -2446,7 +2523,9 @@ export async function webMasukHrd(alat: Alat, emailMasuk: string, kodeMasuk: str
 
 export const KUNCI_COBA = ["telat_menit", "lembur_minimal", "lembur_kelipatan", "lembur_bulat", "uang_makan", "premi_hadir", "shift_malam"];
 // Paket 9b-1: isian perintah web; hanya kunci yang dikenal, teks pendek (diperiksa lagi oleh database).
-export const KUNCI_PERINTAH = ["jenis", "id_karyawan", "mulai", "selesai", "divisi", "regu", "jabatan", "id_mesin", "alasan", "nomor"];
+export const KUNCI_PERINTAH = ["jenis", "id_karyawan", "mulai", "selesai", "divisi", "regu", "jabatan", "id_mesin", "alasan", "nomor",
+  // Paket 9b-2: karyawan baru dan ubah gaji (tanpa rekening).
+  "nama", "wajib_tap", "gaji_pokok", "tunjangan", "ptkp", "cara_bayar", "bpjs_kesehatan", "bpjs_ketenagakerjaan", "rahasia"];
 export const SESI_HABIS = "Sesi berakhir (lewat 2 jam, 30 menit tidak dipakai, keluar, atau akun dicabut). Masuk lagi.";
 export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
   const sesi = String(badan?.sesi ?? "");
@@ -2489,6 +2568,23 @@ export async function webHrd(alat: Alat, badan: any): Promise<JawabanWeb> {
         : null;
       return { status: 200, isi: { hasil: r.hasil, data: r.data }, latar };
     }
+    // Paket 9b-2: pengajuan uang -> pesan ke bos dan pembangun dengan tombol Setujui/Tolak (lalu PIN).
+    case "diajukan": {
+      const penerima: number[] = (r.data?.penerima ?? []).map(Number);
+      const latar = penerima.length
+        ? (async () => {
+          for (const t of penerima) {
+            await kirimAman2(alat, t, `Pengajuan no. ${r.data.pengajuan_id} dari ${r.data.pengaju} (web HRD):\n${r.data.ringkas}\n` +
+              "Setujui atau tolak, lalu ketik PIN. Hangus bila tidak diputuskan dalam 7 hari.", tombolUang(r.data.pengajuan_id));
+          }
+        })()
+        : null;
+      const isi = { ...r.data };
+      delete isi.penerima;
+      delete isi.ringkas; // tabel web memakai ringkas_hrd (tanpa angka orang rahasia)
+      return { status: 200, isi: { hasil: "diajukan", data: { ...isi, jumlah_penerima: penerima.length } }, latar };
+    }
+    case "ditarik": return { status: 200, isi: { hasil: "ditarik", data: r.data }, latar: null };
     case "ditolak": return { status: 409, isi: { hasil: "ditolak", alasan: r.alasan }, latar: null };
     case "keluar": return { status: 200, isi: { hasil: "keluar" }, latar: null };
     case "terlalu_banyak":

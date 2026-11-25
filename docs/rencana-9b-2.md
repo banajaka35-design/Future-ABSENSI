@@ -1,6 +1,6 @@
 # Rencana paket 9b-2: karyawan baru dan ubah gaji lewat web
 
-Ditulis 25 November 2026, sesudah 9b-1 selesai (`docs/laporan-9b-1.md`). Acuan: `docs/rencana-tahap-9.md` (9b), `docs/aturan-hitung-gaji.md` (B3, K14), `docs/kasus-jebakan.md` (F15, F15b, F15c). **Belum di-"buat"; ada 4 keputusan pemilik (bagian akhir).**
+Ditulis 25 November 2026, sesudah 9b-1 selesai (`docs/laporan-9b-1.md`). Acuan: `docs/rencana-tahap-9.md` (9b), `docs/aturan-hitung-gaji.md` (B3, K14), `docs/kasus-jebakan.md` (F15, F15b, F15c). **Di-"buat" pemilik 25 Nov 2026 10.46 WIB dengan K1–K4 sesuai saran Claude** (persetujuan PIN perlu; pembangun boleh menyetujui pengajuannya sendiri, dicatat; di bawah UMK ditolak pada 12 bulan pertama; orang rahasia hanya pembangun). Angka tebakan (7 hari, Rp1 miliar, 50%) tidak dikoreksi.
 
 ## Gunanya
 

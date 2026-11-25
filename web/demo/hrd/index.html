@@ -164,14 +164,27 @@
             <option value="berhenti">Berhenti</option>
             <option value="aktif_kembali">Aktif kembali</option>
             <option value="mutasi">Mutasi (pindah divisi, regu, atau jabatan)</option>
+            <option value="karyawan_baru">Karyawan baru (perlu persetujuan)</option>
+            <option value="ubah_gaji">Ubah gaji (perlu persetujuan)</option>
           </select></label>
-          <label data-untuk="orang">ID karyawan<input id="p-id_karyawan" maxlength="40" autocomplete="off"></label>
+          <label data-untuk="berhenti aktif_kembali mutasi karyawan_baru ubah_gaji">ID karyawan<input id="p-id_karyawan" maxlength="40" autocomplete="off"></label>
+          <label data-untuk="karyawan_baru">Nama lengkap<input id="p-nama" maxlength="100" autocomplete="off"></label>
           <label><span id="label-mulai">Tanggal</span><input type="date" id="p-mulai" required></label>
-          <label data-untuk="hari">Sampai tanggal (kosong = satu hari)<input type="date" id="p-selesai"></label>
-          <label data-untuk="divisi"><span id="label-divisi">Divisi</span><select id="p-divisi"></select></label>
-          <label data-untuk="mutasi">Regu (untuk divisi rotasi)<input type="number" id="p-regu" min="0" max="20"></label>
-          <label data-untuk="mutasi">Jabatan baru (kosong = tetap)<input id="p-jabatan" maxlength="80" autocomplete="off"></label>
-          <label data-untuk="mutasi">ID di mesin divisi baru (bila mesinnya berbeda)<input id="p-id_mesin" maxlength="20" autocomplete="off"></label>
+          <label data-untuk="tambah_libur absen_manual">Sampai tanggal (kosong = satu hari)<input type="date" id="p-selesai"></label>
+          <label data-untuk="tambah_libur absen_manual mutasi karyawan_baru"><span id="label-divisi">Divisi</span><select id="p-divisi"></select></label>
+          <label data-untuk="mutasi karyawan_baru">Regu (untuk divisi rotasi)<input type="number" id="p-regu" min="0" max="20"></label>
+          <label data-untuk="mutasi karyawan_baru"><span class="isi-label" data-mutasi="Jabatan baru (kosong = tetap)" data-karyawan_baru="Jabatan (boleh kosong)">Jabatan</span><input id="p-jabatan" maxlength="80" autocomplete="off"></label>
+          <label data-untuk="karyawan_baru">Wajib tap<select id="p-wajib_tap"><option value="ya">ya</option><option value="tidak">tidak</option></select></label>
+          <label data-untuk="mutasi karyawan_baru"><span class="isi-label" data-mutasi="ID di mesin divisi baru (bila mesinnya berbeda)" data-karyawan_baru="ID di mesin divisinya">ID mesin</span><input id="p-id_mesin" maxlength="20" autocomplete="off"></label>
+          <label data-untuk="karyawan_baru ubah_gaji"><span class="isi-label" data-karyawan_baru="Gaji pokok per bulan (Rp)" data-ubah_gaji="Gaji pokok baru (kosong = tetap)">Gaji pokok</span><input id="p-gaji_pokok" inputmode="numeric" maxlength="15" autocomplete="off"></label>
+          <label data-untuk="karyawan_baru ubah_gaji"><span class="isi-label" data-karyawan_baru="Tunjangan tetap per bulan (Rp, boleh 0)" data-ubah_gaji="Tunjangan tetap baru (kosong = tetap)">Tunjangan tetap</span><input id="p-tunjangan" inputmode="numeric" maxlength="15" autocomplete="off"></label>
+          <label data-untuk="karyawan_baru ubah_gaji">PTKP<select id="p-ptkp" data-kosong="1"><option value="TK/0">TK/0</option><option value="TK/1">TK/1</option>
+            <option value="TK/2">TK/2</option><option value="TK/3">TK/3</option><option value="K/0">K/0</option><option value="K/1">K/1</option>
+            <option value="K/2">K/2</option><option value="K/3">K/3</option></select></label>
+          <label data-untuk="karyawan_baru ubah_gaji">Cara bayar<select id="p-cara_bayar" data-kosong="1"><option value="transfer">transfer</option><option value="tunai">tunai</option></select></label>
+          <label data-untuk="karyawan_baru ubah_gaji">BPJS kesehatan<select id="p-bpjs_kesehatan" data-kosong="1"><option value="ya">ikut</option><option value="tidak">tidak ikut</option></select></label>
+          <label data-untuk="karyawan_baru ubah_gaji">BPJS ketenagakerjaan<select id="p-bpjs_ketenagakerjaan" data-kosong="1"><option value="ya">ikut</option><option value="tidak">tidak ikut</option></select></label>
+          <label data-untuk="karyawan_baru ubah_gaji" data-pembangun="1">Gaji rahasia (hanya pembangun)<select id="p-rahasia" data-kosong="1"><option value="tidak">tidak</option><option value="ya">ya</option></select></label>
           <label>Keterangan / alasan<input id="p-alasan" maxlength="200" required autocomplete="off"></label>
         </div>
         <div class="alat" style="margin-top:12px"><button type="submit" id="tombol-pratinjau">Lihat pratinjau</button></div>
@@ -183,6 +196,9 @@
         <div class="alat" style="margin-top:12px"><button type="button" id="tombol-simpan">Simpan</button>
           <button type="button" class="biasa" id="tombol-ubah">Ubah isian</button></div>
       </div>
+      <h3>Pengajuan karyawan baru dan ubah gaji</h3>
+      <div class="kecil">Disetujui atau ditolak bos/pembangun lewat bot dengan PIN. Hangus bila tidak diputuskan dalam 7 hari. Nomor rekening belum bisa diisi lewat web.</div>
+      <div class="gulir"><table id="tabel-pengajuan"></table></div>
       <h3>Perintah web terakhir</h3>
       <div class="gulir"><table id="tabel-perintah-web"></table></div>
     </section>
@@ -578,7 +594,12 @@
   }
 
   // ---- Perintah (paket 9b-1) ---------------------------------------------------------------------------------
-  const JUDUL_MULAI = { berhenti: "Hari kerja terakhir", aktif_kembali: "Mulai bekerja lagi", mutasi: "Berlaku mulai" };
+  const JUDUL_MULAI = { berhenti: "Hari kerja terakhir", aktif_kembali: "Mulai bekerja lagi", mutasi: "Berlaku mulai",
+                        karyawan_baru: "Mulai bekerja", ubah_gaji: "Berlaku mulai" };
+  const UANG = ["karyawan_baru", "ubah_gaji"];
+  const STATUS_AJU = { menunggu: "menunggu persetujuan", disetujui: "disetujui", ditolak: "ditolak", ditarik: "ditarik", hangus: "hangus (lewat 7 hari)" };
+  let pembangun = false;
+  let pengguna = null;
   const NAMA_PERINTAH = { tambah_libur: "Tambah libur", absen_manual: "Absen manual", berhenti: "Berhenti", aktif_kembali: "Aktif kembali",
                           mutasi: "Mutasi", batalkan_perintah: "Pembatalan" };
   let divisi = [];
@@ -586,10 +607,18 @@
   let tungguHitung = null;
   function aturIsian() {
     const j = $("p-jenis").value;
-    const orang = ["berhenti", "aktif_kembali", "mutasi"].includes(j);
     for (const l of document.querySelectorAll("#form-perintah [data-untuk]")) {
-      const u = l.dataset.untuk;
-      l.hidden = !(u === "orang" ? orang : u === "hari" ? !orang : u === "divisi" ? j !== "berhenti" && j !== "aktif_kembali" : j === "mutasi");
+      l.hidden = !l.dataset.untuk.split(" ").includes(j) || (l.dataset.pembangun === "1" && !pembangun);
+    }
+    for (const sp of document.querySelectorAll("#form-perintah .isi-label")) if (sp.dataset[j]) sp.textContent = sp.dataset[j];
+    // Pilihan kosong: karyawan baru wajib memilih (kecuali BPJS/rahasia yang punya bawaan), ubah gaji kosong = tetap.
+    for (const sel of document.querySelectorAll("#form-perintah select[data-kosong]")) {
+      const kosong = sel.querySelector("option[value='']");
+      const teks = j === "ubah_gaji" ? "(tetap)" : ["p-bpjs_kesehatan", "p-bpjs_ketenagakerjaan"].includes(sel.id) ? "ikut (bawaan)"
+        : sel.id === "p-rahasia" ? "tidak (bawaan)" : "(pilih)";
+      if (kosong) kosong.textContent = teks;
+      else { const o = el("option", teks); o.value = ""; sel.insertBefore(o, sel.firstChild); }
+      sel.value = "";
     }
     $("label-mulai").textContent = JUDUL_MULAI[j] || "Tanggal";
     $("label-divisi").textContent = j === "mutasi" ? "Divisi baru" : "Divisi";
@@ -608,7 +637,8 @@
   }
   $("p-jenis").addEventListener("change", aturIsian);
   $("tombol-ubah").addEventListener("click", () => { $("pratinjau").hidden = true; draf = null; });
-  for (const id of ["p-id_karyawan", "p-mulai", "p-selesai", "p-divisi", "p-regu", "p-jabatan", "p-id_mesin", "p-alasan"]) {
+  for (const id of ["p-id_karyawan", "p-mulai", "p-selesai", "p-divisi", "p-regu", "p-jabatan", "p-id_mesin", "p-alasan", "p-nama",
+                    "p-wajib_tap", "p-gaji_pokok", "p-tunjangan", "p-ptkp", "p-cara_bayar", "p-bpjs_kesehatan", "p-bpjs_ketenagakerjaan", "p-rahasia"]) {
     $(id).addEventListener("input", () => { if (draf) { $("pratinjau").hidden = true; draf = null; } });
   }
   async function muatPerintah() {
@@ -616,7 +646,10 @@
     if (!data) return;
     const pertama = !divisi.length;
     divisi = data.divisi || [];
+    pembangun = !!data.pembangun;
+    pengguna = data.pengguna;
     if (pertama) aturIsian();
+    tulisPengajuan(data.pengajuan || []);
     tulisPerintah(data.perintah || []);
     if ((data.perintah || []).some((x) => x.hitung === "menunggu")) {
       clearTimeout(tungguHitung);
@@ -641,13 +674,44 @@
       }));
     for (const td of $("tabel-perintah-web").querySelectorAll("td:nth-child(3)")) td.className = "lebar";
   }
+  function tulisPengajuan(daftar) {
+    baris($("tabel-pengajuan"), ["No.", "Waktu", "Isi", "Pengaju", "Keadaan", ""],
+      daftar.map((x) => {
+        let tindakan = el("span", "", "kecil");
+        if (x.status === "menunggu" && x.pengaju_id === pengguna) {
+          tindakan = el("button", "Tarik", "biasa");
+          tindakan.type = "button";
+          tindakan.addEventListener("click", () => tarik(x, tindakan));
+        }
+        const keadaan = (STATUS_AJU[x.status] || x.status) + (x.diputuskan_oleh ? " oleh " + x.diputuskan_oleh : "") +
+          (x.perintah_id ? " (perintah no. " + x.perintah_id + ")" : "");
+        return [x.id, waktu(x.dibuat), el("span", x.ringkas), x.pengaju, el("span", keadaan, x.status === "ditolak" ? "turun" : ""), tindakan];
+      }));
+    for (const td of $("tabel-pengajuan").querySelectorAll("td:nth-child(3), td:nth-child(5)")) td.className = "lebar";
+  }
+  async function tarik(x, tombol) {
+    if (tombol.dataset.yakin !== "ya") {
+      tombol.dataset.yakin = "ya";
+      tombol.textContent = "Yakin tarik no. " + x.id + "?";
+      return;
+    }
+    tombol.disabled = true;
+    const d = await kirimPerintah("pengajuan_tarik", { nomor: x.id });
+    if (!d) { tombol.disabled = false; return; }
+    pesan($("pesan-perintah"), "baik", "Pengajuan no. " + x.id + " ditarik.");
+    await muatPerintah();
+  }
   function isianPerintah() {
+    // Hanya isian yang terlihat untuk jenis ini; kotak kosong tidak dikirim (artinya bawaan atau tetap).
     const j = $("p-jenis").value;
-    const p = { jenis: j, mulai: $("p-mulai").value, alasan: $("p-alasan").value };
-    if (["berhenti", "aktif_kembali", "mutasi"].includes(j)) p.id_karyawan = $("p-id_karyawan").value.trim();
-    else p.selesai = $("p-selesai").value;
-    if (j !== "berhenti" && j !== "aktif_kembali") p.divisi = $("p-divisi").value;
-    if (j === "mutasi") { p.regu = $("p-regu").value; p.jabatan = $("p-jabatan").value; p.id_mesin = $("p-id_mesin").value.trim(); }
+    const p = { jenis: j };
+    for (const e of document.querySelectorAll("#form-perintah input, #form-perintah select")) {
+      if (e.id === "p-jenis" || !e.id.startsWith("p-")) continue;
+      const l = e.closest("label");
+      if (l && l.hidden) continue;
+      const v = String(e.value || "").trim();
+      if (v !== "") p[e.id.slice(2)] = v;
+    }
     return p;
   }
   async function kirimPerintah(aksi, perintah) {
@@ -679,6 +743,7 @@
     judul.style.fontWeight = "600";
     w.appendChild(judul);
     if (["tambah_libur", "absen_manual"].includes(d.jenis)) w.appendChild(el("div", d.orang + " orang aktif kena perintah ini."));
+    if (UANG.includes(d.jenis)) w.appendChild(el("div", "Belum berlaku sebelum disetujui " + d.penyetuju + ".", "pesan tunggu"));
     tulisPeriodeKena(w, d.periode);
     for (const c of d.catatan || []) w.appendChild(el("div", c, "pesan " + (String(c).startsWith("PERHATIAN") ? "salah" : "tunggu")));
     w.appendChild(el("div", "Pratinjau berlaku 15 menit. Belum ada yang disimpan.", "kecil"));
@@ -692,6 +757,12 @@
     if (!d) return;
     draf = null;
     $("pratinjau").hidden = true;
+    if (d.pengajuan_id) {
+      pesan($("pesan-perintah"), "baik", "Diajukan sebagai pengajuan no. " + d.pengajuan_id + ". Belum berlaku: menunggu persetujuan bos atau " +
+        "pembangun lewat bot (" + d.jumlah_penerima + " akun menerima pesan). Keadaannya terlihat di tabel pengajuan.");
+      await muatPerintah();
+      return;
+    }
     pesan($("pesan-perintah"), "baik", "Tersimpan sebagai perintah no. " + d.perintah_id + ". " +
       (d.periode && d.periode.length ? "Hitung ulang berjalan (sekitar 30 detik per periode); keadaannya terlihat di tabel." : ""));
     await muatPerintah();

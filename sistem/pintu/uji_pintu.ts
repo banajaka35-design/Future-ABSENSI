@@ -1983,3 +1983,61 @@ test("9b-1: perintah web berhenti lalu dibatalkan: antrean, Sheets, kabar Telegr
   assert.equal(nilai(`select count(*) from induk.status_kerja where id_karyawan = '${orang}' and jenis = 'berhenti' and tanggal = '${hari}'`), "0");
   assert.equal((await webHrd(alat, { sesi, aksi: "perintah_batal", perintah: { nomor: "abc" } })).status, 409);
 });
+
+// ---------------------------------------------------------------------------
+// Paket 9b-2: pengajuan ubah gaji dari web -> pesan ke pembangun -> tombol Setujui -> PIN -> hitung ulang -> kabar HRD
+// -> batal di web. Kebenaran tiap aturan dibuktikan uji database 340.
+// ---------------------------------------------------------------------------
+test("9b-2: ubah gaji lewat web disetujui pembangun dengan tombol + PIN, lalu dibatalkan", async () => {
+  const sesi = "9d".repeat(32);
+  const pin = "731942";
+  nilai(`insert into fakta.sesi_web (sidik, pengguna, berlaku_sampai)
+         select '${sha256(sesi)}', id, now() + interval '1 hour' from induk.pengguna where telegram_id = ${HRD}`);
+  nilai(`update induk.pengguna set pin_tersamar = extensions.crypt('${pin}', extensions.gen_salt('bf')) where telegram_id = ${PEMBANGUN}`);
+  nilai("update fakta.antrean_kerja set status = 'selesai', selesai = now() where status = 'menunggu'");
+  const [periode, hari] = nilai(`select p.id || ',' || (p.tanggal_awal + 9) from fakta.periode p where p.status not in ('dirilis', 'dikunci')
+    and exists (select 1 from hitung.versi_terakhir g where g.periode_id = p.id and g.jenis = 'hitung_gaji') order by p.tanggal_awal limit 1`).split(",");
+  const orang = nilai(`select r.id_karyawan from induk.karyawan_riwayat r
+    where daterange(r.berlaku_dari, r.berlaku_sampai, '[)') @> '${hari}'::date and r.berlaku_sampai is null and r.berlaku_dari < '${hari}'
+      and not exists (select 1 from induk.karyawan_riwayat x where x.id_karyawan = r.id_karyawan and x.gaji_rahasia)
+      and fakta.karyawan_aktif(r.id_karyawan, '${hari}') order by r.id_karyawan desc limit 1`);
+  const gaji = () => nilai(`select g.gaji_bersih from hitung.ringkasan_gaji g where g.id_karyawan = '${orang}'
+    and g.versi_id = (select v.id from hitung.versi_terakhir v where v.periode_id = ${periode} and v.jenis = 'hitung_gaji')`);
+  const riwayat = () => nilai(`select string_agg(id || ':' || gaji_pokok || ':' || coalesce(berlaku_sampai::text, '-'), ',' order by id)
+    from induk.karyawan_riwayat where id_karyawan = '${orang}'`);
+  const sebelum = [gaji(), riwayat()];
+  const pokok = Number(nilai(`select gaji_pokok from induk.karyawan_riwayat where id_karyawan = '${orang}' and berlaku_sampai is null`)) + 250000;
+  const pra = await webHrd(alat, { sesi, aksi: "perintah_pratinjau",
+    perintah: { jenis: "ubah_gaji", id_karyawan: orang, mulai: hari, gaji_pokok: String(pokok), alasan: "uji 9b-2", rekening: "123" } });
+  assert.equal(pra.status, 200, JSON.stringify(pra.isi));
+  assert.ok(!("rekening" in pra.isi.data.isian));
+  const awalKirim = terkirim.length;
+  const aju = await webHrd(alat, { sesi, aksi: "perintah_simpan", perintah: { nomor: pra.isi.data.draf_id } });
+  assert.equal(aju.status, 200, JSON.stringify(aju.isi));
+  assert.equal(aju.isi.hasil, "diajukan");
+  assert.ok(!("penerima" in aju.isi.data), "daftar ID Telegram penerima tidak dikirim ke halaman");
+  await aju.latar;
+  assert.deepEqual([gaji(), riwayat()], sebelum, "pengajuan belum mengubah apa pun");
+  const ke = terkirim.slice(awalKirim).filter((t) => t.metode === "sendMessage" && t.isi.chat_id === PEMBANGUN);
+  const id = aju.isi.data.pengajuan_id;
+  assert.ok(ke.some((t) => t.isi.text.startsWith(`Pengajuan no. ${id} dari`) &&
+    JSON.stringify(t.isi.reply_markup).includes(`g|y|${id}`)), JSON.stringify(ke.map((t) => t.isi.text)));
+  const r1 = await kirimUpdate(tekanTombol(20001, PEMBANGUN, `g|y|${id}`));
+  assert.match(r1.pesan.at(-1).text, new RegExp(`^Ketik PIN 6 angka untuk MENYETUJUI pengajuan no. ${id}`));
+  const awalHrd = terkirim.length;
+  const r2 = await kirimUpdate(teksPribadi(20002, PEMBANGUN, pin));
+  assert.ok(r2.pesan.some((p: any) => p.text.startsWith(`Pengajuan no. ${id} DISETUJUI`)), JSON.stringify(r2.pesan.map((p: any) => p.text)));
+  const kabar = terkirim.slice(awalHrd).filter((t) => t.metode === "sendMessage" && t.isi.chat_id === HRD).map((t) => t.isi.text);
+  assert.ok(kabar.some((x) => x.startsWith(`Pengajuan no. ${id} disetujui oleh pembangun`)), kabar.join("\n"));
+  assert.notEqual(gaji(), sebelum[0], "gaji periode itu dihitung ulang dengan gaji baru");
+  assert.match(riwayat(), new RegExp(`:${pokok}:-$`));
+  const r3 = await kirimUpdate(tekanTombol(20003, PEMBANGUN, `g|y|${id}`));
+  assert.match(r3.pesan.at(-1).text, /sudah disetujui/);
+  const perintah = Number(nilai(`select perintah_id from fakta.keputusan_uang where pengajuan_id = ${id}`));
+  const batal = await webHrd(alat, { sesi, aksi: "perintah_batal", perintah: { nomor: perintah } });
+  assert.equal(batal.status, 200, JSON.stringify(batal.isi));
+  await batal.latar;
+  assert.deepEqual([gaji(), riwayat()], sebelum, "batal mengembalikan gaji dan riwayat persis");
+  const r4 = await kirimUpdate(teksPribadi(20004, PEMBANGUN, "/pengajuan"));
+  assert.match(r4.pesan.at(-1).text, /Tidak ada pengajuan/);
+});
