@@ -1,6 +1,14 @@
 # Rencana paket 9b-1: perintah lewat web (tanpa angka uang)
 
-Ditulis 25 November 2026. Acuan: `docs/rencana-tahap-9.md` (9b), `docs/laporan-tahap-7.md` (perintah yang cocok untuk web). Keputusan pemilik 25 Nov 08.52 WIB: 9b dibagi dua (9b-1 lalu 9b-2), dan "berhenti tanggal X" = **hari kerja terakhir** (pilihan 2a, sama dengan mesin hitung sekarang). **Belum di-"buat".**
+Ditulis 25 November 2026. Acuan: `docs/rencana-tahap-9.md` (9b), `docs/laporan-tahap-7.md` (perintah yang cocok untuk web). Keputusan pemilik 25 Nov 08.52 WIB: 9b dibagi dua (9b-1 lalu 9b-2), dan "berhenti tanggal X" = **hari kerja terakhir** (pilihan 2a, sama dengan mesin hitung sekarang). **Di-"buat" pemilik 25 Nov 2026 08.59 WIB; ditahan 09.20 karena dua fakta di rencana ternyata salah (lihat "Koreksi sesudah buat").**
+
+## Koreksi sesudah "buat" (25 Nov 09.20, dicek di kode dan Supabase) [Pasti]
+
+1. **C2 salah.** Tabel induk sudah punya catatan perubahan sejak 0001 (`catat_perubahan` dipasang ke seluruh schema induk lewat perulangan; pencarian saya sebelumnya tidak menemukannya). Penjaganya juga sudah ada:
+   - `induk.status_kerja` hanya boleh ditambah (`tolak_ubah`);
+   - riwayat, regu, dan ID mesin hanya boleh ditutup, tidak boleh dihapus atau dibuka lagi (`jaga_bertanggal`, aturan dasar 4).
+   Akibatnya, rencana pembatalan ("baris baru dihapus, baris lama dibuka lagi") **tidak bisa** dijalankan tanpa membuat pengecualian pada penjaga itu. Pengecualian ini tidak tertulis di daftar paket, jadi ditanyakan dulu (aturan 7).
+2. **C15 salah.** Perintah chat sudah memicu Isi Sheets sesudah hitung ulang (`kerjakanAntrean` → `picuSheets`, pemicu "perintah HRD"). Perintah web cukup memakai jalur yang sama; `inti.ts` jalur chat tidak perlu diubah.
 
 ## Gunanya
 
