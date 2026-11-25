@@ -502,13 +502,21 @@ async function proses(
     await kirim(
       alat,
       chat,
-      `File ${nama} tersimpan: ${angka(r.jumlah_tap)} tap, ${r.tanggal_awal} s.d. ${r.tanggal_akhir}${dibuang}. Menghitung ulang...`,
+      `File ${nama} tersimpan: ${angka(r.jumlah_tap)} tap, ${r.tanggal_awal} s.d. ${r.tanggal_akhir}${dibuang}. Menghitung ulang...` +
+        teksPeriodeBaru(r.periode_baru),
     );
     await kerjakanAntrean(alat, chat, mulai, "telegram");
   } catch (e) {
     await kirim(alat, chat, `File ${nama} gagal diproses: ${(e as Error).message}`);
     throw e;
   }
+}
+
+// Paket P1: kabar periode gaji yang dibuat otomatis karena file berisi tap sesudah periode terakhir.
+export function teksPeriodeBaru(daftar: { id: number; awal: string; akhir: string; bayar: string }[] | undefined): string {
+  if (!daftar || !daftar.length) return "";
+  return daftar.map((p) => `\nPeriode baru no. ${p.id} dibuat: ${tulisTanggal(p.awal, false)} – ${tulisTanggal(p.akhir, false)}, ` +
+    `gajian ${tulisTanggal(p.bayar, false)}.`).join("");
 }
 
 export async function kerjakanAntrean(
@@ -2415,11 +2423,12 @@ export async function webUnggah(
     tanggal_akhir: r.tanggal_akhir ?? null,
     baris_dibuang: h.baris_ditolak.length,
     periode: r.periode ?? [],
+    periode_baru: r.periode_baru ?? [],
   };
   const latar = r.hasil === "diterima"
     ? (async () => {
       await kirimAman(alat, chat, `File ${nama} diunggah lewat web (mesin ${mesin}): ${angka(r.jumlah_tap)} tap, ` +
-        `${r.tanggal_awal} s.d. ${r.tanggal_akhir}. Menghitung ulang...`);
+        `${r.tanggal_awal} s.d. ${r.tanggal_akhir}. Menghitung ulang...` + teksPeriodeBaru(r.periode_baru));
       await kerjakanAntrean(alat, chat, mulai, "web");
     })()
     : kirimPemberitahuan(alat, null).then(() => {}); // file rusak Excel atau format: tingkat segera (U14)

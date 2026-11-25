@@ -14,7 +14,7 @@ import { PESAN, urai } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
   TOMBOL_TETAP, TANYA_PERINTAH, TANYA_TOLAK_KEBERATAN, tulisBukti, webHrd, webMasukHrd, CARA_PERINTAH, CARA_KASBON, bacaUang, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
-  webStatus, webTukarKode, webUnggah, type Alat,
+  webStatus, webTukarKode, webUnggah, type Alat, teksPeriodeBaru,
 } from "./inti.ts";
 
 const DB = process.env.DB_URL!;
@@ -2040,4 +2040,13 @@ test("9b-2: ubah gaji lewat web disetujui pembangun dengan tombol + PIN, lalu di
   assert.deepEqual([gaji(), riwayat()], sebelum, "batal mengembalikan gaji dan riwayat persis");
   const r4 = await kirimUpdate(teksPribadi(20004, PEMBANGUN, "/pengajuan"));
   assert.match(r4.pesan.at(-1).text, /Tidak ada pengajuan/);
+});
+
+test("P1: kabar periode baru dibuat otomatis (teks bot dan unggah web)", () => {
+  assert.equal(teksPeriodeBaru([]), "");
+  assert.equal(teksPeriodeBaru(undefined), "");
+  assert.equal(teksPeriodeBaru([{ id: 5, awal: "2026-12-21", akhir: "2027-01-20", bayar: "2027-01-25" }]),
+    "\nPeriode baru no. 5 dibuat: 21 Des 2026 – 20 Jan 2027, gajian 25 Jan 2027.");
+  assert.equal(teksPeriodeBaru([{ id: 5, awal: "2026-12-21", akhir: "2027-01-20", bayar: "2027-01-25" },
+                                { id: 6, awal: "2027-01-21", akhir: "2027-02-20", bayar: "2027-02-25" }]).split("\n").length, 3);
 });
