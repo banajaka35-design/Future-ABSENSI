@@ -13,9 +13,10 @@ Ditulis 23 November 2026. Isi dan gerbang Tahap 9 dari PRD v2 bagian 13 **tidak 
 
 | Paket | Isi | Status |
 | --- | --- | --- |
-| 9a | Web HRD lihat saja: masuk dengan kode email, ringkasan periode, daftar gaji per periode, rincian per orang (komponen gaji dan status harian), daftar perlu dicek, dan keberatan | daftar ditulis 23 Nov, `docs/rencana-9a.md` |
-| 9c | Coba aturan: mengubah aturan secara percobaan, lalu melihat selisih gaji per orang tanpa menyimpan | belum |
-| 9b | Perintah lewat web. 9b-1: tambah libur, absen manual divisi, berhenti, aktif kembali, mutasi (`docs/rencana-9b-1.md`, menunggu "buat"). 9b-2: karyawan baru, ubah gaji (`docs/rencana-9b-2.md`, di-"buat" 25 Nov 10.46, `docs/laporan-9b-2.md`) | belum |
+| 9a | Web HRD lihat saja: masuk dengan kode email, ringkasan periode, daftar gaji per periode, rincian per orang (komponen gaji dan status harian), daftar perlu dicek, dan keberatan | selesai 23 Nov, `docs/laporan-9a.md` |
+| 9c | Coba aturan: mengubah aturan secara percobaan, lalu melihat selisih gaji per orang tanpa menyimpan | selesai 25 Nov, `docs/laporan-9c.md` |
+| 9b | Perintah lewat web. 9b-1: tambah libur, absen manual divisi, berhenti, aktif kembali, mutasi. 9b-2: karyawan baru, ubah gaji (dengan persetujuan PIN) | selesai 25 Nov, `docs/laporan-9b-1.md`, `docs/laporan-9b-2.md` |
+| 9a-2 | Perbaikan tampilan web HRD (T1–T8): kartu di HP, tabel Periode dipecah, urutan komponen, pilihan periode bawaan, kamus nama | terbit 25 Nov, `docs/laporan-9a-2.md`; menunggu uji nyata pemilik |
 | 9d | Paket pasang: kuesioner, templat unggah data karyawan asli, panduan memasang dari nol | belum |
 
 ## Gerbang (usulan Claude, disetujui 23 Nov)
