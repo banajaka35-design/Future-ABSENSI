@@ -25,9 +25,8 @@ berulang, seperti `aturan_resmi.sql`.
 ## Setiap hari dan bulan
 
 - Periksa hasil workflow Cadangan (atau cadangan Supabase berbayar) minimal sekali seminggu.
-- **Periode gaji baru:** sekarang periode hanya dibuat dari file susunan saat pemasangan (temuan 9d). Sistem belum membuat periode
-  berikutnya sendiri. Sebelum PT pertama perlu paket kecil "periode bulanan" yang membuat periode baru dari pengaturan
-  `tanggal_tutup_buku` dan `tanggal_gajian`.
+- **Periode gaji baru** dibuat otomatis saat file mesin pertama periode itu masuk (paket P1, `docs/laporan-p1.md`): bot mengabarkan
+  "Periode baru no. X dibuat". Pastikan pengaturan `tanggal_tutup_buku` dan `tanggal_gajian` benar sebelum awal periode.
 
 ## Menarik perbaikan kode dari repo ini ke repo PT
 

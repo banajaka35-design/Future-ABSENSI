@@ -64,11 +64,11 @@ Contoh: upah harian/borongan, tunjangan yang bukan uang makan/premi/shift malam,
 siklus. **Berhenti dan laporkan ke pemilik proyek sebagai temuan.** Jangan diakali dengan data (misalnya memasukkan tunjangan ke
 gaji pokok), karena akan merusak dasar lembur, BPJS, dan PPh.
 
-## Belum ada (temuan 9d, harus dibuat sebelum PT pertama)
+## Belum ada (temuan 9d, harus dibuat sebelum PT pertama; P1 sudah selesai)
 
 | No | Yang belum ada | Akibatnya | Usulan |
 | --- | --- | --- | --- |
-| P1 | **Periode bulanan otomatis.** Periode hanya dibuat dari file susunan saat pasang | Sesudah periode pertama, tidak ada periode berikutnya | Paket kecil: periode baru dibuat dari `tanggal_tutup_buku` dan `tanggal_gajian` |
+| P1 | ~~Periode bulanan otomatis~~ **Selesai 25 Nov 2026** (`docs/laporan-p1.md`): periode berikutnya dibuat saat file mesin masuk | – | – |
 | P2 | **Jalur memuat data karyawan asli** tanpa masuk repo | Langkah 6 belum bisa dijalankan dengan data sungguhan | Diputuskan bersama PT: folder tertutup + workflow, atau lewat bot |
 | P3 | **Mengubah aturan PT di database yang sudah terpasang** | Kesalahan aturan saat uji banding tidak bisa diperbaiki lewat workflow | Paket kecil: file perubahan aturan PT yang dijalankan setiap Pasang |
 | P4 | **Terbit web HRD ke alamat PT** | Web HRD hanya ada di situs demo; bot tetap bisa dipakai | Paket kecil: workflow terbit ke proyek Cloudflare PT dan `ASAL_WEB` |
