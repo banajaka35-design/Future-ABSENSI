@@ -60,7 +60,23 @@ Rencana: `docs/rencana-9b-1.md`. Di-"buat" pemilik 25 Nov 2026 08.59 WIB. Pekerj
 - Dicek di Supabase: 5 fungsi baru ada, `asal` menerima 'web', 3 tabel baru, belum ada perintah web.
 - Lama pemeriksaan pratinjau di Supabase (diukur sekali, tanpa menyimpan): tambah libur semua divisi 1 Des = **181 ms** (996 orang aktif, 789 sudah tap); berhenti 10002 1 Des = **62 ms** (peringatan 31 tap sesudah 1 Des, periode 4 masa pajak terakhir).
 
+## Uji nyata 25 Nov 2026 [Pasti, dicek di Supabase dan Sheets]
+
+Langkah 1–3 dari rencana (tambah libur KTR 1 Des 2026, lalu dibatalkan), oleh pemilik lewat web dengan akun pembangun:
+
+| Langkah | Hasil |
+| --- | --- |
+| Pratinjau 10.19 | 120 orang aktif, 116 sudah tap, periode 4 (sama dengan gudang); tidak ada yang tersimpan (hanya 1 draf) |
+| Sebelum simpan | KTR 1 Des: 117 hadir, 2 alpha, 1 sakit; sidik gaji periode 4 `c427e5a53c5f`; total gaji bersih Sheets/gudang Rp4.983.863.768 |
+| Simpan 10.20 (perintah no. 1612) | Asal web, oleh pembangun; hitung ulang periode 4 = 25,5 detik; KTR 1 Des: 117 masuk di hari libur, 3 libur; sidik `eb4edab2a80a`; Sheets diisi ulang 10.22, total gaji bersih Rp5.049.547.543 = gudang (+Rp65.683.775, lembur hari libur); kabar Telegram terkirim |
+| Batal 10.27 (pembatalan no. 1613) | Hitung ulang 24,2 detik; KTR 1 Des kembali 117 hadir, 2 alpha, 1 sakit; **sidik gaji periode 4 kembali persis `c427e5a53c5f`**; Sheets diisi ulang 10.29, total Rp4.983.863.768 = gudang |
+
+Temuan kecil (tampilan, masuk 9a-2):
+- Selama pembatalan dihitung, baris perintah aslinya ikut tertulis "sedang dihitung…", karena keadaan diambil per periode.
+- Di layar sempit, tabel perlu digeser ke samping.
+- Aturan lama mesin hitung (Tahap 3) yang terlihat di uji ini: orang yang tercatat sakit pada hari yang kemudian dijadikan libur menjadi "libur". Dicatat untuk pemilik; tidak diubah.
+
 ## Yang belum
 
-- Uji nyata oleh pemilik (rencana bagian "Uji nyata").
+- Uji nyata langkah 3 di rencana (mutasi KTR → PRD dengan/tanpa ID mesin) belum dijalankan; sudah dibuktikan uji database 330.
 - [Menebak] Lama pratinjau dan hitung ulang di Supabase: belum diukur.
