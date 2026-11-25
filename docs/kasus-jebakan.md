@@ -129,7 +129,7 @@ Angka di bawah hanya untuk menguji; di sistem semuanya isian tabel aturan.
 | F06 | ID mesin 0012 dipetakan ke karyawan X mulai 1 Mar; ada tap ID 0012 tanggal 27 Feb | Tap 27 Feb masuk daftar ID tidak dikenal untuk tanggal itu | PRD M5 |
 | F07 | Karyawan X punya dua ID mesin; pagi tap dengan ID pertama, sore dengan ID kedua | Tap digabung: hadir dengan masuk dan pulang lengkap | PRD M6 |
 | F08 | HRD mengirim "absen manual 20 Feb, divisi Kantor hadir semua" | Semua hadir, asal data "manual"; anomali C06 tertutup | PRD M7 |
-| F09 | File dengan kolom waktu bernama "Waktu" (format baru yang belum dikenal) | Ditolak dengan pesan format tidak dikenal; pemberitahuan segera | PRD M8 |
+| F09 | File dengan kolom waktu bernama "Waktu" (format baru yang belum dikenal) | Tidak dihitung otomatis: file ditahan, pembangun diberi tahu, HRD yang mengirim memilih kolom sekali dengan contoh hasil bacaan; dihitung hanya sesudah "Ya, simpan"; file berikutnya dari mesin dan judul kolom yang sama memakai profil itu, judul berbeda ditanyakan lagi; "Tidak" → ditolak dengan pesan format tidak dikenal dan pemberitahuan segera | PRD M8; permintaan perubahan 07 |
 | F10 | Kiriman mingguan untuk minggu kedua tidak pernah masuk | Kalender cakupan menandai lubang; periode tidak bisa diajukan; muncul di ringkasan sebelum rilis | PRD M9 |
 | F11 | Jadwal Pagi, tetapi tap 5 hari berturut-turut cocok shift Siang | Usulan tukar shift di rekap harian; sebelum disetujui hasil tetap mengikuti jadwal; setelah disetujui dihitung ulang sebagai Siang | PRD P1 |
 | F12 | Pengaturan "wajib perintah"; 3 orang Produksi lembur tanggal 5; HRD mengirim "setujui lembur Produksi tgl 5" | Ketiganya dibayar setelah hitung ulang | PRD P2 |
