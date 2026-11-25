@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { PESAN, urai } from "../urai/urai.ts";
+import { PESAN, urai, uraiBerkas } from "../urai/urai.ts";
 import {
   apiBoleh, BATAS_PESAN, JENIS_SEGERA, MENU, PESAN_HANYA_PRIBADI, rapikanPerintah, susunPesanSegera, TANYA_ID, TANYA_PIN,
   TOMBOL_TETAP, TANYA_PERINTAH, TANYA_TOLAK_KEBERATAN, tulisBukti, webHrd, webMasukHrd, CARA_PERINTAH, CARA_KASBON, bacaUang, bacaTanggal, bacaPerintah, tulisTanggal, susunPesanGaji, susunTotalLengkap, rupiah as rupiahBot, BATAS_PESAN as BATAS, tanganiPengingat, tanganiPermintaan, webMintaKode, webPeriksa,
@@ -39,6 +39,8 @@ const fileSim = (nama: string) => gunzipSync(readFileSync(`data/simulasi/A/mesin
 const BERKAS: Record<string, Uint8Array> = {
   F_MA1: fileSim("A_p1_MA1.csv"),
   F_MA2: fileSim("A_p1_MA2.csv"),
+  // Paket F1: data MA2 periode 1 yang sama dalam file Excel .xls (sistem/urai/contoh/, dibuat dari data simulasi).
+  F_MA2_XLS: new Uint8Array(readFileSync("sistem/urai/contoh/A_p1_MA2.xls")),
   // T4: file yang dibuka lalu disimpan di Excel; No.ID panjang menjadi notasi ilmiah.
   F_EXCEL: new TextEncoder().encode(
     fileSim("A_p1_MA2.csv").toString("utf8").split("\r\n").map((b, i) => {
@@ -80,7 +82,7 @@ const alat: Alat = {
     diunduh.push(jalur);
     return BERKAS[jalur];
   },
-  urai,
+  urai: uraiBerkas,
   sekarang: () => Date.now(),
   tidur: async () => {},
   async picuSheets(m) {
@@ -2049,4 +2051,12 @@ test("P1: kabar periode baru dibuat otomatis (teks bot dan unggah web)", () => {
     "\nPeriode baru no. 5 dibuat: 21 Des 2026 – 20 Jan 2027, gajian 25 Jan 2027.");
   assert.equal(teksPeriodeBaru([{ id: 5, awal: "2026-12-21", akhir: "2027-01-20", bayar: "2027-01-25" },
                                 { id: 6, awal: "2027-01-21", akhir: "2027-02-20", bayar: "2027-02-25" }]).split("\n").length, 3);
+});
+
+test("F1: file Excel .xls dikirim ke bot sebagai dokumen diterima dengan jumlah tap sama dengan CSV-nya", async () => {
+  const r = await kirimUpdate(dokumen(30001, HRD, "F_MA2_XLS", "A_p1_MA2.xls", "MA2"));
+  assert.equal(r.status, 200);
+  const harap = urai(new TextDecoder().decode(BERKAS.F_MA2), { tanggal_kirim: "2026-02-21" }).tap.length;
+  assert.ok(r.pesan.some((p) => p.text.includes(`File A_p1_MA2.xls tersimpan: ${harap.toLocaleString("id-ID")} tap`)), JSON.stringify(r.pesan.map((p) => p.text.slice(0, 90))));
+  assert.equal(nilai("select hasil || '/' || jumlah_baris from fakta.kiriman_file where nama_file = 'A_p1_MA2.xls'"), `diterima/${harap}`);
 });

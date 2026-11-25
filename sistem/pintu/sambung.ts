@@ -29,7 +29,7 @@ export function gangguanDatabase(e: unknown): boolean {
 export function buatAlat(
   sql: Sql,
   token: string,
-  urai: (teks: string, pilihan: { tanggal_kirim?: string }) => HasilUraiRingkas,
+  urai: (isi: Uint8Array, pilihan: { tanggal_kirim?: string }) => Promise<HasilUraiRingkas>,
   ambil: typeof fetch = fetch,
   alamatUnggah = "",
   jedaCobaUlang: number[] = [1000, 2000], // tiga percobaan: langsung, sesudah 1 detik, sesudah 2 detik lagi

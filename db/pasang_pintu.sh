@@ -4,7 +4,7 @@
 # Yang dilakukan:
 #   1. Kata sandi peran `pintu` dibuat acak di sini, dipasang ke database dan ke rahasia Edge Function. Tidak ditulis ke log.
 #   2. Akun Telegram pemilik proyek (secret PEMBANGUN_TELEGRAM_ID) didaftarkan dengan hak akses `pembangun` bila belum ada.
-#   3. Edge Function pintu-telegram dipasang (inti.ts dan urai.ts disalin dari sistem/ lebih dulu).
+#   3. Edge Function pintu-telegram dipasang (inti.ts, urai.ts, dan berkas.ts disalin dari sistem/ lebih dulu).
 #   4. Rahasia Edge Function diisi, lalu alamat bot didaftarkan ke Telegram dengan kode rahasia baru.
 #   5. Penjadwal pengingat kirim file (paket 5c, docs/pemberitahuan-segera.md): pg_net dan pg_cron dinyalakan,
 #      kode rahasia pengingat (acak, baru setiap pemasangan) disimpan di Vault, fungsi jadwal.picu_pengingat dibuat,
@@ -104,6 +104,7 @@ fi
 echo "== Edge Function pintu-telegram"
 FUNGSI=supabase/functions/pintu-telegram
 cp sistem/urai/urai.ts "$FUNGSI/urai.ts"
+cp sistem/urai/berkas.ts "$FUNGSI/berkas.ts"
 cp sistem/pintu/inti.ts "$FUNGSI/inti.ts"
 cp sistem/pintu/sambung.ts "$FUNGSI/sambung.ts"
 mulai=$(date +%s%N)

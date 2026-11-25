@@ -35,9 +35,14 @@ di langkah 1 README).
 Contoh: semua WIB.
 Isian: `induk.mesin` (zona).
 
-**A5. Bisakah HRD mengirimkan satu contoh file hasil tarikan mesin (satu minggu cukup)?**
-Contoh: file ekspor aplikasi mesin dalam bentuk CSV atau `attlog.dat`.
-Isian: tidak ada; untuk memeriksa pembaca file sebelum pemasangan.
+**A5. Bisakah HRD mengirimkan satu contoh file hasil tarikan mesin (satu minggu cukup), persis seperti keluar dari aplikasi
+mesin (jangan dibuka lalu disimpan ulang di Excel)? Yang dibutuhkan "log/data absensi" (satu baris setiap tap), bukan rekap
+jam masuk-pulang per hari.**
+Contoh: file `.xls` dengan kolom Nama, No.ID, Tgl/Waktu, Status (bentuk file mesin asli pemilik); `.xlsx`, `.csv`, `.txt`, dan
+`attlog.dat` juga bisa dibaca.
+Isian: tidak ada; contoh file diperiksa dengan `node sistem/urai/cek_file.ts FILE` (paket F1) sebelum pemasangan. Hasilnya harus
+DITERIMA dengan jumlah ID dan rentang tanggal yang masuk akal. Bila DITOLAK karena format belum dikenal, catat sebagai temuan:
+format baru ditambahkan ke pembaca dari contoh itu, dengan ujinya.
 
 ## B. Divisi dan shift
 

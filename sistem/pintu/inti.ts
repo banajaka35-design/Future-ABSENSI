@@ -17,7 +17,8 @@ export interface Alat {
   api(nama: string, isi?: unknown): Promise<any>;
   telegram(metode: string, isi: Record<string, unknown>): Promise<any>;
   unduh(jalurFile: string): Promise<Uint8Array>;
-  urai(teks: string, pilihan: { tanggal_kirim?: string }): HasilUraiRingkas;
+  // Paket F1: isi file apa adanya (CSV/TXT, .xls, .xlsx, attlog.dat); jenis berkas dikenali pembaca (sistem/urai).
+  urai(isi: Uint8Array, pilihan: { tanggal_kirim?: string }): Promise<HasilUraiRingkas>;
   sekarang(): number; // milidetik
   tidur(ms: number): Promise<void>;
   alamatUnggah?: string; // alamat halaman unggah (paket 5d), misalnya https://.../unggah/
@@ -482,8 +483,7 @@ async function proses(
     const f = await alat.telegram("getFile", { file_id: fileId });
     const isi = await alat.unduh(f.file_path);
     const sidik = await sidikSha256(isi);
-    const teks = new TextDecoder("utf-8").decode(isi);
-    const h = alat.urai(teks, { tanggal_kirim: tanggalKirim });
+    const h = await alat.urai(isi, { tanggal_kirim: tanggalKirim });
     const r = await alat.api("pintu_terima_file", {
       update_id: updateId,
       telegram_id: tg,
@@ -2402,7 +2402,7 @@ export async function webUnggah(
     return { status: 413, isi: { hasil: "ditolak", alasan: "File lebih dari 50 MB." }, latar: null };
   }
   const sidik = await sidikSha256(isi);
-  const h = alat.urai(new TextDecoder("utf-8").decode(isi), { tanggal_kirim: tanggalWib(Math.floor(mulai / 1000)) });
+  const h = await alat.urai(isi, { tanggal_kirim: tanggalWib(Math.floor(mulai / 1000)) });
   const r = await alat.api("pintu_terima_web", {
     kode_sidik: await sidikTeks(kode),
     nama_file: nama,

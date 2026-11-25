@@ -20,7 +20,7 @@ sungguhan. Baca bersama `CLAUDE.md` (aturan kerja). Semua aturan kerja repo teta
 
 | No | Langkah | Dokumen | Siapa |
 | --- | --- | --- | --- |
-| 1 | Wawancara HRD dengan daftar pertanyaan; minta satu contoh file mesin dan rekap gaji manual satu periode | `1-pertanyaan-hrd.md` | Pemilik proyek + HRD |
+| 1 | Wawancara HRD dengan daftar pertanyaan; minta satu contoh file mesin dan rekap gaji manual satu periode; periksa contoh file dengan `node sistem/urai/cek_file.ts FILE` (tidak menyimpan apa pun) | `1-pertanyaan-hrd.md` (A5) | Pemilik proyek + HRD; Claude memeriksa file |
 | 2 | Buat repo privat PT dan salin repo ini ke sana; matikan workflow khusus demo | `2-daftar-periksa-akun.md` | PT/pemilik membuat repo; Claude menyalin |
 | 3 | Buat akun atas nama PT dan isi secret | `2-daftar-periksa-akun.md` | Pemilik proyek + PT |
 | 4 | Susun file susunan PT dari jawaban wawancara | bagian "Langkah 4" di bawah | Claude |

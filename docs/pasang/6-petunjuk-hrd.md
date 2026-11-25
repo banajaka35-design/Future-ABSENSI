@@ -21,7 +21,8 @@ Tanggal ditulis `tanggal-bulan-tahun` (`30-03-2026`), atau `tanggal-bulan` untuk
 
 ## Setiap periode gaji
 
-1. **Kirim file mesin** ke bot sebagai dokumen (bukan foto), sesudah tutup buku. Atau ketik `/unggah` untuk tautan halaman unggah
+1. **Kirim file mesin** ke bot sebagai dokumen (bukan foto), sesudah tutup buku, persis seperti keluar dari aplikasi mesin
+   (`.xls`, `.xlsx`, `.csv`, `.txt`, atau `attlog.dat`; pilih menu "log/data absensi", bukan rekap). Atau ketik `/unggah` untuk tautan halaman unggah
    di komputer. Bot membalas bila file diterima dan setelah gaji selesai dihitung; Sheets ikut diperbarui.
 2. **Periksa "Perlu dicek"** di web HRD: alpha beruntun, ID mesin yang tidak dikenal, hari tanpa tap massal, dan sejenisnya.
 3. **Catat yang belum tercatat** (izin, sakit, lembur, dan seterusnya; lihat bagian berikut). Periode dihitung ulang otomatis.

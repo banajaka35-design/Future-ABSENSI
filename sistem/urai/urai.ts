@@ -6,7 +6,11 @@
 // celah M1 dan M8, kasus A04, A05, A10, A12, F01, F09). Jendela tap, telat, dan dobel diurus database.
 // Larangan: modul ini tidak boleh mengimpor apa pun dari generator/.
 
-export type Format = "ekspor_aplikasi_v1" | "attlog_zkteco";
+import { bacaTeks, bukaXls, bukaXlsx, GalatBerkas, jenisBerkas, type Sel } from "./berkas.ts";
+
+// ekspor_aplikasi_v1: log tap mentah berbentuk tabel teks (CSV/TXT); ekspor_xls dan ekspor_xlsx: tabel yang sama di dalam Excel
+// (paket F1). attlog_zkteco: berkas attlog.dat.
+export type Format = "ekspor_aplikasi_v1" | "ekspor_xls" | "ekspor_xlsx" | "attlog_zkteco";
 
 export interface TapBaku {
   id_mesin: string;
@@ -41,10 +45,22 @@ const PALING_AWAL_BAWAAN = "2020-01-01";
 
 export const PESAN = {
   kosong: "File kosong atau tidak berisi baris data.",
+  // Semua penolakan bentuk file diawali "Format file tidak dikenal": awalan ini dikenali database sebagai kejadian segera
+  // (fakta.jenis_tolak_segera, migrasi 0018), sehingga pembangun diberi tahu.
   formatTidakDikenal:
-    "Format file tidak dikenal. Kolom yang dibutuhkan: Nama, No.ID, Tgl/Waktu, Status. Kirim file ekspor langsung dari aplikasi mesin.",
+    "Format file tidak dikenal. Kirim log/data absensi mentah dari aplikasi mesin: satu baris setiap tap, dengan kolom ID " +
+    "(misalnya No.ID) dan tanggal-jam (misalnya Tgl/Waktu). File .xls, .xlsx, .csv, .txt, dan attlog.dat bisa dibaca.",
+  rekap:
+    "Format file tidak dikenal: file ini berbentuk rekap (jam masuk dan pulang per hari), bukan log tap mentah. Rekap sudah " +
+    "diolah aplikasi mesin sehingga tap ganda, shift malam, dan lupa tap tidak bisa diperiksa. Ekspor ulang menu " +
+    "\"log/data absensi\" (satu baris setiap tap) dari aplikasi mesin.",
+  kolomGanda: "Format file tidak dikenal: ada lebih dari satu kolom yang bisa berarti ID karyawan",
+  berkasRusak: "Format file tidak dikenal: ",
   idRusakExcel:
     "No.ID rusak (tertulis seperti 1,98E+17) karena file dibuka lalu disimpan di Excel. Kirim file langsung dari mesin tanpa dibuka di Excel.",
+  idAngkaPanjang:
+    "No.ID rusak: ID lebih dari 15 angka tersimpan sebagai angka di Excel sehingga digit terakhirnya hilang. Kirim file langsung " +
+    "dari mesin, atau simpan kolom ID sebagai teks.",
   idTidakSah: "No.ID berisi karakter yang tidak sah",
   waktuTidakTerbaca: "Tgl/Waktu tidak bisa dibaca",
   tanggalCampur:
@@ -78,7 +94,7 @@ const POLA_NOTASI_ILMIAH = /^[0-9]+([.,][0-9]+)?[eE]\+?[0-9]+$/;
 const POLA_ID = /^[0-9A-Za-z]+$/;
 
 // Pemisah CSV sederhana yang memahami tanda kutip ganda.
-export function pecahCsv(teks: string): string[][] {
+export function pecahCsv(teks: string, pemisah = ","): string[][] {
   const baris: string[][] = [];
   let kolom: string[] = [];
   let sel = "";
@@ -100,7 +116,7 @@ export function pecahCsv(teks: string): string[][] {
     }
     if (c === '"') {
       dalamKutip = true;
-    } else if (c === ",") {
+    } else if (c === pemisah) {
       kolom.push(sel);
       sel = "";
     } else if (c === "\n" || c === "\r") {
@@ -147,44 +163,176 @@ function susunWaktu(t: number, b: number, h: number, j: number, m: number, d: nu
 // Ekspor aplikasi mesin (bentuk file asli Februari 2026 dan data simulasi)
 // ---------------------------------------------------------------------------
 
-// Menerima baris yang sudah dipecah per sel. Dipakai untuk CSV sekarang; di Tahap 5 sel dari .xls
-// (dibaca dengan pustaka lembar kerja di Edge Function) masuk lewat fungsi yang sama.
-export function uraiBarisEkspor(barisSel: string[][], pilihan: PilihanUrai = {}): HasilUrai {
+// Log tap mentah berbentuk tabel (paket F1): CSV/TXT, .xls, .xlsx. Kolom dikenali dari judulnya; baris judul boleh didahului
+// baris judul laporan. Wajib: satu kolom ID dan waktu (satu kolom tanggal-jam, atau kolom tanggal + kolom jam). Nama dan status
+// tidak wajib: masuk/pulang ditentukan dari jam (kasus A01). Sinonim di luar bentuk file asli (No.ID, Tgl/Waktu) berstatus
+// [Menebak] sampai ada contoh file sungguhan dari mesin lain.
+const normal = (v: Sel) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const SINONIM_ID = ["noid", "id", "acno", "pin", "nik", "nip", "nopegawai", "idpegawai", "idkaryawan", "nokaryawan",
+  "employeeid", "empid", "userid", "enrollid", "enrollnumber", "badgenumber", "noabsen", "idabsen", "idmesin"];
+const SINONIM_GABUNGAN = ["tglwaktu", "datetime", "tanggalwaktu", "tanggaljam", "tgljam", "checktime", "waktuabsen", "datetimeabsen"];
+const SINONIM_TANGGAL = ["tanggal", "tgl", "date", "tanggalabsen", "tglabsen"];
+// Keputusan pemilik 25 Nov 2026 (pilihan A): kolom bernama "Waktu" atau "Time" saja TIDAK dikenali, sesuai kasus jebakan F09
+// (format baru ditolak, pembangun diberi tahu). Ditambahkan hanya dari contoh file sungguhan.
+const SINONIM_JAM = ["jam", "jamabsen", "pukul"];
+const SINONIM_NAMA = ["nama", "name", "namakaryawan", "namapegawai", "employeename"];
+const SINONIM_STATUS = ["status", "state", "statusabsen", "inout", "checktype", "jenisabsen"];
+const SINONIM_REKAP = ["masuk", "pulang", "jammasuk", "jampulang", "scanmasuk", "scanpulang", "checkin", "checkout",
+  "clockin", "clockout", "datang", "jamdatang"];
+
+interface Kolom { id: number; gabungan: number; tanggal: number; jam: number; nama: number; status: number }
+
+function cariKolom(judul: string[]): Kolom | "rekap" | "ganda" | null {
+  const cari = (daftar: string[]) => judul.map((j, i) => (daftar.includes(j) ? i : -1)).filter((i) => i >= 0);
+  const id = cari(SINONIM_ID);
+  if (id.length === 0) return null;
+  const gabungan = cari(SINONIM_GABUNGAN);
+  const tanggal = cari(SINONIM_TANGGAL);
+  let kol: Kolom | null = null;
+  const sisa = (i: number) => (i >= 0 ? i : -1);
+  if (gabungan.length >= 1) {
+    kol = { id: id[0], gabungan: gabungan[0], tanggal: -1, jam: -1, nama: -1, status: -1 };
+  } else if (tanggal.length >= 1) {
+    const jam = cari(SINONIM_JAM).filter((i) => !tanggal.includes(i));
+    if (jam.length >= 1) kol = { id: id[0], gabungan: -1, tanggal: tanggal[0], jam: jam[0], nama: -1, status: -1 };
+    else if (cari(SINONIM_REKAP).length > 0) return "rekap";
+  } else if (cari(SINONIM_REKAP).length > 0) {
+    return "rekap";
+  }
+  if (!kol) return null;
+  if (id.length > 1) return "ganda";
+  kol.nama = sisa(cari(SINONIM_NAMA)[0] ?? -1);
+  kol.status = sisa(cari(SINONIM_STATUS)[0] ?? -1);
+  return kol;
+}
+
+// Tanggal angka Excel -> {t, b, h, j, m, d}. Sistem 1900 (dasar 30 Des 1899, benar untuk tanggal sesudah Feb 1900) atau 1904.
+function dariAngkaExcel(v: number, tanggal1904: boolean) {
+  if (!Number.isFinite(v) || v < 0 || v > 2958465) return null;
+  let hari = Math.floor(v);
+  let detik = Math.round((v - hari) * 86400);
+  if (detik >= 86400) {
+    hari += 1;
+    detik -= 86400;
+  }
+  const dasar = tanggal1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+  const d = new Date(dasar + hari * 86400000);
+  return { t: d.getUTCFullYear(), b: d.getUTCMonth() + 1, h: d.getUTCDate(),
+           j: Math.floor(detik / 3600), m: Math.floor((detik % 3600) / 60), d: detik % 60 };
+}
+
+const POLA_TANGGAL_DMY = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/;
+const POLA_TANGGAL_YMD = /^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/;
+const POLA_JAM = /^(\d{1,2})[.:](\d{2})(?:[.:](\d{2}))?$/;
+
+// Hasil: waktu, ditambah angka kedua tanggal bergaya a/b/yyyy untuk penjaga hari/bulan tercampur (kasus A10).
+function bacaWaktu(selWaktu: Sel, selJam: Sel | undefined, terpisah: boolean, tanggal1904: boolean):
+  { w: Waktu; b2: number | null } | null {
+  let t: number, b: number, h: number, j = 0, m = 0, d = 0;
+  let b2: number | null = null;
+  if (typeof selWaktu === "number") {
+    const x = dariAngkaExcel(terpisah ? Math.floor(selWaktu) : selWaktu, tanggal1904);
+    if (!x) return null;
+    ({ t, b, h, j, m, d } = x);
+  } else {
+    const teks = String(selWaktu ?? "").trim();
+    const [bagTanggal, ...bagJam] = terpisah ? [teks] : teks.split(/\s+|T(?=\d)/);
+    let k = POLA_TANGGAL_DMY.exec(bagTanggal);
+    if (k) {
+      h = Number(k[1]);
+      b = Number(k[2]);
+      t = Number(k[3]);
+      b2 = b;
+    } else if ((k = POLA_TANGGAL_YMD.exec(bagTanggal))) {
+      t = Number(k[1]);
+      b = Number(k[2]);
+      h = Number(k[3]);
+    } else return null;
+    if (!terpisah) {
+      if (bagJam.length !== 1) return null;
+      const pj = POLA_JAM.exec(bagJam[0]);
+      if (!pj) return null;
+      j = Number(pj[1]);
+      m = Number(pj[2]);
+      d = Number(pj[3] ?? "0");
+    }
+  }
+  if (terpisah) {
+    if (typeof selJam === "number") {
+      const x = dariAngkaExcel(selJam % 1, tanggal1904);
+      if (!x) return null;
+      ({ j, m, d } = x);
+    } else {
+      const pj = POLA_JAM.exec(String(selJam ?? "").trim());
+      if (!pj) return null;
+      j = Number(pj[1]);
+      m = Number(pj[2]);
+      d = Number(pj[3] ?? "0");
+    }
+  }
+  // Angka kedua > 12 pada tanggal a/b/yyyy berarti isinya bulan/hari: susunWaktu menolak bulan > 12, penjaga A10 menolak file.
+  const w = susunWaktu(t, b, h, j, m, d);
+  if (!w && b2 !== null && b2 > 12) return { w: { jam_lokal: "", tanggal: "" }, b2 };
+  return w ? { w, b2 } : null;
+}
+
+// Menerima baris sel dari CSV/TXT atau lembar Excel. Nama lama (uraiBarisEkspor) tetap untuk CSV.
+export function uraiTabel(barisSel: Sel[][], pilihan: PilihanUrai = {}, format: Format = "ekspor_aplikasi_v1",
+                          tanggal1904 = false): HasilUrai {
   const hasil: HasilUrai = {
-    hasil: "ditolak",
-    alasan: null,
-    format: "ekspor_aplikasi_v1",
-    tap: [],
-    baris_ditolak: [],
-    tanggal_awal: null,
-    tanggal_akhir: null,
+    hasil: "ditolak", alasan: null, format, tap: [], baris_ditolak: [], tanggal_awal: null, tanggal_akhir: null,
   };
-  const kosong = (r: string[]) => r.every((s) => s.trim() === "");
-  const iJudul = barisSel.findIndex((r) => !kosong(r));
-  if (iJudul < 0) {
+  const kosong = (r: Sel[]) => r.every((s) => String(s ?? "").trim() === "");
+  if (barisSel.findIndex((r) => r && !kosong(r)) < 0) {
     hasil.alasan = PESAN.kosong;
     return hasil;
   }
-  const judul = barisSel[iJudul].map((s) => s.trim().toLowerCase());
-  const kNama = judul.indexOf("nama");
-  const kId = judul.indexOf("no.id");
-  const kWaktu = judul.indexOf("tgl/waktu");
-  const kStatus = judul.indexOf("status");
-  // Kolom tanpa judul (salinan waktu tanpa detik, kasus A04) dan kolom lain diabaikan.
-  if (kNama < 0 || kId < 0 || kWaktu < 0 || kStatus < 0) {
-    hasil.alasan = PESAN.formatTidakDikenal;
+  // Baris judul: baris tidak kosong pertama (dari 30 baris pertama) yang memuat kolom ID dan kolom waktu.
+  let iJudul = -1;
+  let kol: Kolom | null = null;
+  let temuan: "rekap" | "ganda" | null = null;
+  for (let i = 0, dicek = 0; i < barisSel.length && dicek < 30; i++) {
+    const r = barisSel[i] ?? [];
+    if (kosong(r)) continue;
+    dicek++;
+    const k = cariKolom(r.map(normal));
+    if (k === "rekap" || k === "ganda") {
+      temuan = temuan ?? k;
+      continue;
+    }
+    if (k) {
+      iJudul = i;
+      kol = k;
+      break;
+    }
+  }
+  if (!kol) {
+    hasil.alasan = temuan === "rekap" ? PESAN.rekap : temuan === "ganda" ? PESAN.kolomGanda : PESAN.formatTidakDikenal;
     return hasil;
   }
 
   const paling_awal = pilihan.tanggal_paling_awal ?? PALING_AWAL_BAWAAN;
   const paling_akhir = pilihan.tanggal_kirim ? tambahHari(pilihan.tanggal_kirim, 1) : null;
+  const terpisah = kol.gabungan < 0;
   let adaBulanLebihDari12 = false; // angka kedua > 12: pasti bulan/hari
 
   for (let i = iJudul + 1; i < barisSel.length; i++) {
-    const r = barisSel[i];
+    const r = barisSel[i] ?? [];
     if (kosong(r)) continue;
     const nomor = i + 1;
-    const id = (r[kId] ?? "").trim();
+    const selId = r[kol.id];
+    let id: string;
+    if (typeof selId === "number") {
+      // ID yang disimpan Excel sebagai angka: lebih dari 15 angka bermakna sudah kehilangan digit (celah C2).
+      if (!Number.isInteger(selId) || Math.abs(selId) >= 1e15) {
+        hasil.alasan = Number.isInteger(selId) ? PESAN.idAngkaPanjang : PESAN.idRusakExcel;
+        hasil.tap = [];
+        return hasil;
+      }
+      id = String(selId);
+    } else {
+      id = String(selId ?? "").trim();
+    }
     if (POLA_NOTASI_ILMIAH.test(id)) {
       hasil.alasan = PESAN.idRusakExcel;
       hasil.tap = [];
@@ -194,26 +342,23 @@ export function uraiBarisEkspor(barisSel: string[][], pilihan: PilihanUrai = {})
       hasil.baris_ditolak.push({ baris: nomor, alasan: `${PESAN.idTidakSah}: "${id}"` });
       continue;
     }
-    const teksWaktu = (r[kWaktu] ?? "").trim();
-    const m = POLA_WAKTU_EKSPOR.exec(teksWaktu);
-    if (!m) {
+    const selW = terpisah ? r[kol.tanggal] : r[kol.gabungan];
+    const teksWaktu = terpisah ? `${String(r[kol.tanggal] ?? "").trim()} ${String(r[kol.jam] ?? "").trim()}`
+      : String(selW ?? "").trim();
+    const x = bacaWaktu(selW ?? null, terpisah ? r[kol.jam] ?? null : undefined, terpisah, tanggal1904);
+    if (x && x.b2 !== null && x.b2 > 12) adaBulanLebihDari12 = true;
+    if (!x || !x.w.jam_lokal) {
       hasil.baris_ditolak.push({ baris: nomor, alasan: `${PESAN.waktuTidakTerbaca}: "${teksWaktu}"` });
       continue;
     }
-    const a = Number(m[1]);
-    const b = Number(m[2]);
-    if (b > 12) adaBulanLebihDari12 = true;
-    const w = susunWaktu(Number(m[3]), b, a, Number(m[4]), Number(m[5]), Number(m[6] ?? "0"));
-    if (!w) {
-      hasil.baris_ditolak.push({ baris: nomor, alasan: `${PESAN.waktuTidakTerbaca}: "${teksWaktu}"` });
-      continue;
-    }
+    const w = x.w;
     if (w.tanggal < paling_awal || (paling_akhir !== null && w.tanggal > paling_akhir)) {
       hasil.baris_ditolak.push({ baris: nomor, alasan: `${PESAN.tanggalMustahil}: "${teksWaktu}"` });
       continue;
     }
-    const s = (r[kStatus] ?? "").trim().toLowerCase();
-    const status = s.endsWith("masuk") ? "Masuk" : s.endsWith("keluar") ? "Keluar" : null;
+    const s = kol.status >= 0 ? String(r[kol.status] ?? "").trim().toLowerCase() : "";
+    const status = s.endsWith("masuk") || /^(c\/)?(check ?)?in$/.test(s) ? "Masuk"
+      : s.endsWith("keluar") || /^(c\/)?(check ?)?out$/.test(s) ? "Keluar" : null;
     hasil.tap.push({ id_mesin: id, jam_lokal: w.jam_lokal, status, baris: nomor });
   }
 
@@ -227,8 +372,24 @@ export function uraiBarisEkspor(barisSel: string[][], pilihan: PilihanUrai = {})
   return selesaikan(hasil);
 }
 
+export function uraiBarisEkspor(barisSel: string[][], pilihan: PilihanUrai = {}): HasilUrai {
+  return uraiTabel(barisSel, pilihan);
+}
+
+// Pemisah tabel teks: koma (bentuk file asli dan data simulasi), titik koma (CSV Excel berbahasa Indonesia), atau tab
+// (simpanan Excel "Unicode text"). Dipilih pemisah pertama yang membuat baris judul dikenali; bila tidak ada, koma.
+export function pemisahTeks(teks: string): string {
+  const awal = teks.split(/\r?\n/).slice(0, 40).join("\n");
+  for (const p of [",", ";", "\t"]) {
+    const baris = pecahCsv(awal, p).filter((r) => r.some((x) => x.trim() !== "")).slice(0, 30);
+    if (baris.some((r) => cariKolom(r.map(normal)) !== null)) return p;
+  }
+  return ",";
+}
+
 export function uraiEkspor(teks: string, pilihan: PilihanUrai = {}): HasilUrai {
-  return uraiBarisEkspor(pecahCsv(bersihkanBom(teks)), pilihan);
+  const bersih = bersihkanBom(teks);
+  return uraiTabel(pecahCsv(bersih, pemisahTeks(bersih)), pilihan);
 }
 
 // ---------------------------------------------------------------------------
@@ -289,7 +450,9 @@ export function kenaliFormat(teks: string): Format | null {
   if (!pertama) return null;
   const kol = pertama.split("\t").map((s) => s.trim());
   if (kol.length >= 2 && POLA_WAKTU_ISO.test(kol[1])) return "attlog_zkteco";
-  if (pertama.includes(",")) return "ekspor_aplikasi_v1";
+  // Tabel teks: ada pemisah koma, titik koma, atau tab di salah satu baris awal (baris judul laporan boleh di atasnya).
+  const awal = bersihkanBom(teks).split(/\r?\n/).slice(0, 40);
+  if (awal.some((b) => /[,;\t]/.test(b))) return "ekspor_aplikasi_v1";
   return null;
 }
 
@@ -306,6 +469,33 @@ export function urai(teks: string, pilihan: PilihanUrai = {}): HasilUrai {
     tanggal_awal: null,
     tanggal_akhir: null,
   };
+}
+
+// Pintu untuk isi file apa adanya (paket F1): bot dan halaman unggah meneruskan isi biner. Jenis berkas dikenali dari tanda awal
+// isinya; Excel dibuka di berkas.ts, lalu lembar pertama yang judulnya dikenali diurai dengan aturan yang sama dengan CSV.
+export async function uraiBerkas(isi: Uint8Array, pilihan: PilihanUrai = {}): Promise<HasilUrai> {
+  const jenis = jenisBerkas(isi);
+  if (jenis === "teks") return urai(bacaTeks(isi), pilihan);
+  const tolak = (alasan: string): HasilUrai => ({
+    hasil: "ditolak", alasan, format: jenis === "xls" ? "ekspor_xls" : "ekspor_xlsx", tap: [], baris_ditolak: [],
+    tanggal_awal: null, tanggal_akhir: null,
+  });
+  let buku;
+  try {
+    buku = jenis === "xls" ? bukaXls(isi) : await bukaXlsx(isi);
+  } catch (e) {
+    if (e instanceof GalatBerkas) return tolak(PESAN.berkasRusak + e.message);
+    return tolak(PESAN.berkasRusak + "file Excel tidak bisa dibuka.");
+  }
+  const format: Format = jenis === "xls" ? "ekspor_xls" : "ekspor_xlsx";
+  let pertama: HasilUrai | null = null;
+  for (const l of buku.lembar) {
+    const h = uraiTabel(l.baris, pilihan, format, buku.tanggal1904);
+    pertama = pertama ?? h;
+    // Lembar yang judulnya tidak dikenali dilewati; lembar pertama yang dikenali dipakai (diterima atau ditolak).
+    if (h.hasil === "diterima" || !(h.alasan ?? "").startsWith(PESAN.formatTidakDikenal.slice(0, 25))) return h;
+  }
+  return pertama ?? tolak(PESAN.kosong);
 }
 
 // Paket 6f (bug B1): sebutkan alasan terbanyak dan contohnya, supaya HRD tahu langkahnya (misalnya jam mesin salah).

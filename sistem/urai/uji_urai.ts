@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
-import { PESAN, kenaliFormat, pecahCsv, urai, uraiAttlog, uraiEkspor } from "./urai.ts";
+import { PESAN, kenaliFormat, pecahCsv, urai, uraiAttlog, uraiBerkas, uraiEkspor } from "./urai.ts";
+import { bacaTeks, jenisBerkas } from "./berkas.ts";
 
 const JUDUL = "Nama,No.ID,Tgl/Waktu,,Status\r\n";
 const baca = (jalur: string) => gunzipSync(readFileSync(new URL(jalur, import.meta.url))).toString("utf8");
@@ -139,4 +140,99 @@ test("6f (B1): semua baris ditolak -> pesan menyebut alasan terbanyak, jumlah, d
   assert.ok(h.alasan!.startsWith(PESAN.semuaBarisDitolak), h.alasan!);
   assert.match(h.alasan!, /1\.500 baris: tanggal mustahil \(jam mesin kemungkinan tereset atau salah\), contoh "22\/11\/2026 07\.00\.00"\./);
   assert.match(h.alasan!, / 1 baris lain dengan alasan berbeda\.$/);
+});
+
+// ---------------------------------------------------------------------------
+// Paket F1 (docs/rencana-f1-format-file.md): berbagai format file mesin. Berkas contoh di sistem/urai/contoh/ (dibuat oleh
+// buat_contoh.py dari data simulasi; isinya karangan).
+// ---------------------------------------------------------------------------
+const CONTOH = new URL("./contoh/", import.meta.url);
+const berkasContoh = (nama: string) => {
+  const isi = readFileSync(new URL(nama, CONTOH));
+  return new Uint8Array(nama.endsWith(".gz") ? gunzipSync(isi) : isi);
+};
+const csvSim = (nama: string) => gunzipSync(readFileSync(new URL(`../../data/simulasi/A/mesin/${nama}`, import.meta.url)));
+const ringkas = (h: { tap: { id_mesin: string; jam_lokal: string; status: string | null; baris: number }[] }) =>
+  h.tap.map((t) => `${t.id_mesin}|${t.jam_lokal}|${t.status}|${t.baris}`);
+
+test("F1: data yang sama dalam CSV, .xls, .xlsx, tanggal angka Excel, CSV titik koma (Windows-1252), TXT UTF-16 -> tap sama persis", async () => {
+  const pilihan = { tanggal_kirim: "2026-02-21" };
+  const acuan = urai(csvSim("A_p1_MA2.csv.gz").toString("utf8"), pilihan);
+  assert.equal(acuan.hasil, "diterima");
+  for (const nama of ["A_p1_MA2.xls", "A_p1_MA2.xlsx", "A_p1_MA2_angka.xls", "A_p1_MA2_angka.xlsx", "A_p1_MA2_titikkoma.csv",
+                      "A_p1_MA2_utf16.txt"]) {
+    const h = await uraiBerkas(berkasContoh(nama), pilihan);
+    assert.equal(h.hasil, "diterima", nama);
+    assert.deepEqual(ringkas(h), ringkas(acuan), nama);
+  }
+  assert.equal((await uraiBerkas(berkasContoh("A_p1_MA2.xls"), pilihan)).format, "ekspor_xls");
+  assert.equal((await uraiBerkas(berkasContoh("A_p1_MA2.xlsx"), pilihan)).format, "ekspor_xlsx");
+});
+
+test("F1: ID 'No. Pegawai', tanggal dan jam terpisah, tanpa status, diawali judul laporan -> ID dan jam sama", async () => {
+  const acuan = urai(csvSim("A_p1_MA2.csv.gz").toString("utf8"), { tanggal_kirim: "2026-02-21" });
+  const h = await uraiBerkas(berkasContoh("A_p1_MA2_terpisah.csv"), { tanggal_kirim: "2026-02-21" });
+  assert.equal(h.hasil, "diterima");
+  assert.deepEqual(h.tap.map((t) => `${t.id_mesin}|${t.jam_lokal}`), acuan.tap.map((t) => `${t.id_mesin}|${t.jam_lokal}`));
+  assert.ok(h.tap.every((t) => t.status === null), "tanpa kolom status, status kosong (masuk/pulang dari jam)");
+});
+
+test("F1: Excel sistem tanggal 1904 (Mac) dibaca sama dengan sistem 1900", async () => {
+  const acuan = urai(csvSim("A_p1_MA2.csv.gz").toString("utf8"), { tanggal_kirim: "2026-02-21" });
+  const h = await uraiBerkas(berkasContoh("A_p1_MA2_1904.xlsx"), { tanggal_kirim: "2026-02-21" });
+  assert.equal(h.hasil, "diterima");
+  assert.deepEqual(ringkas(h), ringkas(acuan).slice(0, 39));
+});
+
+test("F1: satu periode MA1 (40.566 baris) dalam .xls sama dengan CSV, dan terbaca jauh di bawah batas 2 detik CPU", async () => {
+  const acuan = urai(csvSim("A_p1_MA1.csv.gz").toString("utf8"), { tanggal_kirim: "2026-02-21" });
+  const isi = berkasContoh("A_p1_MA1.xls.gz");
+  const mulai = performance.now();
+  const h = await uraiBerkas(isi, { tanggal_kirim: "2026-02-21" });
+  const lama = performance.now() - mulai;
+  console.log(`  waktu baca .xls 40.566 baris: ${Math.round(lama)} ms`);
+  assert.deepEqual(ringkas(h), ringkas(acuan));
+  assert.ok(lama < 1500, `terlalu lambat: ${Math.round(lama)} ms`);
+});
+
+test("F1: tiruan susunan file asli pemilik (.xls, kolom tanpa judul, ID 18 angka, 'C/Masuk' sore) terbaca utuh", async () => {
+  const h = await uraiBerkas(berkasContoh("tiruan_asli.xls"), { tanggal_kirim: "2026-10-31" });
+  assert.equal(h.hasil, "diterima");
+  assert.equal(h.tap.length, 20);
+  assert.deepEqual([...new Set(h.tap.map((t) => t.id_mesin))], ["198001012010011001", "198502022011012002"]); // A05: digit utuh
+  assert.equal(h.tap[1].jam_lokal, "2026-10-01 16:08:45");
+  assert.equal(h.tap[1].status, "Masuk"); // A01: status apa adanya; masuk/pulang ditentukan dari jam di database
+});
+
+test("F1: penolakan dengan alasan (rekap, F09 'Waktu' di .xlsx, ID 18 angka sebagai angka, dua kolom ID, Excel rusak)", async () => {
+  const tolak = async (nama: string) => (await uraiBerkas(berkasContoh(nama), { tanggal_kirim: "2026-10-31" }));
+  const rekap = await tolak("tolak_rekap.xlsx");
+  assert.equal(rekap.hasil, "ditolak");
+  assert.equal(rekap.alasan, PESAN.rekap);
+  assert.equal((await tolak("tolak_waktu_saja.xlsx")).alasan, PESAN.formatTidakDikenal); // F09 (keputusan pemilik: pilihan A)
+  assert.equal((await tolak("tolak_id_angka.xlsx")).alasan, PESAN.idAngkaPanjang);
+  assert.equal((await tolak("tolak_dua_id.csv")).alasan, PESAN.kolomGanda);
+  const rusak = await tolak("tolak_rusak.xls");
+  assert.equal(rusak.hasil, "ditolak");
+  assert.ok(rusak.alasan!.startsWith(PESAN.berkasRusak));
+  // Semua penolakan bentuk file berawalan "Format file tidak dikenal" atau "No.ID rusak": dikenali database sebagai kejadian
+  // segera (fakta.jenis_tolak_segera, migrasi 0018).
+  for (const a of [PESAN.rekap, PESAN.kolomGanda, PESAN.berkasRusak, PESAN.formatTidakDikenal]) assert.ok(a.startsWith("Format file tidak dikenal"));
+  assert.ok(PESAN.idAngkaPanjang.startsWith("No.ID rusak"));
+});
+
+test("F1: 'Waktu' atau 'Time' saja tidak dikenali, juga sebagai kolom jam (F09, pilihan A)", () => {
+  assert.equal(urai("Nama,No.ID,Time,Status\r\nP1,7,02/02/2026 07.05.23,C/Masuk\r\n").alasan, PESAN.formatTidakDikenal);
+  assert.equal(urai("No.ID,Tanggal,Waktu\r\n7,02/02/2026,07.05\r\n").alasan, PESAN.formatTidakDikenal);
+  assert.equal(urai("No.ID,Tanggal,Jam\r\n7,02/02/2026,07.05\r\n").hasil, "diterima");
+});
+
+test("F1: jenis berkas dikenali dari isinya; teks Windows-1252 dan UTF-8 ber-BOM terbaca", async () => {
+  assert.equal(jenisBerkas(berkasContoh("A_p1_MA2.xls")), "xls");
+  assert.equal(jenisBerkas(berkasContoh("A_p1_MA2.xlsx")), "xlsx");
+  assert.equal(jenisBerkas(new TextEncoder().encode(JUDUL)), "teks");
+  assert.equal(bacaTeks(new Uint8Array([0x4a, 0x6f, 0x73, 0xe9])), "José");
+  assert.equal(bacaTeks(new Uint8Array([0xef, 0xbb, 0xbf, 0x41])), "A");
+  const h = await uraiBerkas(new TextEncoder().encode(JUDUL + "P1,7,02/02/2026 07.05.23,02/02/2026 07.05,C/Masuk\r\n"));
+  assert.equal(h.hasil, "diterima");
 });

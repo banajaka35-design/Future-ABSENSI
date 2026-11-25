@@ -8,7 +8,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import postgres from "postgres";
-import { urai } from "../urai/urai.ts";
+import { uraiBerkas as urai } from "../urai/urai.ts";
 import { buatAlat, layani, PESAN_GANGGUAN, type Sql } from "./sambung.ts";
 
 const DB = process.env.DB_URL!;
