@@ -26,4 +26,13 @@ Rencana: `docs/rencana-9c.md`, termasuk analisa celah K1–K8. "Buat" dari pemil
 
 ## Uji nyata
 
-(diisi setelah dilakukan)
+25 Nov 2026, pemilik lewat web HRD (sesi web no. 2, masuk dengan email pembangun 08.42 WIB). Semua dicek langsung di Supabase [Pasti].
+
+| Langkah | Hasil |
+| --- | --- |
+| Sebelum (08.42) | toleransi telat 5; 50 versi hitung; periode 4 `dihitung`, sidik hasil `c427e5a53c5f`; antrean aktif 0 |
+| Coba toleransi telat 5 → 10, periode 4 (08.43) | Selesai 23 detik (`lama_ms` 23.225, diukur sekali). 1.003 orang: 87 naik, 0 turun, 916 sama; total Rp4.983.863.768 → Rp4.992.563.768 (selisih Rp8.700.000 = 87 × Rp100.000); 3 orang rahasia tidak ditampilkan |
+| Cocok manual 3 orang | 10002 (telat 6 menit), 10032 (9 menit), 10050 (7 menit): masing-masing satu kali telat di atas 5 dan tidak di atas 10 menit, tanpa alpha, sekarang tanpa premi hadir → dengan toleransi 10 tidak telat → premi hadir Rp100.000; di layar +Rp100.000 (contoh 10002: 4.614.850 → 4.714.850) |
+| Sesudah | toleransi tetap 5; versi hitung tetap 50; sidik periode 4 sama; status `dihitung`; `fakta.coba_aturan` no. 1 tercatat (pengguna 1, aturan `telat_menit` 10, ringkasan sama dengan layar) |
+
+**Uji nyata 9c LULUS.**
